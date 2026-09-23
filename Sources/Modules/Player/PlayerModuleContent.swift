@@ -133,8 +133,7 @@ final class PlayerModuleContent: AmpXModuleContent {
             label: "EQ",
             title: "Equalizer",
             indicator: AmpXMetrics.playerEQIndicator,
-            labelInk: AmpXMetrics.playerEQLabelInk,
-            leftBearing: 1.1
+            labelInk: AmpXMetrics.playerEQLabelInk
         )
         self.eqToggle.action = { [weak self] in
             self?.onToggleModule(.equalizer)
@@ -144,8 +143,7 @@ final class PlayerModuleContent: AmpXModuleContent {
             label: "PL",
             title: "Playlist",
             indicator: AmpXMetrics.playerPLIndicator,
-            labelInk: AmpXMetrics.playerPLLabelInk,
-            leftBearing: 1.14
+            labelInk: AmpXMetrics.playerPLLabelInk
         )
         self.plToggle.action = { [weak self] in
             self?.onToggleModule(.playlist)
@@ -180,12 +178,8 @@ final class PlayerModuleContent: AmpXModuleContent {
             }
             if index == 6 {
                 button.label = "SHUFFLE"
-                button.labelFontSize = 12.5
-                button.labelWeight = .regular
-                button.labelBaselineOrigin = CGPoint(
-                    x: AmpXMetrics.playerShuffleLabelInk.x - 0.62,
-                    y: AmpXMetrics.playerShuffleLabelInk.y
-                )
+                button.applyKeyLabelStyle()
+                button.labelBaselineOrigin = self.labelOrigin("SHUFFLE", ink: AmpXMetrics.playerShuffleLabelInk)
                 button.showsActiveIndicator = true
                 button.indicatorRect = AmpXMetrics.playerShuffleIndicator
                 button.accessibilityTitle = "Shuffle"
@@ -204,7 +198,6 @@ final class PlayerModuleContent: AmpXModuleContent {
                 }
             } else if let icon = transportIcons[index] {
                 button.icon = icon
-                button.showsActiveFace = icon == .play
                 button.accessibilityTitle = self.transportLabel(for: icon)
                 button.action = self.transportAction(for: icon)
             }
@@ -218,16 +211,21 @@ final class PlayerModuleContent: AmpXModuleContent {
         label: String,
         title: String,
         indicator: CGRect,
-        labelInk: CGPoint,
-        leftBearing: CGFloat
+        labelInk: CGPoint
     ) {
         button.label = label
-        button.labelFontSize = 13.5
-        button.labelWeight = .regular
-        button.labelBaselineOrigin = CGPoint(x: labelInk.x - leftBearing, y: labelInk.y)
+        button.applyKeyLabelStyle()
+        button.labelBaselineOrigin = self.labelOrigin(label, ink: labelInk)
         button.showsActiveIndicator = true
         button.indicatorRect = indicator
         button.accessibilityTitle = title
+    }
+
+    /// Label origin that puts the key label's ink left edge at `ink.x`, on the `ink.y` baseline.
+    private func labelOrigin(_ text: String, ink: CGPoint) -> CGPoint {
+        let bounds = AmpXLabel(text: text, color: skin.text, fontSize: AmpXMetrics.keyLabelFontSize, weight: AmpXButton.keyLabelWeight)
+            .inkBounds(skin: skin)
+        return CGPoint(x: ink.x - bounds.minX, y: ink.y)
     }
 
     private func bindModels() {

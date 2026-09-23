@@ -252,8 +252,12 @@ final class AudioPlayerTests: XCTestCase {
         XCTAssertEqual(self.player.eqPreampValue, 0.5, accuracy: 0.001)
     }
 
-    func testPlaybackTimeSnapshotReturnsTimeWhilePlaying() {
-        let track = Track(title: "Short", artist: "Test", url: fixtureURL)
+    func testPlaybackTimeSnapshotReturnsTimeWhilePlaying() throws {
+        // Needs a file still playing after the wait: a finished track now stops the node
+        // and its clock, so the 0.1 s `short.wav` fixture would read back 0.
+        let url = try Self.makeSilentWAVFixture(durationSeconds: 2)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let track = Track(title: "Long enough", artist: "Test", url: url)
         XCTAssertTrue(self.waitForLoad(track))
         self.player.play()
         self.waitBriefly(0.4)
@@ -285,6 +289,85 @@ final class AudioPlayerTests: XCTestCase {
         waitForMainQueue(after: 0.2)
         XCTAssertFalse(self.player.isPlaying)
         XCTAssertEqual(self.player.currentTime, 0)
+    }
+
+    func testTrackCompletionResetsToStoppedState() {
+        let track = Track(title: "Short", artist: "Test", url: fixtureURL)
+        XCTAssertTrue(self.waitForLoad(track))
+        self.player.testing_markAsPlayingForTests()
+        self.player.testing_setPlaybackUIStateForTests(isPlaying: true, currentTime: 0.2)
+
+        self.player.testing_simulateTrackCompletion()
+        waitForMainQueue(after: 0.2)
+
+        XCTAssertFalse(self.player.isPlaying)
+        XCTAssertEqual(self.player.currentTime, 0, "A finished track should rewind like stop() does")
+
+        self.player.playOrResume()
+        self.waitBriefly(0.1)
+        XCTAssertEqual(
+            self.player.testing_lastTransportAction,
+            .play,
+            "Play after a finished track must reschedule the file, not resume a node with nothing queued"
+        )
+    }
+
+    func testPlayAfterNaturalCompletionReplaysFromStartAndFinishesAgain() throws {
+        let url = try Self.makeSilentWAVFixture(durationSeconds: 0.4)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let track = Track(title: "Blip", artist: "Test", url: url)
+        XCTAssertTrue(self.waitForLoad(track))
+
+        self.player.play()
+        try self.requirePlaybackStarted()
+        XCTAssertTrue(self.waitForIsPlaying(false, timeout: 5.0), "Playback should finish on its own")
+        XCTAssertEqual(self.player.currentTime, 0)
+
+        // Idle long enough that a node clock left running would exceed the file's duration.
+        self.waitBriefly(0.6)
+
+        self.player.playOrResume()
+        XCTAssertTrue(self.waitForIsPlaying(true, timeout: 2.0), "Play after completion should start again")
+        self.waitBriefly(0.1)
+        XCTAssertLessThan(
+            self.player.currentTime,
+            self.player.duration,
+            "Clock must restart from the file, not continue from wall time"
+        )
+        XCTAssertTrue(
+            self.waitForIsPlaying(false, timeout: 5.0),
+            "Replayed track should finish again instead of running forever"
+        )
+    }
+
+    func testPlayAfterSeekWhileStoppedKeepsPlayingAndDoesNotAdvance() throws {
+        let url = try Self.makeSilentWAVFixture(durationSeconds: 2.0)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let track = Track(title: "Silence", artist: "Test", url: url)
+        XCTAssertTrue(self.waitForLoad(track))
+        let finishedCount = SendableBox(0)
+        self.player.onTrackFinished = { finishedCount.value += 1 }
+
+        // Schedules a segment without playing it; Play's node stop then fires its completion.
+        self.player.seek(to: 0)
+        self.player.playOrResume()
+        try self.requirePlaybackStarted()
+        self.waitBriefly(0.3)
+
+        XCTAssertTrue(self.player.isPlaying, "A stale seek completion must not stop the new playback")
+        XCTAssertEqual(finishedCount.value, 0, "A stale seek completion must not advance the playlist")
+    }
+
+    /// Waits for playback to start, skipping the test on machines without a usable output
+    /// device (the engine cannot start, so `.dataPlayedBack` completions never fire).
+    private func requirePlaybackStarted(timeout: TimeInterval = 2.0) throws {
+        if self.waitForIsPlaying(true, timeout: timeout) {
+            return
+        }
+        if !self.player.engineIsRunning {
+            throw XCTSkip("Audio engine could not start; no output device available")
+        }
+        XCTFail("Playback should start")
     }
 
     func testSetVolumeClampsToValidRange() {
@@ -371,6 +454,18 @@ final class AudioPlayerTests: XCTestCase {
             0.9,
             "Published currentTime must stay near the seek target after timer ticks"
         )
+    }
+
+    /// Polls `isPlaying` (published from the audio queue) until it matches `expected`.
+    private func waitForIsPlaying(_ expected: Bool, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if self.player.isPlaying == expected {
+                return true
+            }
+            self.waitBriefly(0.05)
+        }
+        return self.player.isPlaying == expected
     }
 
     private static func makeSilentWAVFixture(durationSeconds: Double) throws -> URL {

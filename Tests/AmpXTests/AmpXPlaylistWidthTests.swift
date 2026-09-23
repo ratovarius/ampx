@@ -76,8 +76,8 @@ final class AmpXPlaylistWidthTests: XCTestCase {
         XCTAssertEqual(module.header.frame.height, AmpXMetrics.headerHeight)
 
         let frames = PlaylistModuleContent.layout(viewportHeight: 196, width: 700)
-        XCTAssertEqual(frames.rows.width, 650.5)
-        XCTAssertEqual(frames.scrollbar.minX, 671)
+        XCTAssertEqual(frames.rows.width, 647)
+        XCTAssertEqual(frames.scrollbar.minX, 666)
         XCTAssertEqual(frames.scrollbar.width, AmpXMetrics.playlistScrollbar.width)
         XCTAssertEqual(frames.footer.width, 700)
     }

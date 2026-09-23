@@ -2,20 +2,53 @@ import AppKit
 import CoreGraphics
 
 enum AmpXFaceStyle {
+    /// Midnight Hardware key face shared by every button and handle; glyphs use `faceInk`.
     case normal
     case hovered
+    /// Transient mechanical press; the bevel stays raised and the ink sinks 0.5 pt.
     case pressed
+    /// Orange menu button; glyphs stay light (`text`).
     case menu
+    case menuHovered
+    case menuPressed
+    /// Non-interactive raised navy surface (legacy slider thumb).
+    case surface
+
+    var isMenu: Bool {
+        self == .menu || self == .menuHovered || self == .menuPressed
+    }
+
+    var isPressed: Bool {
+        self == .pressed || self == .menuPressed
+    }
+
+    /// Face style for a control's interaction state.
+    static func resolve(pressed: Bool, hovered: Bool, menu: Bool = false) -> AmpXFaceStyle {
+        switch (menu, pressed, hovered) {
+        case (true, true, _): .menuPressed
+        case (true, false, true): .menuHovered
+        case (true, false, false): .menu
+        case (false, true, _): .pressed
+        case (false, false, true): .hovered
+        case (false, false, false): .normal
+        }
+    }
 }
 
 enum AmpXThumbMaterial {
-    /// Steel handle with three vertical grooves (horizontal sliders).
+    /// Handle travelling horizontally: three vertical grip cuts (volume, balance, seek).
     case steel
-    /// Steel handle with two horizontal grooves (vertical EQ sliders).
+    /// Handle travelling vertically: three horizontal grip cuts (EQ bands).
     case steelLevel
+    /// Seek handle; same hardware as `steel`.
     case gold
-    /// Plain bevelled gold tab (Playlist scrollbar).
+    /// Playlist scrollbar handle; same hardware as `steelLevel`.
     case goldTab
+
+    /// Grip cuts run across the travel axis.
+    var travelsVertically: Bool {
+        self == .steelLevel || self == .goldTab
+    }
 }
 
 enum AmpXTrackFill {
@@ -41,6 +74,15 @@ protocol AmpXSkin {
     var gold: NSColor { get }
     /// Sampled from PNG scrollbar thumb highlight (ReferenceMeasurementsV1).
     var goldLight: NSColor { get }
+    /// Glyph and label ink on steel button faces.
+    var faceInk: NSColor { get }
+    /// Disabled glyph and label ink on steel button faces.
+    var faceInkDim: NSColor { get }
+    /// Accent glyph inks on light steel faces, where `green`/`yellow`/`orange` are too light
+    /// to read. The bright accents stay for dark surfaces and pressed faces.
+    var faceGreen: NSColor { get }
+    var faceAmber: NSColor { get }
+    var faceOrange: NSColor { get }
 
     func font(size: CGFloat, weight: NSFont.Weight) -> NSFont
 
@@ -65,8 +107,24 @@ protocol AmpXSkin {
         in context: CGContext,
         backingScale: CGFloat
     )
+    /// Seek channel: the shared track shell with a neutral fill. `well` is the slider's frame.
     func seekWell(_ well: CGRect, track: CGRect, in context: CGContext, backingScale: CGFloat)
+    /// Neutral track channel (seek bar, Playlist scrollbar trough).
+    func neutralTrack(_ rect: CGRect, in context: CGContext, backingScale: CGFloat)
     /// Vertical EQ slot with a glowing bar tinted by the displayed gain.
     func levelTrack(_ slot: CGRect, decibels: Double, in context: CGContext, backingScale: CGFloat)
-    func metallicThumb(_ rect: CGRect, material: AmpXThumbMaterial, in context: CGContext, backingScale: CGFloat)
+    /// Handle in the shared key material; `style` carries hover and drag.
+    func metallicThumb(
+        _ rect: CGRect,
+        material: AmpXThumbMaterial,
+        style: AmpXFaceStyle,
+        in context: CGContext,
+        backingScale: CGFloat
+    )
+}
+
+extension AmpXSkin {
+    func metallicThumb(_ rect: CGRect, material: AmpXThumbMaterial, in context: CGContext, backingScale: CGFloat) {
+        self.metallicThumb(rect, material: material, style: .normal, in: context, backingScale: backingScale)
+    }
 }

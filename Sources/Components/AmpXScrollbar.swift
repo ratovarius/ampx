@@ -14,19 +14,27 @@ final class AmpXScrollbar: AmpXControlView {
         didSet { needsDisplay = true }
     }
 
-    /// Fixed thumb length (reference gold tab); `nil` sizes the thumb proportionally to the viewport.
+    /// Fixed thumb length; `nil` sizes the thumb proportionally to the viewport.
     var fixedThumbLength: CGFloat? {
         didSet { needsDisplay = true }
     }
 
     var onScroll: ((CGFloat) -> Void)?
 
-    /// Sampled from the reference scrollbar arrows.
-    private static let arrowColor = NSColor(srgbRed: 248 / 255, green: 178 / 255, blue: 10 / 255, alpha: 1)
-    private static let arrowHighlight = NSColor(srgbRed: 1, green: 243 / 255, blue: 49 / 255, alpha: 1)
     private static let minimumThumbLength: CGFloat = 12
 
-    private var isDraggingThumb = false
+    private var isDraggingThumb = false {
+        didSet { needsDisplay = true }
+    }
+
+    private enum Part {
+        case up, down, thumb
+    }
+
+    /// Arrow key held down by the current click.
+    private var pressedArrow: Part? {
+        didSet { needsDisplay = true }
+    }
     private var dragStartOffset: CGFloat = 0
     private var dragStartY: CGFloat = 0
 
@@ -44,12 +52,20 @@ final class AmpXScrollbar: AmpXControlView {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         let backingScale = window?.backingScaleFactor ?? 1
 
-        skin.raisedFace(self.trackRect(), style: .normal, in: context, backingScale: backingScale)
-        skin.raisedFace(self.upArrowRect(), style: .normal, in: context, backingScale: backingScale)
-        skin.raisedFace(self.downArrowRect(), style: .normal, in: context, backingScale: backingScale)
-        self.drawArrow(up: true, in: self.glyphRect(AmpXMetrics.playlistScrollbarUpGlyph, in: self.upArrowRect()), context: context)
-        self.drawArrow(up: false, in: self.glyphRect(AmpXMetrics.playlistScrollbarDownGlyph, in: self.downArrowRect()), context: context)
-        skin.metallicThumb(self.thumbRect(), material: .goldTab, in: context, backingScale: backingScale)
+        // Trough, arrows and handle use the shared track and key materials and states.
+        skin.neutralTrack(self.trackRect(), in: context, backingScale: backingScale)
+        let hovered = self.hoveredPart
+        for (part, rect, glyph) in [
+            (Part.up, self.upArrowRect(), AmpXMetrics.playlistScrollbarUpGlyph),
+            (Part.down, self.downArrowRect(), AmpXMetrics.playlistScrollbarDownGlyph),
+        ] {
+            let style = AmpXFaceStyle.resolve(pressed: self.pressedArrow == part, hovered: hovered == part)
+            skin.raisedFace(rect, style: style, in: context, backingScale: backingScale)
+            let sink = style.isPressed ? AmpXButton.pressedInkOffset : 0
+            self.drawArrow(up: part == .up, in: self.glyphRect(glyph, in: rect).offsetBy(dx: 0, dy: sink), context: context)
+        }
+        let thumbStyle = AmpXFaceStyle.resolve(pressed: self.isDraggingThumb, hovered: hovered == .thumb)
+        skin.metallicThumb(self.thumbRect(), material: .goldTab, style: thumbStyle, in: context, backingScale: backingScale)
 
         if !isEnabled {
             context.setFillColor(skin.background.withAlphaComponent(0.35).cgColor)
@@ -72,11 +88,13 @@ final class AmpXScrollbar: AmpXControlView {
         }
 
         if self.upArrowRect().contains(point) {
+            self.pressedArrow = .up
             self.scrollBy(-self.viewportLength / 3)
             return
         }
 
         if self.downArrowRect().contains(point) {
+            self.pressedArrow = .down
             self.scrollBy(self.viewportLength / 3)
             return
         }
@@ -106,10 +124,21 @@ final class AmpXScrollbar: AmpXControlView {
 
     override func mouseUp(with _: NSEvent) {
         self.isDraggingThumb = false
+        self.pressedArrow = nil
     }
 
     override func cancelInteraction() {
         self.isDraggingThumb = false
+        self.pressedArrow = nil
+    }
+
+    private var hoveredPart: Part? {
+        guard isHovered, isEnabled, self.pressedArrow == nil, !self.isDraggingThumb, let window else { return nil }
+        let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        if self.thumbRect().contains(point) { return .thumb }
+        if self.upArrowRect().contains(point) { return .up }
+        if self.downArrowRect().contains(point) { return .down }
+        return nil
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -209,19 +238,7 @@ final class AmpXScrollbar: AmpXControlView {
         }
         path.closeSubpath()
         context.addPath(path)
-        context.setFillColor(Self.arrowColor.cgColor)
+        context.setFillColor(skin.faceInk.cgColor)
         context.fillPath()
-
-        context.setStrokeColor(Self.arrowHighlight.withAlphaComponent(0.8).cgColor)
-        context.setLineWidth(0.5)
-        if up {
-            context.strokeLineSegments(between: [
-                CGPoint(x: rect.midX, y: rect.minY + 0.5), CGPoint(x: rect.minX + 0.5, y: rect.maxY - 0.5),
-            ])
-        } else {
-            context.strokeLineSegments(between: [
-                CGPoint(x: rect.minX + 0.5, y: rect.minY + 0.25), CGPoint(x: rect.maxX - 0.5, y: rect.minY + 0.25),
-            ])
-        }
     }
 }

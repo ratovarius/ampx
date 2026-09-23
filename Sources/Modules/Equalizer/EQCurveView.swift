@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import QuartzCore
 
-/// Animated EQ response curve using the classic Catmull-Rom spline.
+/// EQ response curve: one knot per band slider on a monotone spline, plus a preamp line.
 final class EQCurveView: AmpXDrawingView {
     static let animationDuration: TimeInterval = 0.075
 
@@ -21,9 +21,11 @@ final class EQCurveView: AmpXDrawingView {
     /// Sampled from the reference curve stroke.
     private static let curveColor = NSColor(srgbRed: 246 / 255, green: 182 / 255, blue: 6 / 255, alpha: 1)
     private static let knotColor = NSColor(srgbRed: 1, green: 206 / 255, blue: 20 / 255, alpha: 1)
+    private static let preampColor = NSColor(srgbRed: 246 / 255, green: 182 / 255, blue: 6 / 255, alpha: 0.35)
 
-    private var displayedBandValues = Array(repeating: Float(0), count: AmpXEQBands.bandCount)
-    private var displayedPreampValue: Float = 0
+    /// Values currently drawn; lag `target*` while an animation is in flight. Internal for tests.
+    private(set) var displayedBandValues = Array(repeating: Float(0), count: AmpXEQBands.bandCount)
+    private(set) var displayedPreampValue: Float = 0
     private var targetBandValues = Array(repeating: Float(0), count: AmpXEQBands.bandCount)
     private var targetPreampValue: Float = 0
 
@@ -43,29 +45,30 @@ final class EQCurveView: AmpXDrawingView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// Curve knots in a view of `size`: preamp edge knots at the view edges and band knots at the
-    /// measured pitch, with heights from `AmpXEQBands.responseCurvePoints`.
-    static func knotPoints(bandValues: [Float], preampValue: Float, size: CGSize) -> [CGPoint] {
+    /// One knot per band at the measured pitch, with heights from `AmpXEQBands.responseCurvePoints`.
+    static func knotPoints(bandValues: [Float], size: CGSize) -> [CGPoint] {
         let span = AmpXMetrics.eqCurveBandPitch * CGFloat(AmpXEQBands.bandCount)
         let origin = AmpXMetrics.eqCurveFirstBandOffset - AmpXMetrics.eqCurveBandPitch / 2
-        var points = AmpXEQBands.responseCurvePoints(
-            bandValues: bandValues,
-            preampValue: preampValue,
-            width: span,
-            height: size.height
-        )
-        guard points.count >= 2 else { return points }
-        for index in points.indices {
-            points[index].x += origin
-        }
-        points[0].x = 0
-        points[points.count - 1].x = size.width
-        return points
+        return AmpXEQBands.responseCurvePoints(bandValues: bandValues, width: span, height: size.height)
+            .map { CGPoint(x: $0.x + origin, y: $0.y) }
     }
 
+    /// `animated` only takes effect for jumps that move more than one band (presets, reset).
+    /// A single slider drag or a preamp change redraws at once: the slider is already moving
+    /// under the pointer, and easing toward each drag event made the curve trail behind it.
     func setCurve(bandValues: [Float], preampValue: Float, animated: Bool) {
         let bands = self.normalizedBands(from: bandValues)
-        if !animated {
+        let changedBands = zip(bands, self.targetBandValues).count(where: { $0 != $1 })
+        if animated, changedBands == 0, self.animationStartTime != nil {
+            // Preamp-only update (e.g. AUTO after a preset) while the bands are still easing:
+            // move the preamp line now and let the band animation finish.
+            self.animationFromPreamp = preampValue
+            self.targetPreampValue = preampValue
+            self.displayedPreampValue = preampValue
+            needsDisplay = true
+            return
+        }
+        if !animated || changedBands <= 1 {
             self.stopAnimation()
             self.displayedBandValues = bands
             self.displayedPreampValue = preampValue
@@ -88,13 +91,24 @@ final class EQCurveView: AmpXDrawingView {
 
         let points = Self.knotPoints(
             bandValues: self.reference.map { self.normalizedBands(from: $0.bandValues) } ?? self.displayedBandValues,
-            preampValue: self.reference?.preampValue ?? self.displayedPreampValue,
             size: bounds.size
         )
-        guard points.count >= 2 else { return }
+        guard let first = points.first, let last = points.last else { return }
+        let preampValue = self.reference?.preampValue ?? self.displayedPreampValue
 
         context.saveGState()
-        context.addPath(CatmullRomSpline.path(through: points).cgPath)
+        // Preamp as its own line (as in Winamp), so each curve knot mirrors one band slider.
+        let preampY = AmpXEQBands.curveY(forNormalizedGain: preampValue, height: bounds.height)
+        context.setStrokeColor(Self.preampColor.cgColor)
+        context.setLineWidth(1)
+        context.strokeLineSegments(between: [CGPoint(x: 0, y: preampY), CGPoint(x: bounds.width, y: preampY)])
+
+        // The curve runs flat from the view edges to the outer knots.
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: first.y))
+        MonotoneCubicSpline.addCurve(through: points, to: path)
+        path.addLine(to: CGPoint(x: bounds.width, y: last.y))
+        context.addPath(path)
         context.setLineWidth(1.5)
         context.setLineCap(.round)
         context.setLineJoin(.round)
@@ -122,7 +136,10 @@ final class EQCurveView: AmpXDrawingView {
     }
 
     private func startAnimation() {
-        self.stopAnimation()
+        // Only replace the display link here. `stopAnimation()` would also clear
+        // `animationStartTime`, which `setCurve` has just set; with it nil every tick
+        // returned early, so the curve never left its launch values and the link ran forever.
+        self.stopDisplayLink()
 
         let forwarder = EQCurveAnimationForwarder()
         forwarder.view = self
@@ -137,9 +154,11 @@ final class EQCurveView: AmpXDrawingView {
         self.animationTick(at: CACurrentMediaTime())
     }
 
-    fileprivate func animationTick(at time: TimeInterval) {
+    func animationTick(at time: TimeInterval) {
         guard let start = animationStartTime else { return }
-        let progress = min(1, (time - start) / Self.animationDuration)
+        // `CADisplayLink.timestamp` is the previous frame's time and can predate `start`; a
+        // negative progress would extrapolate away from the target (a raised band dipped first).
+        let progress = max(0, min(1, (time - start) / Self.animationDuration))
         self.displayedBandValues = zip(self.animationFromBands, self.targetBandValues).map { from, to in
             from + (to - from) * Float(progress)
         }
@@ -159,10 +178,14 @@ final class EQCurveView: AmpXDrawingView {
     }
 
     private func stopAnimation() {
+        self.stopDisplayLink()
+        self.animationStartTime = nil
+    }
+
+    private func stopDisplayLink() {
         self.animationLink?.invalidate()
         self.animationLink = nil
         self.animationForwarder = nil
-        self.animationStartTime = nil
     }
 }
 

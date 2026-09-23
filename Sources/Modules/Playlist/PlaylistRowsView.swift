@@ -92,6 +92,9 @@ final class PlaylistRowsView: AmpXControlView {
         let offset = self.reference == nil ? self.scrollOffset : 0
         let range = PlaylistRowLayout.visibleRange(offset: offset, viewport: bounds.height, count: rows.count)
 
+        // Partially scrolled rows must not spill over the well lip (views don't clip by default on macOS 14+).
+        context.saveGState()
+        context.clip(to: bounds)
         for index in range {
             let item = rows[index]
             let row = PlaylistRowLayout.rowRect(index: index, width: bounds.width).offsetBy(dx: 0, dy: -offset)
@@ -115,6 +118,7 @@ final class PlaylistRowsView: AmpXControlView {
             AmpXLabel(text: item.duration, color: color, fontSize: size)
                 .draw(x: text.durationRect.minX, baseline: text.baseline, context: context, skin: skin)
         }
+        context.restoreGState()
 
         drawFocusRing(in: context, backingScale: backingScale)
     }
