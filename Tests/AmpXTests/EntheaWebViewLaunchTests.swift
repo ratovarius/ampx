@@ -1,5 +1,5 @@
-import XCTest
 @testable import AmpX
+import XCTest
 
 @MainActor
 final class EntheaWebViewLaunchTests: XCTestCase {

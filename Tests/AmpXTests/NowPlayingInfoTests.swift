@@ -1,5 +1,5 @@
-import MediaPlayer
 @testable import AmpX
+import MediaPlayer
 import XCTest
 
 final class NowPlayingInfoTests: XCTestCase {

@@ -1,6 +1,8 @@
 import Accelerate
 @preconcurrency import AVFoundation
 import Foundation
+import os
+import Synchronization
 
 final class FFTSpectrumAnalyzer: @unchecked Sendable {
     let bandCount: Int
@@ -26,6 +28,11 @@ final class FFTSpectrumAnalyzer: @unchecked Sendable {
     private let rawBinReferenceMagnitude: Float
     private let processingQueue = DispatchQueue(label: "com.ampx.fft", qos: .userInteractive)
     private let tapStaging = TapPCMStaging()
+    private let processingSignal: DispatchSourceUserDataAdd
+    private let miniGeneration = Atomic<UInt64>(0)
+    private let miniResetLock = OSAllocatedUnfairLock()
+    private var streamGeneration: UInt64 = .max
+    private var streamRate: Double = 0
 
     private var windowRing = [Float](repeating: 0, count: AudioFeatures.fftSize)
     private var ringWriteIndex = 0
@@ -66,10 +73,15 @@ final class FFTSpectrumAnalyzer: @unchecked Sendable {
         self.fftSetup = vDSP_create_fftsetup(self.log2n, FFTRadix(kFFTRadix2))
         vDSP_hann_window(&self.window, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
         self.rawBinReferenceMagnitude = pow(self.window.reduce(0, +), 2)
+        self.windowRing = [Float](repeating: 0, count: fftSize)
+        self.processingSignal = DispatchSource.makeUserDataAddSource(queue: self.processingQueue)
         self.prepareBandMappings(sampleRate: 44100)
+        self.processingSignal.setEventHandler { [weak self] in self?.processCapturedTap() }
+        self.processingSignal.resume()
     }
 
     deinit {
+        self.processingSignal.cancel()
         if let fftSetup {
             vDSP_destroy_fftsetup(fftSetup)
         }
@@ -78,14 +90,14 @@ final class FFTSpectrumAnalyzer: @unchecked Sendable {
     func installTap(on node: AVAudioNode) {
         let format = node.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else { return }
+        self.resetMiniAnalysis()
 
         node.installTap(onBus: 0, bufferSize: AVAudioFrameCount(self.hopSize), format: format) { [weak self] buffer, _ in
             guard let self else { return }
-            // Realtime path: copy samples into preallocated staging only (no heap).
-            AudioFeatureBus.shared.waveformRing.append(pcm: buffer)
-            self.tapStaging.capture(buffer)
-            self.processingQueue.async { [weak self] in
-                self?.processCapturedTap()
+            // Preallocated, nonblocking capture. The reusable dispatch source coalesces
+            // wakeups; no per-callback closure or unbounded queued analysis tasks.
+            if self.tapStaging.capture(buffer, generation: self.miniGeneration.load(ordering: .acquiring)) {
+                self.processingSignal.add(data: 1)
             }
         }
     }
@@ -94,27 +106,57 @@ final class FFTSpectrumAnalyzer: @unchecked Sendable {
         node.removeTap(onBus: 0)
     }
 
+    func resetMiniAnalysis() {
+        // Resets may originate on the main actor or audio control queue. Serialize
+        // the pair so an older reset cannot store its epoch after a newer reset.
+        // The audio callback only performs the atomic load; it never takes this lock.
+        self.miniResetLock.lock()
+        defer { self.miniResetLock.unlock() }
+        let generation = AudioFeatureBus.shared.miniTimeline.reset()
+        self.miniGeneration.store(generation, ordering: .releasing)
+    }
+
     private func processCapturedTap() {
-        guard let copy = self.tapStaging.makePCMBuffer() else { return }
+        guard let batch = self.tapStaging.take(),
+              batch.generation == self.miniGeneration.load(ordering: .acquiring) else { return }
+        let copy = batch.pcm
+        if batch.discontinuity || self.streamGeneration != batch.generation
+            || self.streamRate != copy.format.sampleRate
+        {
+            self.windowRing = [Float](repeating: 0, count: self.fftSize)
+            self.ringWriteIndex = 0
+            self.samplesUntilFFT = 0
+            self.streamGeneration = batch.generation
+            self.streamRate = copy.format.sampleRate
+        }
+        AudioFeatureBus.shared.waveformRing.append(pcm: copy)
         // Per-buffer FFT analysis cost + cadence: visible in Instruments' os_signpost
         // track under the "Audio" category.
         let analysisSignpost = Instrumentation.audio.beginInterval("fftAnalyze")
         defer { Instrumentation.audio.endInterval("fftAnalyze", analysisSignpost) }
         let waveform = self.extractWaveformSamples(from: copy, sampleCount: self.waveformChunkSize)
         var frames: [[Float]] = []
+        var hopOffsets: [Int] = []
         let bands: [Float]
-        if let streamed = self.analyzeStreaming(copy, onHop: { hopBands in
+        if let streamed = self.analyzeStreaming(copy, onHop: { hopBands, offset in
             frames.append(hopBands)
+            hopOffsets.append(offset)
             self.onSpectrumUpdate?(hopBands)
         }) {
             bands = streamed
         } else {
             bands = self.analyze(copy)
             frames.append(bands)
+            hopOffsets.append(Int(copy.frameLength))
             self.onSpectrumUpdate?(bands)
         }
         let sampleRate = copy.format.sampleRate
         let batchDuration = sampleRate > 0 ? Double(copy.frameLength) / sampleRate : 0
+        AudioFeatureBus.shared.miniTimeline.publish(
+            pcm: copy, spectrumFrames: frames, hopOffsets: hopOffsets,
+            arrivalTime: batch.arrivalTime, generation: batch.generation,
+            discontinuity: batch.discontinuity
+        )
         self.onSpectrumFrames?(frames, batchDuration)
         self.onAnalysisUpdate?(bands, waveform.left, waveform.right)
         self.onWaveformUpdate?(waveform.left, waveform.right)
@@ -122,8 +164,7 @@ final class FFTSpectrumAnalyzer: @unchecked Sendable {
 
     /// Exercises the tap processing path without installing an AVAudioNode tap.
     func processBufferForTests(_ buffer: AVAudioPCMBuffer) {
-        AudioFeatureBus.shared.waveformRing.append(pcm: buffer)
-        self.tapStaging.capture(buffer)
+        self.tapStaging.capture(buffer, generation: self.miniGeneration.load(ordering: .acquiring))
         let done = DispatchSemaphore(value: 0)
         self.processingQueue.async {
             self.processCapturedTap()
@@ -166,12 +207,12 @@ final class FFTSpectrumAnalyzer: @unchecked Sendable {
 
     private func analyzeStreaming(
         _ buffer: AVAudioPCMBuffer,
-        onHop: (([Float]) -> Void)? = nil
+        onHop: (([Float], Int) -> Void)? = nil
     ) -> [Float]? {
         guard let mono = self.makeMonoSamples(from: buffer) else { return nil }
 
         var latestBands: [Float]?
-        for sample in mono {
+        for (index, sample) in mono.enumerated() {
             self.windowRing[self.ringWriteIndex] = sample
             self.ringWriteIndex = (self.ringWriteIndex + 1) % self.fftSize
             self.samplesUntilFFT += 1
@@ -183,7 +224,7 @@ final class FFTSpectrumAnalyzer: @unchecked Sendable {
                     sampleRate: Float(buffer.format.sampleRate)
                 )
                 latestBands = bands
-                onHop?(bands)
+                onHop?(bands, index + 1)
             }
         }
         return latestBands

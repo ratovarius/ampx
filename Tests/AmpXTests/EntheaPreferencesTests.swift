@@ -1,17 +1,17 @@
-import XCTest
 @testable import AmpX
+import XCTest
 
 final class EntheaPreferencesTests: XCTestCase {
-    func testPhotosensitiveWarningDefaultsFalse() {
+    func testPhotosensitiveWarningDefaultsFalse() throws {
         let suiteName = "EntheaPreferencesTests.\(#function)"
-        let suite = UserDefaults(suiteName: suiteName)!
+        let suite = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         suite.removePersistentDomain(forName: suiteName)
         XCTAssertFalse(EntheaPreferences(defaults: suite).photosensitiveWarningAccepted)
     }
 
-    func testPhotosensitiveWarningPersists() {
+    func testPhotosensitiveWarningPersists() throws {
         let suiteName = "EntheaPreferencesTests.\(#function)"
-        let suite = UserDefaults(suiteName: suiteName)!
+        let suite = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         suite.removePersistentDomain(forName: suiteName)
         let prefs = EntheaPreferences(defaults: suite)
         prefs.photosensitiveWarningAccepted = true
@@ -36,16 +36,16 @@ final class EntheaPreferencesTests: XCTestCase {
         XCTAssertEqual(scale, 2, accuracy: 0.01)
     }
 
-    func testAutopilotDefaultsTrue() {
+    func testAutopilotDefaultsTrue() throws {
         let suiteName = "EntheaPreferencesTests.\(#function)"
-        let suite = UserDefaults(suiteName: suiteName)!
+        let suite = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         suite.removePersistentDomain(forName: suiteName)
         XCTAssertTrue(EntheaPreferences(defaults: suite).autopilot)
     }
 
-    func testModeAndAutopilotPersist() {
+    func testModeAndAutopilotPersist() throws {
         let suiteName = "EntheaPreferencesTests.\(#function)"
-        let suite = UserDefaults(suiteName: suiteName)!
+        let suite = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         suite.removePersistentDomain(forName: suiteName)
         let prefs = EntheaPreferences(defaults: suite)
         prefs.modeID = 12

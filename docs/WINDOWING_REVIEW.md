@@ -1,5 +1,10 @@
 # Windowing System Review — Winamp macOS
 
+> **⚠️ SUPERSEDED (2026-09).** This document describes the retired Classic multi-window docking
+> system. The current AppKit module-stack architecture is defined in
+> [AmpX UI design spec](superpowers/specs/2026-09-11-ampx-ui-design.md). The sections below are
+> preserved for historical context only.
+
 > **Current architecture (2026-08).** Docking is **geometry-primary**: window frames are the
 > source of truth; `WinampDockGraph` derives the parent/child spanning tree (pure, unit-tested;
 > see `Sources/WinampDockGraph.swift` and `WinampDockGraphTests`). Managed panels are main,

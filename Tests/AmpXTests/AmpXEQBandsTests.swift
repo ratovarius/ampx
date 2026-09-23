@@ -35,17 +35,16 @@ final class AmpXEQBandsTests: XCTestCase {
         XCTAssertLessThan(topBand, lowBand)
     }
 
-    func testResponseCurveEndpointsFollowPreamp() {
-        let points = AmpXEQBands.responseCurvePoints(
-            bandValues: Array(repeating: 0, count: 10),
-            preampValue: 0.25,
-            width: 200,
-            height: 40
-        )
-        XCTAssertEqual(points.first?.x, 0)
-        XCTAssertEqual(points.last?.x, 200)
-        let startY = points.first?.y ?? 0
-        let endY = points.last?.y ?? 0
-        XCTAssertEqual(startY, endY, accuracy: 0.001)
+    func testResponseCurveHasOneKnotPerBandAtTheSliderValue() {
+        var bands = Array(repeating: Float(0), count: 10)
+        bands[0] = 1
+        bands[9] = -1
+        let points = AmpXEQBands.responseCurvePoints(bandValues: bands, width: 200, height: 40)
+
+        XCTAssertEqual(points.count, AmpXEQBands.bandCount)
+        XCTAssertEqual(points[0].y, AmpXEQBands.curveY(forNormalizedGain: 1, height: 40), accuracy: 0.001)
+        XCTAssertEqual(points[9].y, AmpXEQBands.curveY(forNormalizedGain: -1, height: 40), accuracy: 0.001)
+        XCTAssertEqual(points[5].y, 20, accuracy: 0.001, "A flat band sits on the center line")
+        XCTAssertLessThan(points[0].y, points[9].y, "Boost is drawn above cut")
     }
 }

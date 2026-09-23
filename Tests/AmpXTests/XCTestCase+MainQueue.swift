@@ -41,7 +41,9 @@ extension XCTestCase {
     ) async {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if manager.tracks.count == expected { return }
+            if manager.tracks.count == expected {
+                return
+            }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
         XCTFail("Timed out waiting for \(expected) tracks, got \(manager.tracks.count)", file: file, line: line)

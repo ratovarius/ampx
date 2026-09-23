@@ -78,6 +78,9 @@ class AudioPlayer: NSObject, ObservableObject {
     private nonisolated(unsafe) var shouldAutoAdvance = true
     private let playStateLock = OSAllocatedUnfairLock()
     private nonisolated(unsafe) var isPlayingInternalStorage = false
+    /// Audio-queue state: the node holds a paused position that `resume()` can continue.
+    /// Distinguishes paused from stopped so Pause can toggle back to playing.
+    private nonisolated(unsafe) var isPausedInternal = false
     private nonisolated(unsafe) var playbackGeneration = 0
     private nonisolated(unsafe) var loadGeneration = 0
     /// Absolute file time at the start of the currently scheduled player segment.
@@ -275,6 +278,7 @@ class AudioPlayer: NSObject, ObservableObject {
             }
 
             self.isPlayingInternal = false
+            self.isPausedInternal = false
             self.shouldAutoAdvance = false
             self.audioFile = nil
             self.playbackGeneration += 1
@@ -384,6 +388,9 @@ class AudioPlayer: NSObject, ObservableObject {
     /// Stops scheduled audio and reuses the attached player node for the next file.
     private nonisolated func preparePlayerNodeForNewTrack() {
         guard let engine = audioEngine else { return }
+        // Invalidate analysis only after stopping/resetting the old source. Opening
+        // the new epoch on the main actor beforehand could stamp old PCM as new.
+        defer { self.spectrumAnalyzer?.resetMiniAnalysis() }
 
         if let player = playerNode {
             player.stop()
@@ -444,6 +451,9 @@ class AudioPlayer: NSObject, ObservableObject {
             }
             self.publishEngineRunningState(true, on: self)
 
+            // Stopping the node fires the completion of any segment still scheduled (e.g. by
+            // a seek while stopped); the new generation makes that completion a no-op.
+            self.playbackGeneration += 1
             player.stop()
             player.reset()
 
@@ -451,11 +461,11 @@ class AudioPlayer: NSObject, ObservableObject {
             self.playbackSegmentStartTime = 0
             let generation = self.playbackGeneration
 
-            player.scheduleFile(file, at: nil) { [weak self] in
-                self?.runOnMainActor(weak: self) { player in
-                    guard generation == player.playbackGeneration else { return }
-                    player.handleTrackCompletion()
-                }
+            // `.dataPlayedBack` fires once the last frame has left the output device, so
+            // completion handling can stop the node without clipping the tail. The default
+            // `.dataConsumed` fires as soon as the file has been read into the render pipeline.
+            player.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                self?.handleTrackCompletion(generation: generation)
             }
 
             player.volume = playerGain
@@ -463,6 +473,7 @@ class AudioPlayer: NSObject, ObservableObject {
             player.pan = balance
             player.play()
             self.isPlayingInternal = true
+            self.isPausedInternal = false
 
             self.runOnMainActor(weak: self) { player in
                 player.isPlaying = true
@@ -473,12 +484,20 @@ class AudioPlayer: NSObject, ObservableObject {
         }
     }
 
+    /// Pauses playback; pressing Pause again while paused resumes (Winamp behavior).
+    /// Does nothing while stopped.
     func pause() {
         self.testing_lastTransportAction = .pause
         self.audioQueue.async { [weak self] in
-            guard let self, self.isPlayingInternal else { return }
+            guard let self else { return }
+            if self.isPausedInternal {
+                self.resumeOnAudioQueue()
+                return
+            }
+            guard self.isPlayingInternal else { return }
             self.playerNode?.pause()
             self.isPlayingInternal = false
+            self.isPausedInternal = true
 
             self.runOnMainActor(weak: self) { player in
                 player.isPlaying = false
@@ -491,25 +510,31 @@ class AudioPlayer: NSObject, ObservableObject {
     func resume() {
         self.testing_lastTransportAction = .resume
         self.audioQueue.async { [weak self] in
-            guard let self,
-                  let player = self.playerNode,
-                  let engine = self.audioEngine,
-                  !self.isPlayingInternal else { return }
+            self?.resumeOnAudioQueue()
+        }
+    }
 
-            guard self.startEngineIfNeeded(engine) else {
-                self.publishEngineRunningState(false, on: self)
-                return
-            }
-            self.publishEngineRunningState(true, on: self)
+    private nonisolated func resumeOnAudioQueue() {
+        guard let player = self.playerNode,
+              let engine = self.audioEngine,
+              !self.isPlayingInternal else { return }
 
-            player.play()
-            self.isPlayingInternal = true
+        guard self.startEngineIfNeeded(engine) else {
+            self.publishEngineRunningState(false, on: self)
+            return
+        }
+        self.publishEngineRunningState(true, on: self)
 
-            self.runOnMainActor(weak: self) { player in
-                player.isPlaying = true
-                player.startTimer()
-                player.updateNowPlayingInfo()
-            }
+        // A seek while paused/stopped disarms auto-advance; playing again re-arms it.
+        self.shouldAutoAdvance = true
+        player.play()
+        self.isPlayingInternal = true
+        self.isPausedInternal = false
+
+        self.runOnMainActor(weak: self) { player in
+            player.isPlaying = true
+            player.startTimer()
+            player.updateNowPlayingInfo()
         }
     }
 
@@ -520,7 +545,9 @@ class AudioPlayer: NSObject, ObservableObject {
             self.playbackGeneration += 1
             self.playbackSegmentStartTime = 0
             self.playerNode?.stop()
+            self.spectrumAnalyzer?.resetMiniAnalysis()
             self.isPlayingInternal = false
+            self.isPausedInternal = false
 
             self.runOnMainActor(weak: self) { player in
                 player.isPlaying = false
@@ -541,11 +568,22 @@ class AudioPlayer: NSObject, ObservableObject {
 
     /// Starts playback from the beginning, or resumes from the current position when paused.
     func playOrResume() {
-        if self.isPlaying { return }
+        if self.isPlaying {
+            return
+        }
         if self.currentTime > 0, self.currentTrack != nil {
             self.resume()
         } else {
             self.play()
+        }
+    }
+
+    /// Winamp Play (X): restarts a playing track, resumes a paused one, starts a stopped one.
+    func playOrRestart() {
+        if self.isPlaying {
+            self.seek(to: 0)
+        } else {
+            self.playOrResume()
         }
     }
 
@@ -561,6 +599,7 @@ class AudioPlayer: NSObject, ObservableObject {
             player.stop()
             player.reset()
             self.isPlayingInternal = false
+            self.spectrumAnalyzer?.resetMiniAnalysis()
 
             let sampleRate = file.fileFormat.sampleRate
             let durationSeconds = sampleRate > 0 ? Double(file.length) / sampleRate : 0
@@ -585,18 +624,17 @@ class AudioPlayer: NSObject, ObservableObject {
                 file,
                 startingFrame: startFrame,
                 frameCount: AVAudioFrameCount(file.length - startFrame),
-                at: nil
-            ) { [weak self] in
-                self?.runOnMainActor(weak: self) { player in
-                    guard generation == player.playbackGeneration else { return }
-                    player.handleTrackCompletion()
-                }
+                at: nil,
+                completionCallbackType: .dataPlayedBack
+            ) { [weak self] _ in
+                self?.handleTrackCompletion(generation: generation)
             }
 
             if wasPlaying {
                 self.shouldAutoAdvance = true
                 player.play()
                 self.isPlayingInternal = true
+                self.isPausedInternal = false
             }
 
             self.runOnMainActor(weak: self) { player in
@@ -789,7 +827,11 @@ class AudioPlayer: NSObject, ObservableObject {
     @discardableResult
     func importEQF(from url: URL) -> [EQPreset] {
         let needsScope = url.startAccessingSecurityScopedResource()
-        defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
+        defer {
+            if needsScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
 
         guard let data = try? Data(contentsOf: url),
               let imported = try? EQFParser.parse(data), !imported.isEmpty
@@ -815,7 +857,9 @@ class AudioPlayer: NSObject, ObservableObject {
     private func startTimer() {
         self.timer?.invalidate()
         self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
+            // A real `Task`, not `MainActor.assumeIsolated`: the timer fires with no Swift task and
+            // on macOS 26 the executor check inside `assumeIsolated` crashes (see commit 5562af8).
+            Task { @MainActor in
                 self?.tickPlaybackUI()
             }
         }
@@ -862,15 +906,32 @@ class AudioPlayer: NSObject, ObservableObject {
         AudioFeatureBus.shared.setPlaying(false)
     }
 
-    private func handleTrackCompletion() {
+    /// Runs when the scheduled audio has played back to its end. Leaves the player in the
+    /// same stopped state as `stop()` before notifying the delegate: a finished
+    /// `AVAudioPlayerNode` otherwise keeps its sample clock running with nothing scheduled,
+    /// so a later `resume()` would show wall-clock time, play silence and never finish.
+    ///
+    /// `generation` is checked on `audioQueue`, where `playbackGeneration` is written, so a
+    /// completion that races a newer play/seek/load/stop is dropped instead of stopping the
+    /// new playback. `nil` skips the check (test hook only).
+    private nonisolated func handleTrackCompletion(generation: Int?) {
         self.audioQueue.async { [weak self] in
             guard let self else { return }
+            if let generation, generation != self.playbackGeneration {
+                return
+            }
+            self.playerNode?.stop()
+            self.playbackSegmentStartTime = 0
+            self.spectrumAnalyzer?.resetMiniAnalysis()
             self.isPlayingInternal = false
+            self.isPausedInternal = false
             let shouldAdvance = self.shouldAutoAdvance
 
             self.runOnMainActor(weak: self) { player in
                 player.isPlaying = false
+                player.currentTime = 0
                 player.stopTimer()
+                player.updateNowPlayingInfo()
                 if shouldAdvance {
                     player.onTrackFinished?()
                 }
@@ -878,8 +939,24 @@ class AudioPlayer: NSObject, ObservableObject {
         }
     }
 
+    private(set) var testing_lastTransportAction: TestingTransportAction?
+}
+
+// MARK: - Test hooks
+
+///
+/// Kept in an extension so the class body above stays focused on playback. Same file,
+/// not a separate one, because these hooks reach into the engine's `private` state.
+extension AudioPlayer {
+    enum TestingTransportAction: Equatable {
+        case play
+        case resume
+        case pause
+        case stop
+    }
+
     func testing_simulateTrackCompletion() {
-        self.handleTrackCompletion()
+        self.handleTrackCompletion(generation: nil)
     }
 
     func testing_afterAudioQueueFlush(completion: @escaping @Sendable () -> Void) {
@@ -910,15 +987,6 @@ class AudioPlayer: NSObject, ObservableObject {
             completion(self?.isPlayingInternal ?? false)
         }
     }
-
-    enum TestingTransportAction: Equatable {
-        case play
-        case resume
-        case pause
-        case stop
-    }
-
-    private(set) var testing_lastTransportAction: TestingTransportAction?
 
     func testing_setPlaybackUIStateForTests(isPlaying: Bool, currentTime: TimeInterval) {
         self.currentTime = currentTime

@@ -125,7 +125,9 @@ enum EntheaTrackAnalyzer {
             var mn: Float = 1
             let dipStart = max(0, f - dipW)
             for j in dipStart ..< f {
-                if lvlS[j] < mn { mn = lvlS[j] }
+                if lvlS[j] < mn {
+                    mn = lvlS[j]
+                }
             }
             let dip = lvlS[f] - mn
             score[f] = max(0, jump) * bass[f]

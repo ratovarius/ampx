@@ -31,6 +31,6 @@ struct EntheaLookPreset: Identifiable, Equatable, Sendable {
         "Artistic visual interpretations only — not dosing advice, not medical advice; simulator only."
 
     static func preset(id: String) -> EntheaLookPreset? {
-        Self.all.first { $0.id == id }
+        self.all.first { $0.id == id }
     }
 }

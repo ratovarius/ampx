@@ -67,7 +67,9 @@ enum EntheaPushRatePolicy {
     static let largeAreaThreshold: CGFloat = 600 * 450
 
     static func pushHz(forContentSize size: CGSize, isTheater: Bool) -> Double {
-        if isTheater { return Self.theaterOrLargeHz }
+        if isTheater {
+            return self.theaterOrLargeHz
+        }
         let area = max(0, size.width) * max(0, size.height)
         return area >= Self.largeAreaThreshold ? Self.theaterOrLargeHz : Self.dockedSmallHz
     }

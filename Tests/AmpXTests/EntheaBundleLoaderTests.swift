@@ -1,5 +1,5 @@
-import XCTest
 @testable import AmpX
+import XCTest
 
 final class EntheaBundleLoaderTests: XCTestCase {
     func testEntheaDirectoryIsBundledAsADirectory() {

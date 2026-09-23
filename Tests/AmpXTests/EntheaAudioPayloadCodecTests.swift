@@ -1,5 +1,5 @@
-import XCTest
 @testable import AmpX
+import XCTest
 
 final class EntheaAudioPayloadCodecTests: XCTestCase {
     func testEncodedBlobRoundTripsBinsAndWaveforms() {
@@ -29,13 +29,13 @@ final class EntheaAudioPayloadCodecTests: XCTestCase {
         XCTAssertEqual(decoded.right[1000], -0.75, accuracy: 0.0001)
     }
 
-    func testEncodedBlobLayoutIsStable() {
+    func testEncodedBlobLayoutIsStable() throws {
         var bins = [UInt8](repeating: 0, count: EntheaAudioPayloadCodec.binCount)
         bins[0] = 42
         let left = [Float](repeating: 1.5, count: EntheaAudioPayloadCodec.waveCount)
         let right = [Float](repeating: -2.5, count: EntheaAudioPayloadCodec.waveCount)
 
-        let data = Data(base64Encoded: EntheaAudioPayloadCodec.encode(bins: bins, left: left, right: right))!
+        let data = try XCTUnwrap(Data(base64Encoded: EntheaAudioPayloadCodec.encode(bins: bins, left: left, right: right)))
         XCTAssertEqual(data.count, EntheaAudioPayloadCodec.binCount + EntheaAudioPayloadCodec.waveCount * 8)
         XCTAssertEqual(data[0], 42)
 
@@ -54,13 +54,13 @@ final class EntheaAudioPayloadCodecTests: XCTestCase {
         XCTAssertEqual(right0, -2.5, accuracy: 0.0001)
     }
 
-    func testEncodePadsAndTruncatesToFixedSizes() {
+    func testEncodePadsAndTruncatesToFixedSizes() throws {
         let blob = EntheaAudioPayloadCodec.encode(
             bins: [1, 2, 3],
             left: [0.1],
             right: Array(repeating: 0.2, count: 3000)
         )
-        let decoded = EntheaAudioPayloadCodec.decode(blob)!
+        let decoded = try XCTUnwrap(EntheaAudioPayloadCodec.decode(blob))
         XCTAssertEqual(decoded.bins.count, 512)
         XCTAssertEqual(decoded.bins[0], 1)
         XCTAssertEqual(decoded.bins[2], 3)

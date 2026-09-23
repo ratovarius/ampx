@@ -55,7 +55,9 @@ final class EntheaWKHostView: NSView, WKNavigationDelegate {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     override func layout() {
         super.layout()
@@ -91,7 +93,9 @@ final class EntheaWKHostView: NSView, WKNavigationDelegate {
 
     @discardableResult
     private func ensureWebView() -> WKWebView {
-        if let webView { return webView }
+        if let webView {
+            return webView
+        }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.suppressesIncrementalRendering = true
@@ -222,7 +226,7 @@ final class EntheaWKHostView: NSView, WKNavigationDelegate {
         }
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    func webView(_: WKWebView, didFinish _: WKNavigation!) {
         self.applyBackingScale(for: self.bounds.size)
         self.evaluatePageJavaScript(
             "window.winampEnthea && window.winampEnthea.hideChrome();"
@@ -248,11 +252,10 @@ final class EntheaWKHostView: NSView, WKNavigationDelegate {
             isTheater: self.isTheater
         )
 
-        let occluded: Bool
-        if let window {
-            occluded = !window.occlusionState.contains(.visible)
+        let occluded: Bool = if let window {
+            !window.occlusionState.contains(.visible)
         } else {
-            occluded = true
+            true
         }
 
         let audioOn = self.wantsAudioBridge && !occluded
@@ -320,7 +323,7 @@ struct EntheaWebView: NSViewRepresentable {
     var isPlaying: Bool
     @ObservedObject var controller: EntheaPanelController
 
-    func makeNSView(context: Context) -> EntheaWKHostView {
+    func makeNSView(context _: Context) -> EntheaWKHostView {
         let host = EntheaWKHostView(frame: CGRect(origin: .zero, size: self.size))
         host.panelController = self.controller
         host.updatePlayback(
@@ -333,7 +336,7 @@ struct EntheaWebView: NSViewRepresentable {
         return host
     }
 
-    func updateNSView(_ host: EntheaWKHostView, context: Context) {
+    func updateNSView(_ host: EntheaWKHostView, context _: Context) {
         host.panelController = self.controller
         host.frame.size = self.size
         host.updatePlayback(
@@ -345,7 +348,7 @@ struct EntheaWebView: NSViewRepresentable {
         host.setDesiredActive(self.isActive, contentSize: self.size)
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView _: EntheaWKHostView, context _: Context) -> CGSize? {
+    func sizeThatFits(_: ProposedViewSize, nsView _: EntheaWKHostView, context _: Context) -> CGSize? {
         self.size
     }
 }

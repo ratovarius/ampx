@@ -9,8 +9,7 @@
 /* Begin PBXBuildFile section */
 		A10000011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000011 /* Assets.xcassets */; };
 		A10000012 /* startup.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A20000013 /* startup.mp3 */; };
-		A10000049 /* JetBrainsMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000049 /* JetBrainsMono-Regular.ttf */; };
-		A10000050 /* JetBrainsMono-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000050 /* JetBrainsMono-Bold.ttf */; };
+		A10000055 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = A20000055 /* Fonts */; };
 		A10000060 /* Enthea in Resources */ = {isa = PBXBuildFile; fileRef = A20000060 /* Enthea */; };
 		B10000007 /* sample.m3u in Resources */ = {isa = PBXBuildFile; fileRef = B20000007 /* sample.m3u */; };
 		B10000009 /* short.wav in Resources */ = {isa = PBXBuildFile; fileRef = B20000009 /* short.wav */; };
@@ -21,8 +20,7 @@
 		A20000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000013 /* startup.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = startup.mp3; sourceTree = "<group>"; };
-		A20000049 /* JetBrainsMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = JetBrainsMono-Regular.ttf; sourceTree = "<group>"; };
-		A20000050 /* JetBrainsMono-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Bold.ttf"; sourceTree = "<group>"; };
+		A20000055 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		A20000060 /* Enthea */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Enthea; sourceTree = "<group>"; };
 		B10000000 /* AmpXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AmpXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000007 /* sample.m3u */ = {isa = PBXFileReference; lastKnownFileType = text; path = sample.m3u; sourceTree = "<group>"; };
@@ -78,23 +76,14 @@
 			);
 			sourceTree = "<group>";
 		};
-		A40000015 /* Fonts */ = {
-			isa = PBXGroup;
-			children = (
-				A20000049 /* JetBrainsMono-Regular.ttf */,
-				A20000050 /* JetBrainsMono-Bold.ttf */,
-			);
-			path = Fonts;
-			sourceTree = "<group>";
-		};
 		A40000003 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 				A20000011 /* Assets.xcassets */,
 				A20000012 /* Info.plist */,
 				A20000013 /* startup.mp3 */,
+				A20000055 /* Fonts */,
 				A20000060 /* Enthea */,
-				A40000015 /* Fonts */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -205,8 +194,7 @@
 			files = (
 				A10000011 /* Assets.xcassets in Resources */,
 				A10000012 /* startup.mp3 in Resources */,
-				A10000049 /* JetBrainsMono-Regular.ttf in Resources */,
-				A10000050 /* JetBrainsMono-Bold.ttf in Resources */,
+				A10000055 /* Fonts in Resources */,
 				A10000060 /* Enthea in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -327,8 +315,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
-				MARKETING_VERSION = 1.0.6;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -413,8 +401,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
-				MARKETING_VERSION = 1.0.6;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = (
@@ -460,7 +448,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ampx.macos.tests;
@@ -487,7 +475,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ampx.macos.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

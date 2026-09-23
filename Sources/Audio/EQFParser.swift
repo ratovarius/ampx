@@ -111,7 +111,9 @@ enum EQFParser {
     }
 
     private static func normalizedBands(_ gains: [Float]) -> [Float] {
-        if gains.count == self.bandCount { return gains }
+        if gains.count == self.bandCount {
+            return gains
+        }
         var padded = gains
         padded += Array(repeating: 0, count: max(0, self.bandCount - padded.count))
         return Array(padded.prefix(self.bandCount))

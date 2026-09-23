@@ -1,0 +1,197 @@
+# Mini visualizers — implementation and validation
+
+Implemented the eight-style mini display in the existing Player well.
+Blue is the default; Blue, Classic, Red, Green, and Amber are independently
+selectable and persisted.
+Click cycles styles, right-click opens the native style/palette menu, and
+double-click preserves the existing module-toggle behavior. Accessibility exposes
+the current selection and actions for changing style and palette.
+
+## Five-palette live review — 2026-09-18
+
+The [live review](2026-09-18-mini-visualizers-visual-review.md) documents all
+**40 style/palette combinations captured during real music playback**, their
+full-player comparison sheets, and the resulting particle/Waterfall refinements.
+The sections below retain the earlier two-palette implementation evidence and
+measurements; their capture counts describe that earlier version.
+
+## User feedback refinements — 2026-09-18
+
+- Removed Retro from selection, cycling, and the shader. Existing `"retro"` and
+  legacy mode `0` preferences load Classic Spectrum while preserving the palette.
+  Historical Retro captures are archived under `original-retro/`.
+- Mirrored Spectrum now uses the exact drawable center and identical cell geometry
+  on both sides. The lower half keeps 70–85% of the corresponding color rather
+  than fading from 35% to black, making the reflection visible at the real mini size.
+- Stereo Bars still measures independent PCM L/R RMS and sample peaks over the
+  calibrated −72…0 dBFS range. Its audio window is now 20 ms (previously 50 ms),
+  attack is 110/s (previously 24/s), and release is 18/s (previously 6/s).
+  The body follows transients; the separate peak marker retains its hold behavior.
+
+Four regressions failed before these changes: removed-style migration, pixelwise
+mirror visibility/symmetry, one-frame meter attack and between-beat release, and
+PCM measurement release after 20 ms of silence at all four supported sample rates.
+All **67 affected tests** then passed. An additional renderer assertion confirms
+that changing only elapsed time or spectrum cannot animate Stereo Bars.
+
+The updated **20 Metal/host tests passed** with both API and GPU validation enabled.
+All 32 current style/palette/scale captures were inspected. Live cadence was
+**59.9 FPS**, with **1.384 ms CPU encoding p95**, **1.644 ms GPU p95**, no dropped
+frames, and unchanged Metal allocation at 23,330,816 bytes after warm-up.
+
+Evidence: `/tmp/ampx-mini-refinements-red.log`,
+`/tmp/ampx-mini-refinements-green.log`, `/tmp/ampx-mini-refinements-metal.log`,
+and `/tmp/ampx-mini-refinements-metal.xcresult`.
+
+The complete serial suite passed **645 tests, zero failures** after the refinements
+(`/tmp/ampx-mini-refinements-full-confirm.log`). A preceding run missed the existing
+ENTHEA track-analysis test's five-second deadline; it then passed all three isolated
+repetitions in 0.041–0.110 seconds and passed in the full rerun, with no ENTHEA edits.
+The 10 affected Swift files were formatted/linted; only the inherited mode-test
+force-unwrap warning remains. Whitespace checks passed.
+
+## Implementation
+
+- `AmpXMiniAudioTimeline` publishes spectrum hops, 20 ms signed waveform windows,
+  and 20 ms stereo RMS/sample peaks on one visual timeline.
+- The existing tap uses bounded, preallocated, nonblocking PCM capture. FFT,
+  waveform processing, and publication occur on the analysis queue. Dropped,
+  oversized, rate-changing, and stale-generation input has an explicit reset policy.
+- `AmpXMiniVisualizerState` owns deterministic time-based ballistics and a bounded
+  four-second history. It has no AppKit or Metal dependency.
+- `AmpXMiniVisualizerRenderer` uses two cached Metal pipelines, three in-flight
+  slots, lazily allocated per-slot waterfall textures, and at most 512 particles.
+  Busy slots drop visual work without waiting for GPU completion.
+- `SpectrumWellView` hosts a manually driven, paused `MTKView`. The existing
+  AppKit display link is the sole frame driver; queued callbacks are coalesced.
+  A minimal Core Graphics fallback retains the requested preference when Metal
+  initialization fails.
+
+The implementation uses a closure for source injection rather than a one-method
+protocol. Its envelope helpers integrate decay exactly because the previous
+smoother's capped Euler steps do not meet the approved 30/60/120 Hz invariance
+checks. The old deterministic Player reference presentation retains its existing
+Core Graphics pixels; the new effect fixtures exercise the production Metal
+encoder through the shared offscreen capture path.
+
+## Visual evidence
+
+- [All eight styles, both palettes, at 1× and 2×](mini-visualizer-captures/all-styles.png)
+- [Live Blue spectrum in the Player](mini-visualizer-captures/player-blue.png)
+- Individual fixed-time captures are in `mini-visualizer-captures/`.
+
+Inspected all 32 captures at their actual pixel dimensions: 138×41 at 1×
+(rounded width) and 275×82 at 2×. The native Player screenshot was generated by
+`./scripts/shoot.sh`. Player geometry and display-well labels are retained.
+The native context menu exposes all eight styles and the Blue/Classic
+submenu; accessibility reports the selected style and palette.
+
+## Regression and review coverage
+
+Test-first checks cover preference migration, unknown values, independent palette
+fallback, click/double-click behavior, calibrated unequal stereo/mono signals,
+44.1/48/96/192 kHz, waveform impulses, ordered bipolar extrema, overflow,
+intra-batch timing, generation reset, history progression, and finite output.
+State tests compare behavior at 30/60/120 Hz and after interrupted frames.
+
+Independent review identified and drove fixes for:
+
+- Opening a new track epoch before the old source stopped.
+- Reordering concurrent timeline resets and capture-generation publication.
+- Interpolating waterfall rows across a pause, including pause/resume while hidden.
+- Losing one polarity when reducing waveform samples.
+- Reusing the same drawable outside an `MTKView.draw()` cycle.
+
+The hidden-pause regression failed before the integration fix and now exercises
+playback notifications without intervening display ticks. Callback regressions
+also failed before coalescing and the hidden/parked delivery gate were added.
+The native Metal host tests check drawable advancement, palette redraw, no hidden
+submissions, and missing-renderer fallback.
+
+## Environment and measurement limits
+
+Apple M1 Pro, arm64 Debug, Swift 6, Xcode 26.4 (17E192), macOS SDK 26.4;
+test host macOS 26.6.2 (25G83).
+
+CPU encoding measurements exclude drawable acquisition, capture texture allocation,
+and synchronous capture waits. GPU timings use completed Metal command buffers.
+Live cadence measures submissions over a one-second sample after warming every
+style. Metal allocation samples use `MTLDevice.currentAllocatedSize`; they cover
+this short workload, not an hours-long whole-process leak test.
+
+Both Metal API validation and GPU shader validation are enabled in the temporary
+validation run configuration. No project scheme or app entitlement was weakened.
+The discrete-GPU managed-storage capture branch is implemented but was not
+exercised on this unified-memory Mac.
+
+## Original nine-style runtime results
+
+The final focused run passed **19 tests, zero failures**, with Metal API and
+GPU validation confirmed enabled. It includes all 36 effect captures and the
+live host tests. No Metal validation errors were reported.
+
+After two cycles through all nine modes, the live display recorded approximately
+**60 FPS**, **1.453 ms CPU encoding p95**, and **1.598 ms GPU p95**. No frames were
+dropped. Reported Metal allocation remained **23,330,816 bytes** before/after the
+steady sample; this is the device's aggregate test-process allocation, not the
+mini renderer's exclusive footprint. Hidden and parked submission counts stayed
+unchanged. The parking check waits for decay and the one-second idle hold to finish.
+
+The same validated run rendered 140 native Retina captures per style. The last
+120 completed frames determine each p95:
+
+| Style | CPU encoding p95, ms | GPU p95, ms |
+|---|---:|---:|
+| Classic Spectrum | 0.824 | 0.887 |
+| Smooth Spectrum | 0.243 | 0.312 |
+| Dot Spectrum | 0.235 | 0.356 |
+| Mirrored Spectrum | 0.289 | 0.495 |
+| Line Waveform | 0.233 | 0.111 |
+| Waterfall | 0.830 | 1.405 |
+| Retro | 0.248 | 0.258 |
+| Particle Waveform | 0.272 | 0.487 |
+| Stereo Bars | 0.232 | 0.227 |
+
+Every style stayed below the 2 ms CPU/GPU target in this workload, with no
+allocation increase between captures 40 and 140. Waterfall's allocation settled
+at 23,379,968 bytes; the other styles settled at 23,330,816 bytes.
+
+Runtime log: `/tmp/ampx-mini-final-live-green.log`.
+Result bundle: `/tmp/ampx-mini-final-live-green.xcresult`.
+
+The subsequent complete serial run, without Metal validation instrumentation,
+measured **59.9 FPS**, **0.704 ms CPU encoding p95**, and **0.098 ms GPU p95**.
+Its allocation sample was unchanged at **19,136,512 bytes**, with zero dropped frames.
+
+## Original implementation checks
+
+The final complete Xcode suite passed **641 tests, zero failures, zero skips**.
+Fixtures were generated through `./scripts/run-tests.sh`.
+
+An earlier complete run passed 640 tests before the new runtime test was added.
+The next parallel run passed 640 of 641; the existing
+`AmpXEQBindingTests.testAutoAdjustedPreampUpdatesSliderWithoutUISetterFeedback`
+exceeded its two-second “main actor drain” timeout. Its value assertions did not
+fail. The complete serial rerun passed all 641, including that test, without
+changing EQ code or timeout settings:
+
+```sh
+xcodebuild test -project AmpX.xcodeproj -scheme AmpX \
+  -destination 'platform=macOS,arch=arm64' \
+  -parallel-testing-enabled NO ONLY_ACTIVE_ARCH=YES
+```
+
+Full run log: `/tmp/ampx-mini-final-serial.log`.
+Result bundle:
+`~/Library/Developer/Xcode/DerivedData/AmpX-deeoonschstsamebrcjyfpxsbbix/Logs/Test/Test-AmpX-2026.09.18_10-21-18--0300.xcresult`.
+`xcresulttool get test-results summary` independently confirmed the 641/0/0 totals.
+`git diff --check` passed.
+
+Formatting/linting covered the 24 feature Swift files. SwiftFormat required no
+changes on the final pass. SwiftLint found zero serious violations; seven inherited
+warnings remain in existing files (large tuple, large `AudioPlayer`, and old
+test-helper force unwraps). New feature files have no lint violations.
+
+The initial baseline playlist-restoration failure did not recur in subsequent
+full runs. No unrelated snapshot expectations were updated. Pre-existing worktree
+changes remain intact; this task does not commit, push, or merge them.

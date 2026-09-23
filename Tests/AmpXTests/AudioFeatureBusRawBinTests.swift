@@ -1,5 +1,5 @@
-import AVFoundation
 @testable import AmpX
+import AVFoundation
 import XCTest
 
 /// Task 0 (Stage 0): the raw linear FFT bin channel. `AudioFeatures.spectrum` is 32

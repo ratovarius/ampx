@@ -20,8 +20,13 @@ final class PlaylistImportTests: XCTestCase {
     func testImportDroppedURLSavesBookmarkAndAddsTrack() async {
         let store = SecurityScopedBookmarkStore(userDefaults: userDefaults)
         let mockPlayer = MockAudioPlayer()
-        let manager = PlaylistManager(audioPlayer: mockPlayer, restoreBookmarks: false, restorePlaylist: false, bookmarkStore: store,
-            alertPresenter: SilentPlaylistAlertPresenter())
+        let manager = PlaylistManager(
+            audioPlayer: mockPlayer,
+            restoreBookmarks: false,
+            restorePlaylist: false,
+            bookmarkStore: store,
+            alertPresenter: SilentPlaylistAlertPresenter()
+        )
 
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("drop-\(UUID().uuidString).mp3")
@@ -38,8 +43,12 @@ final class PlaylistImportTests: XCTestCase {
 
     func testImportDroppedURLIgnoresUnsupportedExtension() {
         let mockPlayer = MockAudioPlayer()
-        let manager = PlaylistManager(audioPlayer: mockPlayer, restoreBookmarks: false, restorePlaylist: false,
-            alertPresenter: SilentPlaylistAlertPresenter())
+        let manager = PlaylistManager(
+            audioPlayer: mockPlayer,
+            restoreBookmarks: false,
+            restorePlaylist: false,
+            alertPresenter: SilentPlaylistAlertPresenter()
+        )
 
         let fileURL = URL(fileURLWithPath: "/tmp/clip.ogg")
         manager.importDroppedURL(fileURL)
@@ -50,8 +59,13 @@ final class PlaylistImportTests: XCTestCase {
     func testImportDroppedFolderAddsTracksFromSubfolders() async throws {
         let store = SecurityScopedBookmarkStore(userDefaults: userDefaults)
         let mockPlayer = MockAudioPlayer()
-        let manager = PlaylistManager(audioPlayer: mockPlayer, restoreBookmarks: false, restorePlaylist: false, bookmarkStore: store,
-            alertPresenter: SilentPlaylistAlertPresenter())
+        let manager = PlaylistManager(
+            audioPlayer: mockPlayer,
+            restoreBookmarks: false,
+            restorePlaylist: false,
+            bookmarkStore: store,
+            alertPresenter: SilentPlaylistAlertPresenter()
+        )
 
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("drop-folder-\(UUID().uuidString)", isDirectory: true)

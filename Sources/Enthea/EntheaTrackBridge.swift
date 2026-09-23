@@ -62,7 +62,9 @@ final class EntheaTrackBridge: @unchecked Sendable {
         }
 
         let start: (generation: Int, evaluator: EntheaJavaScriptEvaluating?)? = self.queue.sync {
-            if self.analyzedURL == url { return nil }
+            if self.analyzedURL == url {
+                return nil
+            }
             self.analyzedURL = url
             self.analysisGeneration += 1
             return (self.analysisGeneration, self.evaluator)

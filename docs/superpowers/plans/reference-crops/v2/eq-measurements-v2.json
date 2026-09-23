@@ -1,0 +1,1325 @@
+{
+  "version": "ReferenceMeasurementsV2",
+  "scope": "Equalizer",
+  "source": "screenshots/AmpX.png",
+  "sha256": "1db8d6c6f70f98a2b25d413dd3f4129283ebc917ccacdab9855de585d5c7b2a2",
+  "panelSourceRect": [
+    10,
+    466,
+    980,
+    451
+  ],
+  "moduleOrigin": [
+    10,
+    466
+  ],
+  "contentOrigin": [
+    10,
+    523
+  ],
+  "headerHeightLogical": 28.5,
+  "records": [
+    {
+      "id": 1,
+      "name": "panel",
+      "sourceRect": [
+        10,
+        466,
+        980,
+        451
+      ],
+      "group": "frame",
+      "moduleRect": [
+        0.0,
+        0.0,
+        490.0,
+        225.5
+      ],
+      "contentRect": [
+        0.0,
+        -28.5,
+        490.0,
+        225.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 2,
+      "name": "content.frame",
+      "sourceRect": [
+        24,
+        524,
+        952,
+        378
+      ],
+      "group": "frame",
+      "moduleRect": [
+        7.0,
+        29.0,
+        476.0,
+        189.0
+      ],
+      "contentRect": [
+        7.0,
+        0.5,
+        476.0,
+        189.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 3,
+      "name": "header",
+      "sourceRect": [
+        10,
+        466,
+        980,
+        57
+      ],
+      "group": "header",
+      "moduleRect": [
+        0.0,
+        0.0,
+        490.0,
+        28.5
+      ],
+      "contentRect": [
+        0.0,
+        -28.5,
+        490.0,
+        28.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 4,
+      "name": "header.brand",
+      "sourceRect": [
+        361,
+        483,
+        91,
+        32
+      ],
+      "group": "header",
+      "moduleRect": [
+        175.5,
+        8.5,
+        45.5,
+        16.0
+      ],
+      "contentRect": [
+        175.5,
+        -20.0,
+        45.5,
+        16.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 5,
+      "name": "header.title",
+      "sourceRect": [
+        497,
+        487,
+        156,
+        24
+      ],
+      "group": "header",
+      "moduleRect": [
+        243.5,
+        10.5,
+        78.0,
+        12.0
+      ],
+      "contentRect": [
+        243.5,
+        -18.0,
+        78.0,
+        12.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 6,
+      "name": "header.leftRule",
+      "sourceRect": [
+        86,
+        487,
+        236,
+        19
+      ],
+      "group": "header",
+      "moduleRect": [
+        38.0,
+        10.5,
+        118.0,
+        9.5
+      ],
+      "contentRect": [
+        38.0,
+        -18.0,
+        118.0,
+        9.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 7,
+      "name": "header.rightRule",
+      "sourceRect": [
+        689,
+        487,
+        131,
+        19
+      ],
+      "group": "header",
+      "moduleRect": [
+        339.5,
+        10.5,
+        65.5,
+        9.5
+      ],
+      "contentRect": [
+        339.5,
+        -18.0,
+        65.5,
+        9.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 8,
+      "name": "header.collapseGlyph",
+      "sourceRect": [
+        895,
+        486,
+        21,
+        21
+      ],
+      "group": "header",
+      "moduleRect": [
+        442.5,
+        10.0,
+        10.5,
+        10.5
+      ],
+      "contentRect": [
+        442.5,
+        -18.5,
+        10.5,
+        10.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 9,
+      "name": "header.closeGlyph",
+      "sourceRect": [
+        948,
+        488,
+        18,
+        18
+      ],
+      "group": "header",
+      "moduleRect": [
+        469.0,
+        11.0,
+        9.0,
+        9.0
+      ],
+      "contentRect": [
+        469.0,
+        -17.5,
+        9.0,
+        9.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 10,
+      "name": "toggle.on",
+      "sourceRect": [
+        38,
+        542,
+        111,
+        66
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        14.0,
+        38.0,
+        55.5,
+        33.0
+      ],
+      "contentRect": [
+        14.0,
+        9.5,
+        55.5,
+        33.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 11,
+      "name": "toggle.on.indicator",
+      "sourceRect": [
+        59,
+        564,
+        19,
+        20
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        24.5,
+        49.0,
+        9.5,
+        10.0
+      ],
+      "contentRect": [
+        24.5,
+        20.5,
+        9.5,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 12,
+      "name": "toggle.on.label",
+      "sourceRect": [
+        95,
+        565,
+        26,
+        19
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        42.5,
+        49.5,
+        13.0,
+        9.5
+      ],
+      "contentRect": [
+        42.5,
+        21.0,
+        13.0,
+        9.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 13,
+      "name": "toggle.auto",
+      "sourceRect": [
+        161,
+        542,
+        141,
+        66
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        75.5,
+        38.0,
+        70.5,
+        33.0
+      ],
+      "contentRect": [
+        75.5,
+        9.5,
+        70.5,
+        33.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 14,
+      "name": "toggle.auto.indicator",
+      "sourceRect": [
+        181,
+        562,
+        21,
+        22
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        85.5,
+        48.0,
+        10.5,
+        11.0
+      ],
+      "contentRect": [
+        85.5,
+        19.5,
+        10.5,
+        11.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 15,
+      "name": "toggle.auto.label",
+      "sourceRect": [
+        221,
+        565,
+        56,
+        20
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        105.5,
+        49.5,
+        28.0,
+        10.0
+      ],
+      "contentRect": [
+        105.5,
+        21.0,
+        28.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 16,
+      "name": "presets",
+      "sourceRect": [
+        774,
+        542,
+        187,
+        66
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        382.0,
+        38.0,
+        93.5,
+        33.0
+      ],
+      "contentRect": [
+        382.0,
+        9.5,
+        93.5,
+        33.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 17,
+      "name": "presets.label",
+      "sourceRect": [
+        801,
+        565,
+        97,
+        19
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        395.5,
+        49.5,
+        48.5,
+        9.5
+      ],
+      "contentRect": [
+        395.5,
+        21.0,
+        48.5,
+        9.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 18,
+      "name": "presets.triangle",
+      "sourceRect": [
+        923,
+        568,
+        16,
+        14
+      ],
+      "group": "toprow",
+      "moduleRect": [
+        456.5,
+        51.0,
+        8.0,
+        7.0
+      ],
+      "contentRect": [
+        456.5,
+        22.5,
+        8.0,
+        7.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 19,
+      "name": "curve.gridAndKnots",
+      "sourceRect": [
+        329,
+        543,
+        410,
+        75
+      ],
+      "group": "curve",
+      "moduleRect": [
+        159.5,
+        38.5,
+        205.0,
+        37.5
+      ],
+      "contentRect": [
+        159.5,
+        10.0,
+        205.0,
+        37.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 20,
+      "name": "curve.ink",
+      "sourceRect": [
+        329,
+        564,
+        408,
+        26
+      ],
+      "group": "curve",
+      "moduleRect": [
+        159.5,
+        49.0,
+        204.0,
+        13.0
+      ],
+      "contentRect": [
+        159.5,
+        20.5,
+        204.0,
+        13.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 21,
+      "name": "preamp.slot",
+      "sourceRect": [
+        67,
+        630,
+        26,
+        220
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        28.5,
+        82.0,
+        13.0,
+        110.0
+      ],
+      "contentRect": [
+        28.5,
+        53.5,
+        13.0,
+        110.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 22,
+      "name": "preamp.thumb",
+      "sourceRect": [
+        62,
+        709,
+        40,
+        46
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        26.0,
+        121.5,
+        20.0,
+        23.0
+      ],
+      "contentRect": [
+        26.0,
+        93.0,
+        20.0,
+        23.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 23,
+      "name": "band60.slot",
+      "sourceRect": [
+        266,
+        630,
+        26,
+        220
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        128.0,
+        82.0,
+        13.0,
+        110.0
+      ],
+      "contentRect": [
+        128.0,
+        53.5,
+        13.0,
+        110.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 24,
+      "name": "band60.thumb",
+      "sourceRect": [
+        260,
+        700,
+        40,
+        48
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        125.0,
+        117.0,
+        20.0,
+        24.0
+      ],
+      "contentRect": [
+        125.0,
+        88.5,
+        20.0,
+        24.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 25,
+      "name": "band170.thumb",
+      "sourceRect": [
+        330,
+        716,
+        40,
+        43
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        160.0,
+        125.0,
+        20.0,
+        21.5
+      ],
+      "contentRect": [
+        160.0,
+        96.5,
+        20.0,
+        21.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 26,
+      "name": "band310.thumb",
+      "sourceRect": [
+        397,
+        725,
+        40,
+        44
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        193.5,
+        129.5,
+        20.0,
+        22.0
+      ],
+      "contentRect": [
+        193.5,
+        101.0,
+        20.0,
+        22.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 27,
+      "name": "band600.thumb",
+      "sourceRect": [
+        465,
+        736,
+        40,
+        44
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        227.5,
+        135.0,
+        20.0,
+        22.0
+      ],
+      "contentRect": [
+        227.5,
+        106.5,
+        20.0,
+        22.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 28,
+      "name": "band1K.thumb",
+      "sourceRect": [
+        534,
+        753,
+        40,
+        44
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        262.0,
+        143.5,
+        20.0,
+        22.0
+      ],
+      "contentRect": [
+        262.0,
+        115.0,
+        20.0,
+        22.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 29,
+      "name": "band3K.thumb",
+      "sourceRect": [
+        603,
+        743,
+        40,
+        44
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        296.5,
+        138.5,
+        20.0,
+        22.0
+      ],
+      "contentRect": [
+        296.5,
+        110.0,
+        20.0,
+        22.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 30,
+      "name": "band6K.thumb",
+      "sourceRect": [
+        670,
+        727,
+        40,
+        44
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        330.0,
+        130.5,
+        20.0,
+        22.0
+      ],
+      "contentRect": [
+        330.0,
+        102.0,
+        20.0,
+        22.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 31,
+      "name": "band12K.thumb",
+      "sourceRect": [
+        739,
+        715,
+        40,
+        42
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        364.5,
+        124.5,
+        20.0,
+        21.0
+      ],
+      "contentRect": [
+        364.5,
+        96.0,
+        20.0,
+        21.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 32,
+      "name": "band14K.thumb",
+      "sourceRect": [
+        807,
+        704,
+        39,
+        42
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        398.5,
+        119.0,
+        19.5,
+        21.0
+      ],
+      "contentRect": [
+        398.5,
+        90.5,
+        19.5,
+        21.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 33,
+      "name": "band16K.thumb",
+      "sourceRect": [
+        879,
+        692,
+        39,
+        43
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        434.5,
+        113.0,
+        19.5,
+        21.5
+      ],
+      "contentRect": [
+        434.5,
+        84.5,
+        19.5,
+        21.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 34,
+      "name": "tick.plus12.preamp",
+      "sourceRect": [
+        44,
+        640,
+        13,
+        2
+      ],
+      "group": "scale",
+      "moduleRect": [
+        17.0,
+        87.0,
+        6.5,
+        1.0
+      ],
+      "contentRect": [
+        17.0,
+        58.5,
+        6.5,
+        1.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 35,
+      "name": "tick.zero.preamp",
+      "sourceRect": [
+        44,
+        736,
+        13,
+        2
+      ],
+      "group": "scale",
+      "moduleRect": [
+        17.0,
+        135.0,
+        6.5,
+        1.0
+      ],
+      "contentRect": [
+        17.0,
+        106.5,
+        6.5,
+        1.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 36,
+      "name": "tick.minus12.preamp",
+      "sourceRect": [
+        44,
+        837,
+        13,
+        3
+      ],
+      "group": "scale",
+      "moduleRect": [
+        17.0,
+        185.5,
+        6.5,
+        1.5
+      ],
+      "contentRect": [
+        17.0,
+        157.0,
+        6.5,
+        1.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 37,
+      "name": "db.plus12",
+      "sourceRect": [
+        134,
+        632,
+        67,
+        19
+      ],
+      "group": "scale",
+      "moduleRect": [
+        62.0,
+        83.0,
+        33.5,
+        9.5
+      ],
+      "contentRect": [
+        62.0,
+        54.5,
+        33.5,
+        9.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 38,
+      "name": "db.zero",
+      "sourceRect": [
+        147,
+        727,
+        47,
+        19
+      ],
+      "group": "scale",
+      "moduleRect": [
+        68.5,
+        130.5,
+        23.5,
+        9.5
+      ],
+      "contentRect": [
+        68.5,
+        102.0,
+        23.5,
+        9.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 39,
+      "name": "db.minus12",
+      "sourceRect": [
+        135,
+        823,
+        73,
+        19
+      ],
+      "group": "scale",
+      "moduleRect": [
+        62.5,
+        178.5,
+        36.5,
+        9.5
+      ],
+      "contentRect": [
+        62.5,
+        150.0,
+        36.5,
+        9.5
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 40,
+      "name": "label.preamp",
+      "sourceRect": [
+        50,
+        864,
+        81,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        20.0,
+        199.0,
+        40.5,
+        10.0
+      ],
+      "contentRect": [
+        20.0,
+        170.5,
+        40.5,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 41,
+      "name": "label.60",
+      "sourceRect": [
+        267,
+        864,
+        24,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        128.5,
+        199.0,
+        12.0,
+        10.0
+      ],
+      "contentRect": [
+        128.5,
+        170.5,
+        12.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 42,
+      "name": "label.170",
+      "sourceRect": [
+        331,
+        864,
+        36,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        160.5,
+        199.0,
+        18.0,
+        10.0
+      ],
+      "contentRect": [
+        160.5,
+        170.5,
+        18.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 43,
+      "name": "label.310",
+      "sourceRect": [
+        397,
+        864,
+        38,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        193.5,
+        199.0,
+        19.0,
+        10.0
+      ],
+      "contentRect": [
+        193.5,
+        170.5,
+        19.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 44,
+      "name": "label.600",
+      "sourceRect": [
+        466,
+        864,
+        38,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        228.0,
+        199.0,
+        19.0,
+        10.0
+      ],
+      "contentRect": [
+        228.0,
+        170.5,
+        19.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 45,
+      "name": "label.1K",
+      "sourceRect": [
+        540,
+        864,
+        23,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        265.0,
+        199.0,
+        11.5,
+        10.0
+      ],
+      "contentRect": [
+        265.0,
+        170.5,
+        11.5,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 46,
+      "name": "label.3K",
+      "sourceRect": [
+        609,
+        864,
+        24,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        299.5,
+        199.0,
+        12.0,
+        10.0
+      ],
+      "contentRect": [
+        299.5,
+        170.5,
+        12.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 47,
+      "name": "label.6K",
+      "sourceRect": [
+        676,
+        864,
+        24,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        333.0,
+        199.0,
+        12.0,
+        10.0
+      ],
+      "contentRect": [
+        333.0,
+        170.5,
+        12.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 48,
+      "name": "label.12K",
+      "sourceRect": [
+        740,
+        864,
+        37,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        365.0,
+        199.0,
+        18.5,
+        10.0
+      ],
+      "contentRect": [
+        365.0,
+        170.5,
+        18.5,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 49,
+      "name": "label.14K",
+      "sourceRect": [
+        809,
+        864,
+        36,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        399.5,
+        199.0,
+        18.0,
+        10.0
+      ],
+      "contentRect": [
+        399.5,
+        170.5,
+        18.0,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 50,
+      "name": "label.16K",
+      "sourceRect": [
+        882,
+        864,
+        37,
+        20
+      ],
+      "group": "labels",
+      "moduleRect": [
+        436.0,
+        199.0,
+        18.5,
+        10.0
+      ],
+      "contentRect": [
+        436.0,
+        170.5,
+        18.5,
+        10.0
+      ],
+      "method": "thresholded component scan of visible ink/edges; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    }
+  ],
+  "thumbTravel": {
+    "plus12CenterY": 58.5,
+    "minus12CenterY": 157.25,
+    "zeroCenterY": 107.875,
+    "method": "\u00b112 dB thumb centers at the measured +12/\u221212 tick rows; linear, centered on the slot"
+  },
+  "derivedReferenceValues": {
+    "preamp": {
+      "thumbCenterY": 104.5,
+      "decibels": 0.82
+    },
+    "band60": {
+      "thumbCenterY": 100.5,
+      "decibels": 1.79
+    },
+    "band170": {
+      "thumbCenterY": 107.25,
+      "decibels": 0.15
+    },
+    "band310": {
+      "thumbCenterY": 112.0,
+      "decibels": -1.0
+    },
+    "band600": {
+      "thumbCenterY": 117.5,
+      "decibels": -2.34
+    },
+    "band1K": {
+      "thumbCenterY": 126.0,
+      "decibels": -4.41
+    },
+    "band3K": {
+      "thumbCenterY": 121.0,
+      "decibels": -3.19
+    },
+    "band6K": {
+      "thumbCenterY": 113.0,
+      "decibels": -1.25
+    },
+    "band12K": {
+      "thumbCenterY": 106.5,
+      "decibels": 0.33
+    },
+    "band14K": {
+      "thumbCenterY": 101.0,
+      "decibels": 1.67
+    },
+    "band16K": {
+      "thumbCenterY": 95.25,
+      "decibels": 3.07
+    }
+  }
+}

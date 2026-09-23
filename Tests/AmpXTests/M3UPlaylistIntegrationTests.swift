@@ -29,8 +29,11 @@ final class M3UPlaylistIntegrationTests: XCTestCase {
         let m3uURL = self.tempDirectory.appendingPathComponent("playlist.m3u")
         try m3uContent.write(to: m3uURL, atomically: true, encoding: .utf8)
 
-        let manager = PlaylistManager(restoreBookmarks: false, restorePlaylist: false,
-            alertPresenter: SilentPlaylistAlertPresenter())
+        let manager = PlaylistManager(
+            restoreBookmarks: false,
+            restorePlaylist: false,
+            alertPresenter: SilentPlaylistAlertPresenter()
+        )
         let tracks = await manager.loadM3UPlaylist(from: m3uURL)
         XCTAssertEqual(tracks?.count, 1)
         XCTAssertEqual(tracks?[0].url?.lastPathComponent, "relative-track.wav")

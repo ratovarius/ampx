@@ -22,9 +22,26 @@ def write_short_wav(path: Path, *, sample_rate: int = 44100, duration_seconds: f
         wav_file.writeframes(struct.pack("<" + "h" * frame_count, *([0] * frame_count)))
 
 
+def write_sample_m3u(path: Path) -> None:
+    """Write the bundled M3U parser fixture referenced by AmpXTests resources."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "#EXTM3U\n"
+        "# comment line\n"
+        "\n"
+        "relative-track.wav\n"
+        "/absolute/track.mp3\n"
+        "file:///tmp/absolute.flac\n"
+        "unsupported.ogg\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     write_short_wav(FIXTURES_DIR / "short.wav")
     print(f"Wrote {FIXTURES_DIR / 'short.wav'}")
+    write_sample_m3u(FIXTURES_DIR / "sample.m3u")
+    print(f"Wrote {FIXTURES_DIR / 'sample.m3u'}")
 
 
 if __name__ == "__main__":

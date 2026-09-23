@@ -3,7 +3,10 @@ name = "ampx-test-fixtures"
 version = "0.1.0"
 description = "Generate binary test fixtures for AmpX"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fonttools>=4.65.0",
+    "pillow>=12.3.0",
+]
 
 [project.scripts]
 generate-fixtures = "ampx_fixtures.generate:main"

@@ -19,7 +19,9 @@ struct EntheaPreferences {
 
     var autopilot: Bool {
         get {
-            if self.defaults.object(forKey: Self.autopilotKey) == nil { return true }
+            if self.defaults.object(forKey: Self.autopilotKey) == nil {
+                return true
+            }
             return self.defaults.bool(forKey: Self.autopilotKey)
         }
         nonmutating set { self.defaults.set(newValue, forKey: Self.autopilotKey) }

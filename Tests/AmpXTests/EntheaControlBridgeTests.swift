@@ -1,5 +1,5 @@
-import XCTest
 @testable import AmpX
+import XCTest
 
 private final class RecordingEvaluator: EntheaJavaScriptEvaluating {
     private(set) var scripts: [String] = []

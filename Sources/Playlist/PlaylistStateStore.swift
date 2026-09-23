@@ -19,12 +19,23 @@ final class PlaylistStateStore {
     private let userDefaults: UserDefaults
 
     init(
-        userDefaults: UserDefaults = .standard,
+        userDefaults: UserDefaults? = nil,
         stateKey: String = "AmpXPlaylistState"
     ) {
-        self.userDefaults = userDefaults
+        self.userDefaults = userDefaults ?? Self.defaultUserDefaults
         self.stateKey = stateKey
     }
+
+    /// Tests run hosted in the app, so the default store must not share the user's real saved playlist.
+    /// `UserDefaults` is documented thread-safe.
+    private nonisolated(unsafe) static let defaultUserDefaults: UserDefaults = {
+        let isRunningUnderTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+        guard isRunningUnderTest else { return .standard }
+        let suiteName = "com.ampx.macos.tests.playlist-state"
+        UserDefaults().removePersistentDomain(forName: suiteName)
+        return UserDefaults(suiteName: suiteName) ?? .standard
+    }()
 
     func loadState() -> PersistedPlaylistState? {
         guard let data = userDefaults.data(forKey: stateKey),

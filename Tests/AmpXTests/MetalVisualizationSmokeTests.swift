@@ -1,5 +1,5 @@
-import Metal
 @testable import AmpX
+import Metal
 import XCTest
 
 /// Headless GPU smoke tests for the Metal visualization path: every pipeline must compile, and

@@ -180,12 +180,12 @@ class PlaylistManager: ObservableObject {
         self.alertPresenter.presentError(title: title, message: message)
     }
 
+    /// Empties the list but, like Winamp, lets the current track keep playing to its end.
     func clearPlaylist() {
         self.tracks.removeAll()
         self.currentIndex = -1
         self.shuffledIndices.removeAll()
         self.shuffleCurrentIndex = 0
-        self.audioPlayer.stop()
         self.persistState()
     }
 
@@ -355,27 +355,33 @@ class PlaylistManager: ObservableObject {
         self.persistState()
     }
 
+    /// User-requested next track. Like Winamp, a manual skip past the end wraps to the
+    /// start (or a fresh shuffle order) instead of stopping; only auto-advance honors repeat.
     func next() {
-        guard !self.tracks.isEmpty else { return }
-
-        if self.shuffleEnabled {
-            self.advanceShuffle(forward: true)
-        } else {
-            self.advanceSequential(forward: true)
-        }
+        self.advance(forward: true, wrap: true)
     }
 
     func previous() {
+        self.advance(forward: false, wrap: self.repeatEnabled)
+    }
+
+    /// Auto-advance when the current track plays to the end; stops after the last track
+    /// unless repeat is on.
+    func advanceAfterTrackFinished() {
+        self.advance(forward: true, wrap: self.repeatEnabled)
+    }
+
+    private func advance(forward: Bool, wrap: Bool) {
         guard !self.tracks.isEmpty else { return }
 
         if self.shuffleEnabled {
-            self.advanceShuffle(forward: false)
+            self.advanceShuffle(forward: forward, wrap: wrap)
         } else {
-            self.advanceSequential(forward: false)
+            self.advanceSequential(forward: forward, wrap: wrap)
         }
     }
 
-    private func advanceShuffle(forward: Bool) {
+    private func advanceShuffle(forward: Bool, wrap: Bool) {
         if self.shuffledIndices.isEmpty {
             self.generateShuffledIndices()
             self.shuffleCurrentIndex = 0
@@ -385,7 +391,7 @@ class PlaylistManager: ObservableObject {
             self.shuffleCurrentIndex += 1
 
             if self.shuffleCurrentIndex >= self.shuffledIndices.count {
-                if self.repeatEnabled {
+                if wrap {
                     self.generateShuffledIndices()
                     self.shuffleCurrentIndex = 1
 
@@ -401,7 +407,7 @@ class PlaylistManager: ObservableObject {
             self.shuffleCurrentIndex -= 1
 
             if self.shuffleCurrentIndex < 0 {
-                if self.repeatEnabled {
+                if wrap {
                     self.shuffleCurrentIndex = self.shuffledIndices.count - 1
                 } else {
                     self.shuffleCurrentIndex = 0
@@ -414,12 +420,12 @@ class PlaylistManager: ObservableObject {
         self.playTrack(at: targetIndex)
     }
 
-    private func advanceSequential(forward: Bool) {
+    private func advanceSequential(forward: Bool, wrap: Bool) {
         if forward {
             let nextIndex = self.currentIndex + 1
 
             if nextIndex >= self.tracks.count {
-                if self.repeatEnabled {
+                if wrap {
                     self.playTrack(at: 0)
                 } else {
                     self.audioPlayer.stop()
@@ -428,7 +434,7 @@ class PlaylistManager: ObservableObject {
                 self.playTrack(at: nextIndex)
             }
         } else {
-            let prevIndex = self.currentIndex > 0 ? self.currentIndex - 1 : (self.repeatEnabled ? self.tracks.count - 1 : 0)
+            let prevIndex = self.currentIndex > 0 ? self.currentIndex - 1 : (wrap ? self.tracks.count - 1 : 0)
             self.playTrack(at: prevIndex)
         }
     }

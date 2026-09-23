@@ -102,8 +102,12 @@ enum ReplayGainReader {
     }
 
     private static func stringValue(for item: AVMetadataItem) async -> String? {
-        if let string = try? await item.load(.stringValue) { return string }
-        if let number = try? await item.load(.numberValue) { return number.stringValue }
+        if let string = try? await item.load(.stringValue) {
+            return string
+        }
+        if let number = try? await item.load(.numberValue) {
+            return number.stringValue
+        }
         return nil
     }
 

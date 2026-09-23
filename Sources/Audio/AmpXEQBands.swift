@@ -39,31 +39,22 @@ enum AmpXEQBands {
         return (index + 0.5) / CGFloat(self.bandCount) * width
     }
 
-    /// Build curve sample points: left edge, each band center, right edge.
-    static func responseCurvePoints(
-        bandValues: [Float],
-        preampValue: Float,
-        width: CGFloat,
-        height: CGFloat,
-        maxGainDB: Float = 12
-    ) -> [CGPoint] {
+    /// Curve height for a normalized −1…1 gain in a graph of `height`, top-left origin: boost
+    /// above the center line, cut below, with a small margin at the extremes.
+    static func curveY(forNormalizedGain gain: Float, height: CGFloat) -> CGFloat {
         let midY = height / 2
-        let yScale = midY * 0.85
+        let clamped = CGFloat(max(-1, min(1, gain)))
+        return midY - clamped * midY * 0.85
+    }
 
-        func yForGain(_ normalizedGain: Float) -> CGFloat {
-            midY - CGFloat(normalizedGain) * yScale
+    /// One curve knot per band, at the band's slider value. Preamp is not folded in: the
+    /// graph draws it as its own line, so each knot mirrors exactly one slider.
+    static func responseCurvePoints(bandValues: [Float], width: CGFloat, height: CGFloat) -> [CGPoint] {
+        (0 ..< min(bandValues.count, self.bandCount)).map { index in
+            CGPoint(
+                x: self.bandCenterX(bandIndex: index, width: width),
+                y: self.curveY(forNormalizedGain: bandValues[index], height: height)
+            )
         }
-
-        let preampY = yForGain(preampValue)
-        var points: [CGPoint] = [CGPoint(x: 0, y: preampY)]
-
-        for index in 0 ..< min(bandValues.count, self.bandCount) {
-            let x = self.bandCenterX(bandIndex: index, width: width)
-            let combinedGain = max(-maxGainDB, min(maxGainDB, (bandValues[index] + preampValue) * maxGainDB)) / maxGainDB
-            points.append(CGPoint(x: x, y: yForGain(combinedGain)))
-        }
-
-        points.append(CGPoint(x: width, y: preampY))
-        return points
     }
 }

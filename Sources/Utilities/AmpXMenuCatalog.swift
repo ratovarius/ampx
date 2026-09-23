@@ -12,7 +12,8 @@ enum AmpXMenuCatalog {
     }
 
     enum PlaybackItem: String, CaseIterable {
-        case playPause = "Play/Pause"
+        case play = "Play"
+        case pause = "Pause"
         case stop = "Stop"
         case previous = "Previous Track"
         case next = "Next Track"
@@ -29,7 +30,7 @@ enum AmpXMenuCatalog {
     /// Submenu under View — not a top-level "Zoom" (that collides with Window → Zoom).
     static let uiScaleMenuTitle = "UI Scale"
 
-    /// Classic AmpX file hotkeys: bare `L` / `⇧L` (no Command), matching `AmpXHotkeys`.
+    /// File hotkeys: bare `L` / `⇧L` (no Command), matching `AmpXKeyRouter`.
     enum FileShortcut {
         static let addFilesKey = "l"
         static let addFilesUsesCommand = false

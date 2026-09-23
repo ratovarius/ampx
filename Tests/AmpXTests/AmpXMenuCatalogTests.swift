@@ -18,7 +18,8 @@ final class AmpXMenuCatalogTests: XCTestCase {
         XCTAssertEqual(
             AmpXMenuCatalog.PlaybackItem.allCases.map(\.rawValue),
             [
-                "Play/Pause",
+                "Play",
+                "Pause",
                 "Stop",
                 "Previous Track",
                 "Next Track",

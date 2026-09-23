@@ -9,10 +9,14 @@ final class PlaybackIntegrationTests: XCTestCase {
 
     override func setUpWithError() throws {
         self.player = AudioPlayer(installRemoteCommands: false)
-        self.manager = PlaylistManager(audioPlayer: self.player, restoreBookmarks: false, restorePlaylist: false,
-            alertPresenter: SilentPlaylistAlertPresenter())
+        self.manager = PlaylistManager(
+            audioPlayer: self.player,
+            restoreBookmarks: false,
+            restorePlaylist: false,
+            alertPresenter: SilentPlaylistAlertPresenter()
+        )
         self.player.onTrackFinished = { [weak manager] in
-            manager?.next()
+            manager?.advanceAfterTrackFinished()
         }
         self.fixtureURL = try XCTUnwrap(
             Bundle(for: PlaybackIntegrationTests.self).url(forResource: "short", withExtension: "wav")

@@ -1,5 +1,5 @@
-import QuartzCore
 @testable import AmpX
+import QuartzCore
 import XCTest
 
 final class RenderFrameClockTests: XCTestCase {

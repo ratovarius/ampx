@@ -57,6 +57,7 @@ final class AudioFeatureBus: @unchecked Sendable {
     static let shared = AudioFeatureBus()
 
     let waveformRing = WaveformRingBuffer()
+    let miniTimeline = AmpXMiniAudioTimeline()
 
     private let lock = NSLock()
     /// Intra-buffer FFT hop-frames from the most recent audio tap buffer. The tap
@@ -117,7 +118,7 @@ final class AudioFeatureBus: @unchecked Sendable {
     /// Linear FFT magnitudes, 0...255, `bin[i]` centred at `i * sampleRate / 2 / count`.
     /// Mirrors `AnalyserNode.getByteFrequencyData` so consumers built against that shape
     /// need no changes.
-    func rawBinSnapshot(at now: Double = CACurrentMediaTime()) -> (bins: [UInt8], sampleRate: Double, isPlaying: Bool) {
+    func rawBinSnapshot(at _: Double = CACurrentMediaTime()) -> (bins: [UInt8], sampleRate: Double, isPlaying: Bool) {
         self.lock.lock()
         let bins = self.rawBins
         let sampleRate = self.rawBinSampleRate
@@ -130,6 +131,14 @@ final class AudioFeatureBus: @unchecked Sendable {
         self.lock.lock()
         self.isPlaying = isPlaying
         self.lock.unlock()
+    }
+
+    func miniSnapshot(at time: Double = CACurrentMediaTime()) -> AmpXMiniAudioSnapshot {
+        var snapshot = self.miniTimeline.snapshot(at: time)
+        self.lock.lock()
+        snapshot.isPlaying = self.isPlaying
+        self.lock.unlock()
+        return snapshot
     }
 
     /// Returns the paced spectrum frame for the given display time plus the play state.

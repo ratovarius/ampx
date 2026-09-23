@@ -1,5 +1,5 @@
-import simd
 @testable import AmpX
+import simd
 import XCTest
 
 /// Asserts the Swift `VizUniforms` memory layout matches the byte offsets the Metal shader

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Routes playlist keyboard commands from `AmpXHotkeys` into the visible playlist panel.
+/// Routes playlist keyboard commands from `AmpXKeyRouter` into the visible playlist panel.
 @MainActor
 enum AmpXPlaylistKeyboard {
     private weak static var handler: Handling?
@@ -62,6 +62,10 @@ enum AmpXPlaylistKeyboard {
     static func moveSelectedTracks(by delta: Int) {
         self.handler?.moveSelectedTracks(by: delta)
     }
+
+    static func presentFileInfo() {
+        self.handler?.presentFileInfo()
+    }
 }
 
 extension AmpXPlaylistKeyboard {
@@ -78,5 +82,6 @@ extension AmpXPlaylistKeyboard {
         func selectAll()
         func invertSelection()
         func moveSelectedTracks(by delta: Int)
+        func presentFileInfo()
     }
 }

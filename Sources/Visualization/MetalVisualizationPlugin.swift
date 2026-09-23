@@ -401,7 +401,9 @@ final class MiniOscilloscopeMetalPlugin: MetalVisualizationPlugin {
 
     private static func resample(_ values: [Float], to count: Int) -> [Float] {
         guard count > 0, !values.isEmpty else { return Array(repeating: 0, count: max(count, 0)) }
-        if values.count == count { return values }
+        if values.count == count {
+            return values
+        }
 
         return (0 ..< count).map { index in
             let source = Float(index) / Float(max(count - 1, 1)) * Float(values.count - 1)

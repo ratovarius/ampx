@@ -1,5 +1,5 @@
-import AVFoundation
 @testable import AmpX
+import AVFoundation
 import XCTest
 
 final class EQAudioEffectTests: XCTestCase {

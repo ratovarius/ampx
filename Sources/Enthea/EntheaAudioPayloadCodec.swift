@@ -8,7 +8,7 @@ enum EntheaAudioPayloadCodec {
     static let waveCount = 2048
 
     static var payloadByteCount: Int {
-        Self.binCount + Self.waveCount * MemoryLayout<Float>.size * 2
+        binCount + waveCount * MemoryLayout<Float>.size * 2
     }
 
     static func encode(bins: [UInt8], left: [Float], right: [Float]) -> String {

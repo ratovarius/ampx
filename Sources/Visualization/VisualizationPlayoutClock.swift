@@ -28,7 +28,9 @@ enum VisualizationPlayoutClock {
         guard batchDuration > 0 else { return frameCount - 1 }
 
         let elapsed = now - batchArrival
-        if elapsed <= 0 { return 0 }
+        if elapsed <= 0 {
+            return 0
+        }
 
         let interval = batchDuration / Double(frameCount)
         let index = Int(elapsed / interval)

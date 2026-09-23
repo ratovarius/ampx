@@ -1,11 +1,11 @@
+@testable import AmpX
 import AVFoundation
 import XCTest
-@testable import AmpX
 
 final class EntheaTrackAnalyzerTests: XCTestCase {
     /// Synthetic EDM-ish slam: quiet pad, brief dip, then a loud bass hit near 2.0 s.
     func testAnalyzerFindsDropNearKnownSlam() throws {
-        let sampleRate = 44_100.0
+        let sampleRate = 44100.0
         let duration = 4.0
         let n = Int(sampleRate * duration)
         var samples = [Float](repeating: 0.02, count: n)
@@ -32,7 +32,7 @@ final class EntheaTrackAnalyzerTests: XCTestCase {
         let timeline = EntheaTrackAnalyzer.analyzeMono(samples: samples, sampleRate: sampleRate)
         XCTAssertEqual(timeline.dur, duration, accuracy: 0.02)
         XCTAssertFalse(timeline.drops.isEmpty, "Expected at least one drop around the slam")
-        let nearest = timeline.drops.min(by: { abs($0 - slamCenter) < abs($1 - slamCenter) })!
+        let nearest = try XCTUnwrap(timeline.drops.min(by: { abs($0 - slamCenter) < abs($1 - slamCenter) }))
         XCTAssertEqual(
             nearest,
             slamCenter,
@@ -48,11 +48,11 @@ final class EntheaTrackAnalyzerTests: XCTestCase {
             .appendingPathComponent("enthea-drop-\(UUID().uuidString).wav")
         defer { try? FileManager.default.removeItem(at: url) }
 
-        try Self.writeDropFixture(to: url, sampleRate: 44_100, duration: 3.5, slamAt: 1.8)
+        try Self.writeDropFixture(to: url, sampleRate: 44100, duration: 3.5, slamAt: 1.8)
         let timeline = try EntheaTrackAnalyzer.analyze(url: url)
         XCTAssertGreaterThan(timeline.dur, 3.0)
         XCTAssertFalse(timeline.drops.isEmpty)
-        let nearest = timeline.drops.min(by: { abs($0 - 1.8) < abs($1 - 1.8) })!
+        let nearest = try XCTUnwrap(timeline.drops.min(by: { abs($0 - 1.8) < abs($1 - 1.8) }))
         XCTAssertEqual(nearest, 1.8, accuracy: 0.4)
     }
 
@@ -165,7 +165,7 @@ private final class RecordingTrackEvaluator: EntheaJavaScriptEvaluating {
 }
 
 private func EntheaTrackAnalyzerTests_writeMinimalSlam(url: URL) throws {
-    let sampleRate = 44_100.0
+    let sampleRate = 44100.0
     let duration = 3.0
     let frameCount = AVAudioFrameCount(duration * sampleRate)
     guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else {
@@ -178,7 +178,9 @@ private func EntheaTrackAnalyzerTests_writeMinimalSlam(url: URL) throws {
     buffer.frameLength = frameCount
     let channel = buffer.floatChannelData![0]
     let n = Int(frameCount)
-    for i in 0 ..< n { channel[i] = 0.02 }
+    for i in 0 ..< n {
+        channel[i] = 0.02
+    }
     let slamAt = 1.5
     let s0 = Int((slamAt - 0.1) * sampleRate)
     let s1 = Int((slamAt + 0.1) * sampleRate)

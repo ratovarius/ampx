@@ -29,6 +29,21 @@ final class PlaylistStateStoreTests: XCTestCase {
         XCTAssertEqual(store.loadState(), state)
     }
 
+    /// Tests run hosted in the app; a default store must never touch the user's real saved playlist.
+    func testDefaultStoreUnderTestDoesNotWriteStandardDefaults() {
+        let realKey = "AmpXPlaylistState"
+        let before = UserDefaults.standard.data(forKey: realKey)
+
+        PlaylistStateStore().saveState(PersistedPlaylistState(
+            trackPaths: ["/tmp/isolation-probe-\(UUID().uuidString).mp3"],
+            currentIndex: 0,
+            shuffleEnabled: false,
+            repeatEnabled: false
+        ))
+
+        XCTAssertEqual(UserDefaults.standard.data(forKey: realKey), before)
+    }
+
     func testClearStateRemovesSavedData() {
         let store = PlaylistStateStore(userDefaults: userDefaults)
         store.saveState(PersistedPlaylistState(

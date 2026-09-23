@@ -1,0 +1,2502 @@
+{
+  "version": "ReferenceMeasurementsV2",
+  "scope": "Player only",
+  "source": "screenshots/AmpX.png",
+  "sha256": "1db8d6c6f70f98a2b25d413dd3f4129283ebc917ccacdab9855de585d5c7b2a2",
+  "imageSize": [
+    998,
+    1576
+  ],
+  "sourceScale": 2,
+  "panelSourceRect": [
+    10,
+    7,
+    980,
+    447
+  ],
+  "moduleOrigin": [
+    10,
+    7
+  ],
+  "contentOrigin": [
+    10,
+    64
+  ],
+  "headerHeightLogical": 28.5,
+  "convention": "x,y,width,height; right/bottom exclusive. Frame includes bevel, excludes soft fringe.",
+  "records": [
+    {
+      "id": 1,
+      "name": "panel",
+      "sourceRect": [
+        10,
+        7,
+        980,
+        447
+      ],
+      "group": "frame",
+      "moduleRect": [
+        0.0,
+        0.0,
+        490.0,
+        223.5
+      ],
+      "contentRect": [
+        0.0,
+        -28.5,
+        490.0,
+        223.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 2,
+      "name": "content.frame",
+      "sourceRect": [
+        24,
+        62,
+        952,
+        379
+      ],
+      "group": "frame",
+      "moduleRect": [
+        7.0,
+        27.5,
+        476.0,
+        189.5
+      ],
+      "contentRect": [
+        7.0,
+        -1.0,
+        476.0,
+        189.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 3,
+      "name": "header",
+      "sourceRect": [
+        10,
+        7,
+        980,
+        57
+      ],
+      "group": "header",
+      "moduleRect": [
+        0.0,
+        0.0,
+        490.0,
+        28.5
+      ],
+      "contentRect": [
+        0.0,
+        -28.5,
+        490.0,
+        28.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 4,
+      "name": "header.brand",
+      "sourceRect": [
+        449,
+        19,
+        100,
+        36
+      ],
+      "group": "header",
+      "moduleRect": [
+        219.5,
+        6.0,
+        50.0,
+        18.0
+      ],
+      "contentRect": [
+        219.5,
+        -22.5,
+        50.0,
+        18.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 5,
+      "name": "header.gripGlyph",
+      "sourceRect": [
+        29,
+        21,
+        36,
+        32
+      ],
+      "group": "header",
+      "moduleRect": [
+        9.5,
+        7.0,
+        18.0,
+        16.0
+      ],
+      "contentRect": [
+        9.5,
+        -21.5,
+        18.0,
+        16.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 6,
+      "name": "header.leftLine.top",
+      "sourceRect": [
+        85,
+        26,
+        325,
+        7
+      ],
+      "group": "header",
+      "moduleRect": [
+        37.5,
+        9.5,
+        162.5,
+        3.5
+      ],
+      "contentRect": [
+        37.5,
+        -19.0,
+        162.5,
+        3.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 7,
+      "name": "header.leftLine.bottom",
+      "sourceRect": [
+        85,
+        38,
+        325,
+        7
+      ],
+      "group": "header",
+      "moduleRect": [
+        37.5,
+        15.5,
+        162.5,
+        3.5
+      ],
+      "contentRect": [
+        37.5,
+        -13.0,
+        162.5,
+        3.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 8,
+      "name": "header.rightLine.top",
+      "sourceRect": [
+        582,
+        26,
+        238,
+        7
+      ],
+      "group": "header",
+      "moduleRect": [
+        286.0,
+        9.5,
+        119.0,
+        3.5
+      ],
+      "contentRect": [
+        286.0,
+        -19.0,
+        119.0,
+        3.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 9,
+      "name": "header.rightLine.bottom",
+      "sourceRect": [
+        582,
+        38,
+        238,
+        7
+      ],
+      "group": "header",
+      "moduleRect": [
+        286.0,
+        15.5,
+        119.0,
+        3.5
+      ],
+      "contentRect": [
+        286.0,
+        -13.0,
+        119.0,
+        3.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 10,
+      "name": "header.minimize",
+      "sourceRect": [
+        834,
+        17,
+        40,
+        40
+      ],
+      "group": "header",
+      "moduleRect": [
+        412.0,
+        5.0,
+        20.0,
+        20.0
+      ],
+      "contentRect": [
+        412.0,
+        -23.5,
+        20.0,
+        20.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 11,
+      "name": "header.collapse",
+      "sourceRect": [
+        886,
+        17,
+        40,
+        40
+      ],
+      "group": "header",
+      "moduleRect": [
+        438.0,
+        5.0,
+        20.0,
+        20.0
+      ],
+      "contentRect": [
+        438.0,
+        -23.5,
+        20.0,
+        20.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 12,
+      "name": "header.close",
+      "sourceRect": [
+        937,
+        17,
+        40,
+        40
+      ],
+      "group": "header",
+      "moduleRect": [
+        463.5,
+        5.0,
+        20.0,
+        20.0
+      ],
+      "contentRect": [
+        463.5,
+        -23.5,
+        20.0,
+        20.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 13,
+      "name": "display.well",
+      "sourceRect": [
+        37,
+        84,
+        336,
+        190
+      ],
+      "group": "display",
+      "moduleRect": [
+        13.5,
+        38.5,
+        168.0,
+        95.0
+      ],
+      "contentRect": [
+        13.5,
+        10.0,
+        168.0,
+        95.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 14,
+      "name": "display.blackInterior",
+      "sourceRect": [
+        41,
+        89,
+        328,
+        181
+      ],
+      "group": "display",
+      "moduleRect": [
+        15.5,
+        41.0,
+        164.0,
+        90.5
+      ],
+      "contentRect": [
+        15.5,
+        12.5,
+        164.0,
+        90.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 15,
+      "name": "display.playGlyph",
+      "sourceRect": [
+        80,
+        106,
+        28,
+        36
+      ],
+      "group": "display",
+      "moduleRect": [
+        35.0,
+        49.5,
+        14.0,
+        18.0
+      ],
+      "contentRect": [
+        35.0,
+        21.0,
+        14.0,
+        18.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 16,
+      "name": "display.timer",
+      "sourceRect": [
+        179,
+        100,
+        164,
+        51
+      ],
+      "group": "display",
+      "moduleRect": [
+        84.5,
+        46.5,
+        82.0,
+        25.5
+      ],
+      "contentRect": [
+        84.5,
+        18.0,
+        82.0,
+        25.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 17,
+      "name": "display.timer.digit0",
+      "sourceRect": [
+        179,
+        101,
+        29,
+        50
+      ],
+      "group": "timer",
+      "moduleRect": [
+        84.5,
+        47.0,
+        14.5,
+        25.0
+      ],
+      "contentRect": [
+        84.5,
+        18.5,
+        14.5,
+        25.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 18,
+      "name": "display.timer.digit1",
+      "sourceRect": [
+        229,
+        101,
+        9,
+        49
+      ],
+      "group": "timer",
+      "moduleRect": [
+        109.5,
+        47.0,
+        4.5,
+        24.5
+      ],
+      "contentRect": [
+        109.5,
+        18.5,
+        4.5,
+        24.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 19,
+      "name": "display.timer.colon",
+      "sourceRect": [
+        253,
+        112,
+        13,
+        28
+      ],
+      "group": "timer",
+      "moduleRect": [
+        121.5,
+        52.5,
+        6.5,
+        14.0
+      ],
+      "contentRect": [
+        121.5,
+        24.0,
+        6.5,
+        14.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 20,
+      "name": "display.timer.digit5",
+      "sourceRect": [
+        282,
+        101,
+        28,
+        50
+      ],
+      "group": "timer",
+      "moduleRect": [
+        136.0,
+        47.0,
+        14.0,
+        25.0
+      ],
+      "contentRect": [
+        136.0,
+        18.5,
+        14.0,
+        25.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 21,
+      "name": "display.timer.last1",
+      "sourceRect": [
+        331,
+        101,
+        12,
+        49
+      ],
+      "group": "timer",
+      "moduleRect": [
+        160.5,
+        47.0,
+        6.0,
+        24.5
+      ],
+      "contentRect": [
+        160.5,
+        18.5,
+        6.0,
+        24.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 22,
+      "name": "display.spectrum",
+      "sourceRect": [
+        76,
+        178,
+        275,
+        82
+      ],
+      "group": "display",
+      "moduleRect": [
+        33.0,
+        85.5,
+        137.5,
+        41.0
+      ],
+      "contentRect": [
+        33.0,
+        57.0,
+        137.5,
+        41.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 23,
+      "name": "display.channelL",
+      "sourceRect": [
+        48,
+        192,
+        18,
+        27
+      ],
+      "group": "display",
+      "moduleRect": [
+        19.0,
+        92.5,
+        9.0,
+        13.5
+      ],
+      "contentRect": [
+        19.0,
+        64.0,
+        9.0,
+        13.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 24,
+      "name": "display.channelR",
+      "sourceRect": [
+        48,
+        234,
+        18,
+        27
+      ],
+      "group": "display",
+      "moduleRect": [
+        19.0,
+        113.5,
+        9.0,
+        13.5
+      ],
+      "contentRect": [
+        19.0,
+        85.0,
+        9.0,
+        13.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 25,
+      "name": "track.well",
+      "sourceRect": [
+        385,
+        84,
+        577,
+        63
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        187.5,
+        38.5,
+        288.5,
+        31.5
+      ],
+      "contentRect": [
+        187.5,
+        10.0,
+        288.5,
+        31.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 26,
+      "name": "track.text",
+      "sourceRect": [
+        397,
+        100,
+        429,
+        28
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        193.5,
+        46.5,
+        214.5,
+        14.0
+      ],
+      "contentRect": [
+        193.5,
+        18.0,
+        214.5,
+        14.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 27,
+      "name": "metadata.bitrateWell",
+      "sourceRect": [
+        385,
+        156,
+        79,
+        50
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        187.5,
+        74.5,
+        39.5,
+        25.0
+      ],
+      "contentRect": [
+        187.5,
+        46.0,
+        39.5,
+        25.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 28,
+      "name": "metadata.bitrateInk",
+      "sourceRect": [
+        397,
+        168,
+        51,
+        25
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        193.5,
+        80.5,
+        25.5,
+        12.5
+      ],
+      "contentRect": [
+        193.5,
+        52.0,
+        25.5,
+        12.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 29,
+      "name": "metadata.kbps",
+      "sourceRect": [
+        474,
+        171,
+        53,
+        27
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        232.0,
+        82.0,
+        26.5,
+        13.5
+      ],
+      "contentRect": [
+        232.0,
+        53.5,
+        26.5,
+        13.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 30,
+      "name": "metadata.sampleRateWell",
+      "sourceRect": [
+        558,
+        157,
+        66,
+        49
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        274.0,
+        75.0,
+        33.0,
+        24.5
+      ],
+      "contentRect": [
+        274.0,
+        46.5,
+        33.0,
+        24.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 31,
+      "name": "metadata.sampleRateInk",
+      "sourceRect": [
+        574,
+        168,
+        33,
+        25
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        282.0,
+        80.5,
+        16.5,
+        12.5
+      ],
+      "contentRect": [
+        282.0,
+        52.0,
+        16.5,
+        12.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 32,
+      "name": "metadata.kHz",
+      "sourceRect": [
+        635,
+        171,
+        41,
+        23
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        312.5,
+        82.0,
+        20.5,
+        11.5
+      ],
+      "contentRect": [
+        312.5,
+        53.5,
+        20.5,
+        11.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 33,
+      "name": "metadata.mono",
+      "sourceRect": [
+        791,
+        175,
+        60,
+        18
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        390.5,
+        84.0,
+        30.0,
+        9.0
+      ],
+      "contentRect": [
+        390.5,
+        55.5,
+        30.0,
+        9.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 34,
+      "name": "metadata.stereo",
+      "sourceRect": [
+        871,
+        171,
+        82,
+        22
+      ],
+      "group": "metadata",
+      "moduleRect": [
+        430.5,
+        82.0,
+        41.0,
+        11.0
+      ],
+      "contentRect": [
+        430.5,
+        53.5,
+        41.0,
+        11.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 35,
+      "name": "volume.track",
+      "sourceRect": [
+        387,
+        235,
+        211,
+        22
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        188.5,
+        114.0,
+        105.5,
+        11.0
+      ],
+      "contentRect": [
+        188.5,
+        85.5,
+        105.5,
+        11.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 36,
+      "name": "volume.coloredInterior",
+      "sourceRect": [
+        393,
+        240,
+        199,
+        12
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        191.5,
+        116.5,
+        99.5,
+        6.0
+      ],
+      "contentRect": [
+        191.5,
+        88.0,
+        99.5,
+        6.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 37,
+      "name": "volume.thumb",
+      "sourceRect": [
+        515,
+        230,
+        43,
+        40
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        252.5,
+        111.5,
+        21.5,
+        20.0
+      ],
+      "contentRect": [
+        252.5,
+        83.0,
+        21.5,
+        20.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 38,
+      "name": "balance.track",
+      "sourceRect": [
+        615,
+        235,
+        134,
+        22
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        302.5,
+        114.0,
+        67.0,
+        11.0
+      ],
+      "contentRect": [
+        302.5,
+        85.5,
+        67.0,
+        11.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 39,
+      "name": "balance.coloredInterior",
+      "sourceRect": [
+        622,
+        240,
+        120,
+        12
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        306.0,
+        116.5,
+        60.0,
+        6.0
+      ],
+      "contentRect": [
+        306.0,
+        88.0,
+        60.0,
+        6.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 40,
+      "name": "balance.thumb",
+      "sourceRect": [
+        661,
+        230,
+        43,
+        40
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        325.5,
+        111.5,
+        21.5,
+        20.0
+      ],
+      "contentRect": [
+        325.5,
+        83.0,
+        21.5,
+        20.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 41,
+      "name": "toggle.eq",
+      "sourceRect": [
+        763,
+        218,
+        93,
+        57
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        376.5,
+        105.5,
+        46.5,
+        28.5
+      ],
+      "contentRect": [
+        376.5,
+        77.0,
+        46.5,
+        28.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 42,
+      "name": "toggle.eq.indicator",
+      "sourceRect": [
+        776,
+        234,
+        20,
+        24
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        383.0,
+        113.5,
+        10.0,
+        12.0
+      ],
+      "contentRect": [
+        383.0,
+        85.0,
+        10.0,
+        12.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 43,
+      "name": "toggle.eq.label",
+      "sourceRect": [
+        807,
+        235,
+        26,
+        24
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        398.5,
+        114.0,
+        13.0,
+        12.0
+      ],
+      "contentRect": [
+        398.5,
+        85.5,
+        13.0,
+        12.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 44,
+      "name": "toggle.pl",
+      "sourceRect": [
+        866,
+        218,
+        95,
+        57
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        428.0,
+        105.5,
+        47.5,
+        28.5
+      ],
+      "contentRect": [
+        428.0,
+        77.0,
+        47.5,
+        28.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 45,
+      "name": "toggle.pl.indicator",
+      "sourceRect": [
+        878,
+        234,
+        21,
+        24
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        434.0,
+        113.5,
+        10.5,
+        12.0
+      ],
+      "contentRect": [
+        434.0,
+        85.0,
+        10.5,
+        12.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 46,
+      "name": "toggle.pl.label",
+      "sourceRect": [
+        911,
+        235,
+        27,
+        24
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        450.5,
+        114.0,
+        13.5,
+        12.0
+      ],
+      "contentRect": [
+        450.5,
+        85.5,
+        13.5,
+        12.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 47,
+      "name": "position.well",
+      "sourceRect": [
+        37,
+        287,
+        925,
+        39
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        13.5,
+        140.0,
+        462.5,
+        19.5
+      ],
+      "contentRect": [
+        13.5,
+        111.5,
+        462.5,
+        19.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 48,
+      "name": "position.trackInterior",
+      "sourceRect": [
+        46,
+        296,
+        908,
+        22
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        18.0,
+        144.5,
+        454.0,
+        11.0
+      ],
+      "contentRect": [
+        18.0,
+        116.0,
+        454.0,
+        11.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 49,
+      "name": "position.thumb",
+      "sourceRect": [
+        451,
+        292,
+        95,
+        32
+      ],
+      "group": "sliders",
+      "moduleRect": [
+        220.5,
+        142.5,
+        47.5,
+        16.0
+      ],
+      "contentRect": [
+        220.5,
+        114.0,
+        47.5,
+        16.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 50,
+      "name": "transport.previous",
+      "sourceRect": [
+        38,
+        343,
+        88,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        14.0,
+        168.0,
+        44.0,
+        38.5
+      ],
+      "contentRect": [
+        14.0,
+        139.5,
+        44.0,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 51,
+      "name": "transport.play",
+      "sourceRect": [
+        132,
+        343,
+        92,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        61.0,
+        168.0,
+        46.0,
+        38.5
+      ],
+      "contentRect": [
+        61.0,
+        139.5,
+        46.0,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 52,
+      "name": "transport.pause",
+      "sourceRect": [
+        229,
+        343,
+        84,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        109.5,
+        168.0,
+        42.0,
+        38.5
+      ],
+      "contentRect": [
+        109.5,
+        139.5,
+        42.0,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 53,
+      "name": "transport.stop",
+      "sourceRect": [
+        321,
+        343,
+        87,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        155.5,
+        168.0,
+        43.5,
+        38.5
+      ],
+      "contentRect": [
+        155.5,
+        139.5,
+        43.5,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 54,
+      "name": "transport.next",
+      "sourceRect": [
+        417,
+        343,
+        87,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        203.5,
+        168.0,
+        43.5,
+        38.5
+      ],
+      "contentRect": [
+        203.5,
+        139.5,
+        43.5,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 55,
+      "name": "transport.eject",
+      "sourceRect": [
+        515,
+        343,
+        94,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        252.5,
+        168.0,
+        47.0,
+        38.5
+      ],
+      "contentRect": [
+        252.5,
+        139.5,
+        47.0,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 56,
+      "name": "transport.shuffle",
+      "sourceRect": [
+        617,
+        343,
+        168,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        303.5,
+        168.0,
+        84.0,
+        38.5
+      ],
+      "contentRect": [
+        303.5,
+        139.5,
+        84.0,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 57,
+      "name": "transport.repeat",
+      "sourceRect": [
+        791,
+        343,
+        85,
+        77
+      ],
+      "group": "transport",
+      "moduleRect": [
+        390.5,
+        168.0,
+        42.5,
+        38.5
+      ],
+      "contentRect": [
+        390.5,
+        139.5,
+        42.5,
+        38.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 58,
+      "name": "transport.menu",
+      "sourceRect": [
+        893,
+        348,
+        67,
+        71
+      ],
+      "group": "transport",
+      "moduleRect": [
+        441.5,
+        170.5,
+        33.5,
+        35.5
+      ],
+      "contentRect": [
+        441.5,
+        142.0,
+        33.5,
+        35.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 59,
+      "name": "transport.previous.glyph",
+      "sourceRect": [
+        67,
+        365,
+        29,
+        32
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        28.5,
+        179.0,
+        14.5,
+        16.0
+      ],
+      "contentRect": [
+        28.5,
+        150.5,
+        14.5,
+        16.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 60,
+      "name": "transport.play.glyph",
+      "sourceRect": [
+        166,
+        366,
+        27,
+        31
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        78.0,
+        179.5,
+        13.5,
+        15.5
+      ],
+      "contentRect": [
+        78.0,
+        151.0,
+        13.5,
+        15.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 61,
+      "name": "transport.pause.glyph",
+      "sourceRect": [
+        259,
+        367,
+        24,
+        29
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        124.5,
+        180.0,
+        12.0,
+        14.5
+      ],
+      "contentRect": [
+        124.5,
+        151.5,
+        12.0,
+        14.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 62,
+      "name": "transport.stop.glyph",
+      "sourceRect": [
+        353,
+        369,
+        25,
+        25
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        171.5,
+        181.0,
+        12.5,
+        12.5
+      ],
+      "contentRect": [
+        171.5,
+        152.5,
+        12.5,
+        12.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 63,
+      "name": "transport.next.glyph",
+      "sourceRect": [
+        448,
+        365,
+        28,
+        32
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        219.0,
+        179.0,
+        14.0,
+        16.0
+      ],
+      "contentRect": [
+        219.0,
+        150.5,
+        14.0,
+        16.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 64,
+      "name": "transport.eject.glyph",
+      "sourceRect": [
+        547,
+        368,
+        30,
+        29
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        268.5,
+        180.5,
+        15.0,
+        14.5
+      ],
+      "contentRect": [
+        268.5,
+        152.0,
+        15.0,
+        14.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 65,
+      "name": "transport.shuffle.indicator",
+      "sourceRect": [
+        634,
+        366,
+        21,
+        25
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        312.0,
+        179.5,
+        10.5,
+        12.5
+      ],
+      "contentRect": [
+        312.0,
+        151.0,
+        10.5,
+        12.5
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 66,
+      "name": "transport.shuffle.label",
+      "sourceRect": [
+        668,
+        372,
+        93,
+        20
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        329.0,
+        182.5,
+        46.5,
+        10.0
+      ],
+      "contentRect": [
+        329.0,
+        154.0,
+        46.5,
+        10.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 67,
+      "name": "transport.repeat.glyph",
+      "sourceRect": [
+        815,
+        365,
+        37,
+        32
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        402.5,
+        179.0,
+        18.5,
+        16.0
+      ],
+      "contentRect": [
+        402.5,
+        150.5,
+        18.5,
+        16.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 68,
+      "name": "transport.menu.glyph",
+      "sourceRect": [
+        911,
+        369,
+        31,
+        28
+      ],
+      "group": "glyphs",
+      "moduleRect": [
+        450.5,
+        181.0,
+        15.5,
+        14.0
+      ],
+      "contentRect": [
+        450.5,
+        152.5,
+        15.5,
+        14.0
+      ],
+      "method": "manual visible-edge/ink measurement; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    }
+  ],
+  "colorSamples": {
+    "display.black": {
+      "sourcePatch": [
+        51,
+        152,
+        5,
+        5
+      ],
+      "rgb": [
+        3,
+        5,
+        7
+      ],
+      "hex": "#030507"
+    },
+    "panel.interior": {
+      "sourcePatch": [
+        700,
+        210,
+        5,
+        5
+      ],
+      "rgb": [
+        27,
+        38,
+        62
+      ],
+      "hex": "#1B263E"
+    },
+    "button.face": {
+      "sourcePatch": [
+        145,
+        352,
+        5,
+        5
+      ],
+      "rgb": [
+        30,
+        40,
+        58
+      ],
+      "hex": "#1E283A"
+    },
+    "button.topHighlight": {
+      "sourcePatch": [
+        142,
+        346,
+        10,
+        1
+      ],
+      "rgb": [
+        113,
+        132,
+        162
+      ],
+      "hex": "#7184A2"
+    },
+    "button.leftHighlight": {
+      "sourcePatch": [
+        135,
+        355,
+        1,
+        10
+      ],
+      "rgb": [
+        98,
+        113,
+        139
+      ],
+      "hex": "#62718B"
+    },
+    "button.bottomShadow": {
+      "sourcePatch": [
+        145,
+        416,
+        10,
+        1
+      ],
+      "rgb": [
+        15,
+        25,
+        40
+      ],
+      "hex": "#0F1928"
+    },
+    "frame.highlight": {
+      "sourcePatch": [
+        50,
+        64,
+        10,
+        1
+      ],
+      "rgb": [
+        71,
+        87,
+        118
+      ],
+      "hex": "#475776"
+    },
+    "frame.darkEdge": {
+      "sourcePatch": [
+        50,
+        66,
+        10,
+        1
+      ],
+      "rgb": [
+        13,
+        20,
+        34
+      ],
+      "hex": "#0D1422"
+    },
+    "thumb.steelFace": {
+      "sourcePatch": [
+        522,
+        237,
+        5,
+        5
+      ],
+      "rgb": [
+        131,
+        145,
+        170
+      ],
+      "hex": "#8391AA"
+    },
+    "thumb.steelHighlight": {
+      "sourcePatch": [
+        522,
+        233,
+        10,
+        1
+      ],
+      "rgb": [
+        235,
+        242,
+        248
+      ],
+      "hex": "#EBF2F8"
+    },
+    "thumb.goldFace": {
+      "sourcePatch": [
+        475,
+        312,
+        10,
+        3
+      ],
+      "rgb": [
+        197,
+        163,
+        81
+      ],
+      "hex": "#C5A351"
+    },
+    "thumb.goldHighlight": {
+      "sourcePatch": [
+        467,
+        295,
+        20,
+        1
+      ],
+      "rgb": [
+        255,
+        255,
+        211
+      ],
+      "hex": "#FFFFD3"
+    }
+  },
+  "edgeProfiles": {
+    "button.topEdge": {
+      "sourcePatch": [
+        150,
+        342,
+        1,
+        12
+      ],
+      "rgb": [
+        [
+          12,
+          17,
+          30
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          25,
+          29,
+          40
+        ],
+        [
+          110,
+          125,
+          150
+        ],
+        [
+          111,
+          131,
+          159
+        ],
+        [
+          89,
+          105,
+          129
+        ],
+        [
+          29,
+          39,
+          58
+        ],
+        [
+          29,
+          41,
+          59
+        ],
+        [
+          31,
+          41,
+          60
+        ],
+        [
+          30,
+          40,
+          59
+        ],
+        [
+          29,
+          40,
+          58
+        ],
+        [
+          29,
+          40,
+          57
+        ]
+      ]
+    },
+    "button.bottomEdge": {
+      "sourcePatch": [
+        150,
+        409,
+        1,
+        12
+      ],
+      "rgb": [
+        [
+          24,
+          34,
+          50
+        ],
+        [
+          23,
+          34,
+          50
+        ],
+        [
+          23,
+          33,
+          50
+        ],
+        [
+          23,
+          32,
+          50
+        ],
+        [
+          26,
+          34,
+          52
+        ],
+        [
+          21,
+          28,
+          46
+        ],
+        [
+          16,
+          23,
+          40
+        ],
+        [
+          15,
+          25,
+          41
+        ],
+        [
+          7,
+          14,
+          26
+        ],
+        [
+          1,
+          2,
+          8
+        ],
+        [
+          3,
+          5,
+          13
+        ],
+        [
+          12,
+          19,
+          32
+        ]
+      ]
+    },
+    "frame.topEdge": {
+      "sourcePatch": [
+        100,
+        5,
+        1,
+        14
+      ],
+      "rgb": [
+        [
+          1,
+          2,
+          5
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          42,
+          51,
+          66
+        ],
+        [
+          79,
+          92,
+          120
+        ],
+        [
+          71,
+          84,
+          118
+        ],
+        [
+          76,
+          90,
+          122
+        ],
+        [
+          31,
+          44,
+          67
+        ],
+        [
+          15,
+          24,
+          42
+        ],
+        [
+          19,
+          28,
+          46
+        ],
+        [
+          19,
+          28,
+          45
+        ],
+        [
+          20,
+          28,
+          46
+        ],
+        [
+          20,
+          28,
+          46
+        ],
+        [
+          20,
+          28,
+          46
+        ],
+        [
+          21,
+          29,
+          47
+        ]
+      ]
+    },
+    "well.topEdge": {
+      "sourcePatch": [
+        400,
+        81,
+        1,
+        12
+      ],
+      "rgb": [
+        [
+          24,
+          34,
+          56
+        ],
+        [
+          25,
+          35,
+          57
+        ],
+        [
+          21,
+          31,
+          52
+        ],
+        [
+          35,
+          43,
+          69
+        ],
+        [
+          49,
+          60,
+          86
+        ],
+        [
+          55,
+          68,
+          97
+        ],
+        [
+          28,
+          35,
+          55
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          3,
+          4
+        ],
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ]
+    },
+    "steelThumb.topEdge": {
+      "sourcePatch": [
+        530,
+        228,
+        1,
+        16
+      ],
+      "rgb": [
+        [
+          30,
+          45,
+          68
+        ],
+        [
+          8,
+          16,
+          26
+        ],
+        [
+          8,
+          9,
+          12
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          134,
+          140,
+          148
+        ],
+        [
+          234,
+          241,
+          249
+        ],
+        [
+          218,
+          226,
+          240
+        ],
+        [
+          161,
+          171,
+          191
+        ],
+        [
+          143,
+          153,
+          175
+        ],
+        [
+          143,
+          155,
+          176
+        ],
+        [
+          141,
+          153,
+          174
+        ],
+        [
+          149,
+          162,
+          182
+        ],
+        [
+          138,
+          153,
+          178
+        ],
+        [
+          29,
+          36,
+          55
+        ],
+        [
+          2,
+          8,
+          24
+        ],
+        [
+          9,
+          15,
+          34
+        ]
+      ]
+    },
+    "goldThumb.topEdge": {
+      "sourcePatch": [
+        480,
+        290,
+        1,
+        22
+      ],
+      "rgb": [
+        [
+          17,
+          27,
+          44
+        ],
+        [
+          11,
+          17,
+          29
+        ],
+        [
+          6,
+          9,
+          18
+        ],
+        [
+          8,
+          4,
+          3
+        ],
+        [
+          163,
+          155,
+          131
+        ],
+        [
+          255,
+          255,
+          211
+        ],
+        [
+          145,
+          119,
+          71
+        ],
+        [
+          146,
+          114,
+          53
+        ],
+        [
+          240,
+          209,
+          139
+        ],
+        [
+          247,
+          231,
+          182
+        ],
+        [
+          249,
+          245,
+          214
+        ],
+        [
+          255,
+          255,
+          229
+        ],
+        [
+          184,
+          169,
+          126
+        ],
+        [
+          59,
+          33,
+          0
+        ],
+        [
+          73,
+          49,
+          15
+        ],
+        [
+          115,
+          87,
+          26
+        ],
+        [
+          171,
+          134,
+          54
+        ],
+        [
+          235,
+          211,
+          142
+        ],
+        [
+          254,
+          251,
+          222
+        ],
+        [
+          253,
+          249,
+          232
+        ],
+        [
+          234,
+          213,
+          155
+        ],
+        [
+          207,
+          171,
+          84
+        ]
+      ]
+    }
+  },
+  "spectrum": {
+    "sourceRuns": {
+      "81": [
+        [
+          207,
+          8
+        ],
+        [
+          220,
+          9
+        ],
+        [
+          233,
+          10
+        ],
+        [
+          247,
+          11
+        ]
+      ],
+      "99": [
+        [
+          206,
+          9
+        ],
+        [
+          220,
+          9
+        ],
+        [
+          233,
+          10
+        ],
+        [
+          247,
+          11
+        ]
+      ],
+      "116": [
+        [
+          206,
+          10
+        ],
+        [
+          220,
+          9
+        ],
+        [
+          233,
+          10
+        ],
+        [
+          247,
+          11
+        ]
+      ],
+      "134": [
+        [
+          220,
+          9
+        ],
+        [
+          233,
+          10
+        ],
+        [
+          247,
+          11
+        ]
+      ]
+    },
+    "medianLitHeightSourcePx": 10,
+    "medianGapSourcePx": 4,
+    "note": "Thresholded bright cores at y=205..259; glow excluded. No fallback or canonical override."
+  },
+  "proposedTravel": {
+    "volume": {
+      "sourceCenterEndpoints": [
+        414.5,
+        570.5
+      ],
+      "method": "derived inset-travel proposal; NOT observable from this single pose",
+      "hitBounds": "not observable; define during implementation without enlarging artwork"
+    },
+    "balance": {
+      "sourceCenterEndpoints": [
+        643.5,
+        720.5
+      ],
+      "method": "derived inset-travel proposal; NOT observable from this single pose",
+      "hitBounds": "not observable; define during implementation without enlarging artwork"
+    },
+    "position": {
+      "sourceCenterEndpoints": [
+        93.5,
+        906.5
+      ],
+      "method": "derived inset-travel proposal; NOT observable from this single pose",
+      "hitBounds": "not observable; define during implementation without enlarging artwork"
+    }
+  }
+}

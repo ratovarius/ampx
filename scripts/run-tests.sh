@@ -19,4 +19,4 @@ xcodebuild test \
     -project AmpX.xcodeproj \
     -scheme AmpX \
     -destination "platform=macOS,arch=${ARCH}" \
-    ONLY_ACTIVE_ARCH=YES
+    ONLY_ACTIVE_ARCH=YES "$@"

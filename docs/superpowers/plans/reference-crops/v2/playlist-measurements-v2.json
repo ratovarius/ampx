@@ -1,0 +1,1301 @@
+{
+  "version": "ReferenceMeasurementsV2",
+  "scope": "Playlist",
+  "source": "screenshots/AmpX.png",
+  "sha256": "1db8d6c6f70f98a2b25d413dd3f4129283ebc917ccacdab9855de585d5c7b2a2",
+  "panelSourceRect": [
+    10,
+    930,
+    980,
+    610
+  ],
+  "moduleOrigin": [
+    10,
+    930
+  ],
+  "contentOrigin": [
+    10,
+    987
+  ],
+  "headerHeightLogical": 28.5,
+  "records": [
+    {
+      "id": 1,
+      "name": "panel",
+      "sourceRect": [
+        10,
+        930,
+        980,
+        610
+      ],
+      "group": "frame",
+      "moduleRect": [
+        0.0,
+        0.0,
+        490.0,
+        305.0
+      ],
+      "contentRect": [
+        0.0,
+        -28.5,
+        490.0,
+        305.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 2,
+      "name": "content.frame",
+      "sourceRect": [
+        24,
+        986,
+        952,
+        541
+      ],
+      "group": "frame",
+      "moduleRect": [
+        7.0,
+        28.0,
+        476.0,
+        270.5
+      ],
+      "contentRect": [
+        7.0,
+        -0.5,
+        476.0,
+        270.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 3,
+      "name": "header.brand",
+      "sourceRect": [
+        380,
+        946,
+        86,
+        32
+      ],
+      "group": "header",
+      "moduleRect": [
+        185.0,
+        8.0,
+        43.0,
+        16.0
+      ],
+      "contentRect": [
+        185.0,
+        -20.5,
+        43.0,
+        16.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 4,
+      "name": "header.title",
+      "sourceRect": [
+        499,
+        951,
+        126,
+        20
+      ],
+      "group": "header",
+      "moduleRect": [
+        244.5,
+        10.5,
+        63.0,
+        10.0
+      ],
+      "contentRect": [
+        244.5,
+        -18.0,
+        63.0,
+        10.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 5,
+      "name": "header.leftRule",
+      "sourceRect": [
+        86,
+        949,
+        257,
+        19
+      ],
+      "group": "header",
+      "moduleRect": [
+        38.0,
+        9.5,
+        128.5,
+        9.5
+      ],
+      "contentRect": [
+        38.0,
+        -19.0,
+        128.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 6,
+      "name": "header.rightRule",
+      "sourceRect": [
+        657,
+        949,
+        163,
+        19
+      ],
+      "group": "header",
+      "moduleRect": [
+        323.5,
+        9.5,
+        81.5,
+        9.5
+      ],
+      "contentRect": [
+        323.5,
+        -19.0,
+        81.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 7,
+      "name": "header.collapseGlyph",
+      "sourceRect": [
+        895,
+        949,
+        20,
+        17
+      ],
+      "group": "header",
+      "moduleRect": [
+        442.5,
+        9.5,
+        10.0,
+        8.5
+      ],
+      "contentRect": [
+        442.5,
+        -19.0,
+        10.0,
+        8.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 8,
+      "name": "header.closeGlyph",
+      "sourceRect": [
+        949,
+        951,
+        17,
+        18
+      ],
+      "group": "header",
+      "moduleRect": [
+        469.5,
+        10.5,
+        8.5,
+        9.0
+      ],
+      "contentRect": [
+        469.5,
+        -18.0,
+        8.5,
+        9.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 9,
+      "name": "rows.well",
+      "sourceRect": [
+        36,
+        1004,
+        890,
+        400
+      ],
+      "group": "rows",
+      "moduleRect": [
+        13.0,
+        37.0,
+        445.0,
+        200.0
+      ],
+      "contentRect": [
+        13.0,
+        8.5,
+        445.0,
+        200.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 10,
+      "name": "rows.interior",
+      "sourceRect": [
+        40,
+        1007,
+        881,
+        393
+      ],
+      "group": "rows",
+      "moduleRect": [
+        15.0,
+        38.5,
+        440.5,
+        196.5
+      ],
+      "contentRect": [
+        15.0,
+        10.0,
+        440.5,
+        196.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 11,
+      "name": "row1.number",
+      "sourceRect": [
+        64,
+        1024,
+        24,
+        21
+      ],
+      "group": "rows",
+      "moduleRect": [
+        27.0,
+        47.0,
+        12.0,
+        10.5
+      ],
+      "contentRect": [
+        27.0,
+        18.5,
+        12.0,
+        10.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 12,
+      "name": "row1.title",
+      "sourceRect": [
+        117,
+        1023,
+        421,
+        28
+      ],
+      "group": "rows",
+      "moduleRect": [
+        53.5,
+        46.5,
+        210.5,
+        14.0
+      ],
+      "contentRect": [
+        53.5,
+        18.0,
+        210.5,
+        14.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 13,
+      "name": "row1.duration",
+      "sourceRect": [
+        832,
+        1025,
+        61,
+        21
+      ],
+      "group": "rows",
+      "moduleRect": [
+        411.0,
+        47.5,
+        30.5,
+        10.5
+      ],
+      "contentRect": [
+        411.0,
+        19.0,
+        30.5,
+        10.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 14,
+      "name": "row4.selection",
+      "sourceRect": [
+        41,
+        1138,
+        879,
+        40
+      ],
+      "group": "rows",
+      "moduleRect": [
+        15.5,
+        104.0,
+        439.5,
+        20.0
+      ],
+      "contentRect": [
+        15.5,
+        75.5,
+        439.5,
+        20.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 15,
+      "name": "row4.number",
+      "sourceRect": [
+        63,
+        1147,
+        25,
+        22
+      ],
+      "group": "rows",
+      "moduleRect": [
+        26.5,
+        108.5,
+        12.5,
+        11.0
+      ],
+      "contentRect": [
+        26.5,
+        80.0,
+        12.5,
+        11.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 16,
+      "name": "row4.title",
+      "sourceRect": [
+        118,
+        1147,
+        259,
+        22
+      ],
+      "group": "rows",
+      "moduleRect": [
+        54.0,
+        108.5,
+        129.5,
+        11.0
+      ],
+      "contentRect": [
+        54.0,
+        80.0,
+        129.5,
+        11.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 17,
+      "name": "row4.duration",
+      "sourceRect": [
+        832,
+        1148,
+        62,
+        21
+      ],
+      "group": "rows",
+      "moduleRect": [
+        411.0,
+        109.0,
+        31.0,
+        10.5
+      ],
+      "contentRect": [
+        411.0,
+        80.5,
+        31.0,
+        10.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 18,
+      "name": "row7.number",
+      "sourceRect": [
+        65,
+        1272,
+        23,
+        22
+      ],
+      "group": "rows",
+      "moduleRect": [
+        27.5,
+        171.0,
+        11.5,
+        11.0
+      ],
+      "contentRect": [
+        27.5,
+        142.5,
+        11.5,
+        11.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 19,
+      "name": "row7.title",
+      "sourceRect": [
+        118,
+        1271,
+        345,
+        23
+      ],
+      "group": "rows",
+      "moduleRect": [
+        54.0,
+        170.5,
+        172.5,
+        11.5
+      ],
+      "contentRect": [
+        54.0,
+        142.0,
+        172.5,
+        11.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 20,
+      "name": "row7.duration",
+      "sourceRect": [
+        832,
+        1272,
+        62,
+        22
+      ],
+      "group": "rows",
+      "moduleRect": [
+        411.0,
+        171.0,
+        31.0,
+        11.0
+      ],
+      "contentRect": [
+        411.0,
+        142.5,
+        31.0,
+        11.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 21,
+      "name": "scrollbar.outer",
+      "sourceRect": [
+        932,
+        1004,
+        31,
+        390
+      ],
+      "group": "scrollbar",
+      "moduleRect": [
+        461.0,
+        37.0,
+        15.5,
+        195.0
+      ],
+      "contentRect": [
+        461.0,
+        8.5,
+        15.5,
+        195.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 22,
+      "name": "scrollbar.up",
+      "sourceRect": [
+        932,
+        1004,
+        31,
+        37
+      ],
+      "group": "scrollbar",
+      "moduleRect": [
+        461.0,
+        37.0,
+        15.5,
+        18.5
+      ],
+      "contentRect": [
+        461.0,
+        8.5,
+        15.5,
+        18.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 23,
+      "name": "scrollbar.up.glyph",
+      "sourceRect": [
+        939,
+        1013,
+        17,
+        19
+      ],
+      "group": "scrollbar",
+      "moduleRect": [
+        464.5,
+        41.5,
+        8.5,
+        9.5
+      ],
+      "contentRect": [
+        464.5,
+        13.0,
+        8.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 24,
+      "name": "scrollbar.thumb",
+      "sourceRect": [
+        935,
+        1042,
+        26,
+        66
+      ],
+      "group": "scrollbar",
+      "moduleRect": [
+        462.5,
+        56.0,
+        13.0,
+        33.0
+      ],
+      "contentRect": [
+        462.5,
+        27.5,
+        13.0,
+        33.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 25,
+      "name": "scrollbar.down",
+      "sourceRect": [
+        932,
+        1352,
+        31,
+        42
+      ],
+      "group": "scrollbar",
+      "moduleRect": [
+        461.0,
+        211.0,
+        15.5,
+        21.0
+      ],
+      "contentRect": [
+        461.0,
+        182.5,
+        15.5,
+        21.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 26,
+      "name": "scrollbar.down.glyph",
+      "sourceRect": [
+        939,
+        1364,
+        17,
+        19
+      ],
+      "group": "scrollbar",
+      "moduleRect": [
+        464.5,
+        217.0,
+        8.5,
+        9.5
+      ],
+      "contentRect": [
+        464.5,
+        188.5,
+        8.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 27,
+      "name": "footer.add",
+      "sourceRect": [
+        35,
+        1420,
+        86,
+        88
+      ],
+      "group": "footer",
+      "moduleRect": [
+        12.5,
+        245.0,
+        43.0,
+        44.0
+      ],
+      "contentRect": [
+        12.5,
+        216.5,
+        43.0,
+        44.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 28,
+      "name": "footer.rem",
+      "sourceRect": [
+        126,
+        1420,
+        88,
+        88
+      ],
+      "group": "footer",
+      "moduleRect": [
+        58.0,
+        245.0,
+        44.0,
+        44.0
+      ],
+      "contentRect": [
+        58.0,
+        216.5,
+        44.0,
+        44.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 29,
+      "name": "footer.sel",
+      "sourceRect": [
+        219,
+        1420,
+        88,
+        88
+      ],
+      "group": "footer",
+      "moduleRect": [
+        104.5,
+        245.0,
+        44.0,
+        44.0
+      ],
+      "contentRect": [
+        104.5,
+        216.5,
+        44.0,
+        44.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 30,
+      "name": "footer.misc",
+      "sourceRect": [
+        312,
+        1420,
+        91,
+        88
+      ],
+      "group": "footer",
+      "moduleRect": [
+        151.0,
+        245.0,
+        45.5,
+        44.0
+      ],
+      "contentRect": [
+        151.0,
+        216.5,
+        45.5,
+        44.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 31,
+      "name": "footer.add.label",
+      "sourceRect": [
+        58,
+        1453,
+        39,
+        19
+      ],
+      "group": "footer",
+      "moduleRect": [
+        24.0,
+        261.5,
+        19.5,
+        9.5
+      ],
+      "contentRect": [
+        24.0,
+        233.0,
+        19.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 32,
+      "name": "footer.rem.label",
+      "sourceRect": [
+        149,
+        1453,
+        39,
+        19
+      ],
+      "group": "footer",
+      "moduleRect": [
+        69.5,
+        261.5,
+        19.5,
+        9.5
+      ],
+      "contentRect": [
+        69.5,
+        233.0,
+        19.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 33,
+      "name": "footer.sel.label",
+      "sourceRect": [
+        241,
+        1453,
+        40,
+        19
+      ],
+      "group": "footer",
+      "moduleRect": [
+        115.5,
+        261.5,
+        20.0,
+        9.5
+      ],
+      "contentRect": [
+        115.5,
+        233.0,
+        20.0,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 34,
+      "name": "footer.misc.label",
+      "sourceRect": [
+        330,
+        1453,
+        53,
+        19
+      ],
+      "group": "footer",
+      "moduleRect": [
+        160.0,
+        261.5,
+        26.5,
+        9.5
+      ],
+      "contentRect": [
+        160.0,
+        233.0,
+        26.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 35,
+      "name": "footer.counter.well",
+      "sourceRect": [
+        419,
+        1417,
+        410,
+        41
+      ],
+      "group": "footer",
+      "moduleRect": [
+        204.5,
+        243.5,
+        205.0,
+        20.5
+      ],
+      "contentRect": [
+        204.5,
+        215.0,
+        205.0,
+        20.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 36,
+      "name": "footer.counter.text",
+      "sourceRect": [
+        548,
+        1426,
+        131,
+        23
+      ],
+      "group": "footer",
+      "moduleRect": [
+        269.0,
+        248.0,
+        65.5,
+        11.5
+      ],
+      "contentRect": [
+        269.0,
+        219.5,
+        65.5,
+        11.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 37,
+      "name": "footer.previous",
+      "sourceRect": [
+        419,
+        1462,
+        53,
+        53
+      ],
+      "group": "footer",
+      "moduleRect": [
+        204.5,
+        266.0,
+        26.5,
+        26.5
+      ],
+      "contentRect": [
+        204.5,
+        237.5,
+        26.5,
+        26.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 38,
+      "name": "footer.play",
+      "sourceRect": [
+        479,
+        1462,
+        53,
+        53
+      ],
+      "group": "footer",
+      "moduleRect": [
+        234.5,
+        266.0,
+        26.5,
+        26.5
+      ],
+      "contentRect": [
+        234.5,
+        237.5,
+        26.5,
+        26.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 39,
+      "name": "footer.pause",
+      "sourceRect": [
+        539,
+        1462,
+        52,
+        53
+      ],
+      "group": "footer",
+      "moduleRect": [
+        264.5,
+        266.0,
+        26.0,
+        26.5
+      ],
+      "contentRect": [
+        264.5,
+        237.5,
+        26.0,
+        26.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 40,
+      "name": "footer.stop",
+      "sourceRect": [
+        598,
+        1462,
+        53,
+        53
+      ],
+      "group": "footer",
+      "moduleRect": [
+        294.0,
+        266.0,
+        26.5,
+        26.5
+      ],
+      "contentRect": [
+        294.0,
+        237.5,
+        26.5,
+        26.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 41,
+      "name": "footer.next",
+      "sourceRect": [
+        658,
+        1462,
+        54,
+        53
+      ],
+      "group": "footer",
+      "moduleRect": [
+        324.0,
+        266.0,
+        27.0,
+        26.5
+      ],
+      "contentRect": [
+        324.0,
+        237.5,
+        27.0,
+        26.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 42,
+      "name": "footer.previous.glyph",
+      "sourceRect": [
+        436,
+        1477,
+        19,
+        23
+      ],
+      "group": "footer",
+      "moduleRect": [
+        213.0,
+        273.5,
+        9.5,
+        11.5
+      ],
+      "contentRect": [
+        213.0,
+        245.0,
+        9.5,
+        11.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 43,
+      "name": "footer.play.glyph",
+      "sourceRect": [
+        498,
+        1477,
+        17,
+        24
+      ],
+      "group": "footer",
+      "moduleRect": [
+        244.0,
+        273.5,
+        8.5,
+        12.0
+      ],
+      "contentRect": [
+        244.0,
+        245.0,
+        8.5,
+        12.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 44,
+      "name": "footer.pause.glyph",
+      "sourceRect": [
+        557,
+        1477,
+        16,
+        23
+      ],
+      "group": "footer",
+      "moduleRect": [
+        273.5,
+        273.5,
+        8.0,
+        11.5
+      ],
+      "contentRect": [
+        273.5,
+        245.0,
+        8.0,
+        11.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 45,
+      "name": "footer.stop.glyph",
+      "sourceRect": [
+        615,
+        1478,
+        18,
+        21
+      ],
+      "group": "footer",
+      "moduleRect": [
+        302.5,
+        274.0,
+        9.0,
+        10.5
+      ],
+      "contentRect": [
+        302.5,
+        245.5,
+        9.0,
+        10.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 46,
+      "name": "footer.next.glyph",
+      "sourceRect": [
+        676,
+        1477,
+        19,
+        23
+      ],
+      "group": "footer",
+      "moduleRect": [
+        333.0,
+        273.5,
+        9.5,
+        11.5
+      ],
+      "contentRect": [
+        333.0,
+        245.0,
+        9.5,
+        11.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 47,
+      "name": "footer.remaining.well",
+      "sourceRect": [
+        729,
+        1471,
+        100,
+        40
+      ],
+      "group": "footer",
+      "moduleRect": [
+        359.5,
+        270.5,
+        50.0,
+        20.0
+      ],
+      "contentRect": [
+        359.5,
+        242.0,
+        50.0,
+        20.0
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 48,
+      "name": "footer.remaining.text",
+      "sourceRect": [
+        742,
+        1481,
+        77,
+        19
+      ],
+      "group": "footer",
+      "moduleRect": [
+        366.0,
+        275.5,
+        38.5,
+        9.5
+      ],
+      "contentRect": [
+        366.0,
+        247.0,
+        38.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 49,
+      "name": "footer.listOpts",
+      "sourceRect": [
+        848,
+        1417,
+        116,
+        97
+      ],
+      "group": "footer",
+      "moduleRect": [
+        419.0,
+        243.5,
+        58.0,
+        48.5
+      ],
+      "contentRect": [
+        419.0,
+        215.0,
+        58.0,
+        48.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 50,
+      "name": "footer.listOpts.line1",
+      "sourceRect": [
+        880,
+        1439,
+        51,
+        19
+      ],
+      "group": "footer",
+      "moduleRect": [
+        435.0,
+        254.5,
+        25.5,
+        9.5
+      ],
+      "contentRect": [
+        435.0,
+        226.0,
+        25.5,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    },
+    {
+      "id": 51,
+      "name": "footer.listOpts.line2",
+      "sourceRect": [
+        879,
+        1472,
+        52,
+        19
+      ],
+      "group": "footer",
+      "moduleRect": [
+        434.5,
+        271.0,
+        26.0,
+        9.5
+      ],
+      "contentRect": [
+        434.5,
+        242.5,
+        26.0,
+        9.5
+      ],
+      "method": "thresholded component/edge scan of visible ink and faces; inspect annotation",
+      "edgeUncertaintySourcePx": 2
+    }
+  ],
+  "rowPitchLogical": 20.67,
+  "specRowHeight": 22,
+  "specDurationColumnWidth": 42
+}

@@ -1,73 +1,45 @@
 # AmpX
 
-Modern audio player. Classic spirit.
+*Modern audio player. Classic spirit.*
 
-A native macOS music player with the compact floating-window workflow — playlist, EQ, visualizer — built for local libraries (MP3, FLAC, WAV, …).
+A native macOS music player with the Winamp workflow (compact player, equalizer, playlist, visualizer) for local music libraries.
 
-> **This is a personal fork** of [`mbrukman/winamp-macos`](https://github.com/mbrukman/winamp-macos) (originally by Matt Greenwood, MIT licensed), itself a tribute to the original Winamp by Nullsoft.
-> Active development continues at [`ratovarius/ampx`](https://github.com/ratovarius/ampx).
+> AmpX is based on a fork of [`mbrukman/winamp-macos`](https://github.com/mbrukman/winamp-macos) (by Matt Greenwood, MIT), a tribute to the original Winamp by Nullsoft.
+> Development continues at [`ratovarius/ampx`](https://github.com/ratovarius/ampx).
 
-## Full Screen
-
-![Fullscreen Visualizer](fullscreen.png)
-
-## Minimized (Playlist + Main Window independently)
-
-![Minimized Playlist](minimized.png)
+<img src="docs/images/ampx.png" alt="AmpX player, equalizer and playlist" width="490">
 
 ## Features
 
-- MP3, FLAC, and WAV playback
-- Winamp-inspired UI with the signature compact floating window
-- Playlist management with M3U support and drag-to-reorder
-- Full playback controls (play, pause, stop, next, previous)
-- Shuffle and repeat modes
-- Media key & macOS Now Playing integration (Control Center / lock screen)
-- Spectrum analyzer visualization
-- 10-band equalizer
-- Milkdrop-style visualizer (click the icon in the main app) with fullscreen mode
-- File browser with drag-and-drop support
+- MP3, FLAC and WAV playback
+- 10-band equalizer with presets and Winamp `.eqf` import
+- Playlist with M3U load/save, drag and drop, sort and multi-select
+- Mini visualizer with 8 modes and color palettes
+- Modules stack in one window; detach, reorder or collapse any of them
+- Media keys and macOS Now Playing
 
-## Requirements
+<img src="docs/images/visualizers.png" alt="Mini visualizer modes: classic spectrum, mirrored spectrum, waterfall, line waveform" width="480">
 
-- macOS 26.5 (Tahoe) or later
-- Xcode 26 or later
+## Quick start
 
-## Building
-
-### Using Xcode
-1. Open `AmpX.xcodeproj` in Xcode
-2. Select the AmpX scheme
-3. Build and run (⌘R)
-
-alternatively:
+Requires macOS 26.0+ to run. Building needs Xcode 26.4+.
 
 ```bash
-./build.sh --run        # debug build + launch
-./build.sh --release    # release build
+./build.sh --run
 ```
 
-## Testing
+## Docs
 
-Tests live in `Tests/AmpXTests`. Run them via the project script, which generates the required fixtures first:
+- [USAGE.md](USAGE.md): how to use the app
+- [BUILDING.md](BUILDING.md): build, test, lint
+- [RELEASE.md](RELEASE.md): cut a release
 
-```bash
-./scripts/run-tests.sh
-```
+## Credits
 
-## UI Fidelity
+- [`mbrukman/winamp-macos`](https://github.com/mbrukman/winamp-macos): the upstream project, © 2024 Matt Greenwood
+- [Webamp](https://github.com/captbaritone/webamp) ([webamp.org](https://webamp.org/)): reference for the classic Winamp 2.x layout
+- Winamp by Nullsoft: the original
 
-Classic Winamp 2.x layout and behavior are informed by **[Webamp](https://github.com/captbaritone/webamp)** ([webamp.org](https://webamp.org/)) — sprite coordinates, window dimensions, shade mode, and playlist chrome.
+## License
 
-## Documentation
-
-- [BUILDING.md](BUILDING.md) — full build instructions
-- [USAGE.md](USAGE.md) — end-user usage guide
-- [CHANGES.md](CHANGES.md) — changelog
-- [docs/](docs/) — deeper engineering notes 
-
-## License & Attribution
-
-MIT License.
-
-Forked from [`mbrukman/winamp-macos`](https://github.com/mbrukman/winamp-macos), © 2024 Matt Greenwood, MIT licensed. The upstream project was itself a tribute to the original Winamp by Nullsoft. This fork continues development independently as AmpX.
+MIT.

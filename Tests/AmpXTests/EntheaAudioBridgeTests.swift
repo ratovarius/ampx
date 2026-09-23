@@ -1,5 +1,5 @@
-import XCTest
 @testable import AmpX
+import XCTest
 
 private final class SpyJavaScriptEvaluator: EntheaJavaScriptEvaluating {
     var callCount = 0
@@ -31,7 +31,7 @@ final class EntheaAudioBridgeTests: XCTestCase {
         let evaluator = SpyJavaScriptEvaluator()
         evaluator.completeImmediately = false
         let bus = AudioFeatureBus.shared
-        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48_000)
+        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48000)
         bus.setPlaying(true)
         let bridge = EntheaAudioBridge(featureBus: bus, evaluator: evaluator)
         bridge.isActive = true
@@ -44,7 +44,7 @@ final class EntheaAudioBridgeTests: XCTestCase {
     func testBridgePushIncludesBase64PayloadAndSampleRate() {
         let evaluator = SpyJavaScriptEvaluator()
         let bus = AudioFeatureBus.shared
-        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48_000)
+        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48000)
         bus.setPlaying(true)
 
         let bridge = EntheaAudioBridge(featureBus: bus, evaluator: evaluator)
@@ -62,7 +62,7 @@ final class EntheaAudioBridgeTests: XCTestCase {
     func testBridgeSkipsPushWhenNotPlaying() {
         let evaluator = SpyJavaScriptEvaluator()
         let bus = AudioFeatureBus.shared
-        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48_000)
+        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48000)
         bus.setPlaying(false)
 
         let bridge = EntheaAudioBridge(featureBus: bus, evaluator: evaluator)
@@ -74,7 +74,7 @@ final class EntheaAudioBridgeTests: XCTestCase {
     func testBridgeRespectsMaxPushHz() {
         let evaluator = SpyJavaScriptEvaluator()
         let bus = AudioFeatureBus.shared
-        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48_000)
+        bus.publishRawBins(Array(repeating: 7, count: AudioFeatures.rawBinCount), sampleRate: 48000)
         bus.setPlaying(true)
 
         let bridge = EntheaAudioBridge(featureBus: bus, evaluator: evaluator)

@@ -1,6 +1,6 @@
+@testable import AmpX
 import JavaScriptCore
 import XCTest
-@testable import AmpX
 
 final class EntheaBridgeJSTests: XCTestCase {
     func testSetTimelineNullResetsAudioSourceToWinamp() throws {
@@ -96,7 +96,7 @@ final class EntheaBridgeJSTests: XCTestCase {
     private static func bridgeURL() throws -> URL {
         if let bundled = EntheaBundleLoader.directoryURL(in: .main)?
             .appendingPathComponent("bridge.js"),
-           FileManager.default.fileExists(atPath: bundled.path)
+            FileManager.default.fileExists(atPath: bundled.path)
         {
             return bundled
         }
@@ -114,5 +114,7 @@ final class EntheaBridgeJSTests: XCTestCase {
 
 private struct BridgeLoadError: Error, CustomStringConvertible {
     let description: String
-    init(_ description: String) { self.description = description }
+    init(_ description: String) {
+        self.description = description
+    }
 }

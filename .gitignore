@@ -32,7 +32,8 @@ __pycache__/
 
 # Local UI screenshot scratch
 .ui-review/
-screenshots/
+screenshots/*
+!screenshots/shrinked_modules.png
 *.app/
 Reamp.app/
 
@@ -71,5 +72,9 @@ iOSInjectionProject/
 
 # Local git worktrees
 .worktrees/
+
+# DMG packaging output (scripts/create-dmg.sh)
+release/
+dmg-build/
 
 docs/superpowers/
