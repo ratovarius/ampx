@@ -129,7 +129,8 @@ while IFS= read -r line; do
     fi
 
     out="${OUTPUT_PREFIX}${index}.png"
-    screencapture -x -o -l"$id" "$out" && echo "📸 $out  [window ${index}, ${size}]"
+    screencapture -x -o -l"$id" "$out"
+    echo "📸 $out  [window ${index}, ${size}]"
     captured=$((captured + 1))
 done <<<"$WINDOWS"
 

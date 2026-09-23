@@ -81,13 +81,28 @@ class AudioPlayer: NSObject, ObservableObject {
     /// Audio-queue state: the node holds a paused position that `resume()` can continue.
     /// Distinguishes paused from stopped so Pause can toggle back to playing.
     private nonisolated(unsafe) var isPausedInternal = false
-    private nonisolated(unsafe) var playbackGeneration = 0
+    /// Written only on `audioQueue`; lock-guarded so the MainActor half of track completion
+    /// can re-check it before committing UI state.
+    private nonisolated(unsafe) var playbackGenerationStorage = 0
     private nonisolated(unsafe) var loadGeneration = 0
     /// Absolute file time at the start of the currently scheduled player segment.
     /// `AVAudioPlayerNode.playerTime.sampleTime` is relative to that segment, so UI
     /// position is `playbackSegmentStartTime + sampleTime/sampleRate`.
     private nonisolated(unsafe) var playbackSegmentStartTime: TimeInterval = 0
     private let audioQueue = DispatchQueue(label: "com.ampx.audio", qos: .userInteractive)
+
+    private nonisolated var playbackGeneration: Int {
+        get {
+            self.playStateLock.lock()
+            defer { self.playStateLock.unlock() }
+            return self.playbackGenerationStorage
+        }
+        set {
+            self.playStateLock.lock()
+            self.playbackGenerationStorage = newValue
+            self.playStateLock.unlock()
+        }
+    }
 
     private nonisolated var isPlayingInternal: Bool {
         get {
@@ -913,7 +928,9 @@ class AudioPlayer: NSObject, ObservableObject {
     ///
     /// `generation` is checked on `audioQueue`, where `playbackGeneration` is written, so a
     /// completion that races a newer play/seek/load/stop is dropped instead of stopping the
-    /// new playback. `nil` skips the check (test hook only).
+    /// new playback. The MainActor task re-checks it: a seek/load/stop can land on
+    /// `audioQueue` after the first check but before that task runs, and must not have its
+    /// UI state cleared or trigger an auto-advance. `nil` skips both checks (test hook only).
     private nonisolated func handleTrackCompletion(generation: Int?) {
         self.audioQueue.async { [weak self] in
             guard let self else { return }
@@ -928,6 +945,9 @@ class AudioPlayer: NSObject, ObservableObject {
             let shouldAdvance = self.shouldAutoAdvance
 
             self.runOnMainActor(weak: self) { player in
+                if let generation, generation != player.playbackGeneration {
+                    return
+                }
                 player.isPlaying = false
                 player.currentTime = 0
                 player.stopTimer()
