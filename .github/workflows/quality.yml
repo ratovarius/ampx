@@ -1,0 +1,82 @@
+name: Code Quality
+
+# Merge gate for both directions: feature/* -> develop, develop -> main.
+# Deliberately no `push` trigger — that would double every PR run.
+#
+# This is where lint, static analysis, and tests run. They are intentionally NOT part
+# of the local development loop (see AGENTS.md): verbose tool output is expensive to
+# read, and CI reads it for free.
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  swift:
+    name: Swift
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftFormat and SwiftLint
+        run: |
+          for tool in swiftformat swiftlint; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              brew install "$tool"
+            fi
+            "$tool" --version
+          done
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/uv.lock
+
+      # Errors fail the job; warnings become annotations on the PR diff.
+      - name: Lint
+        run: ./scripts/lint-swift.sh --github
+
+      # Generates fixtures, then runs the suite. Streams the full log here because a
+      # CI log costs nothing to keep and is the only record when a run fails.
+      - name: Test
+        run: ./scripts/run-tests.sh --verbose
+
+  static:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/uv.lock
+
+      - name: ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck build.sh scripts/*.sh scripts/hooks/*.sh
+
+      - name: Ruff
+        working-directory: scripts
+        run: |
+          uv sync --group dev
+          uv run ruff check --output-format github .
+          uv run ruff format --check .
+
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color

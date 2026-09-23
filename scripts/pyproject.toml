@@ -11,6 +11,18 @@ dependencies = [
 [project.scripts]
 generate-fixtures = "ampx_fixtures.generate:main"
 
+[dependency-groups]
+dev = [
+    "ruff>=0.14.0",
+]
+
+[tool.ruff]
+# Matches the 140-col Swift budget loosely; 120 keeps generate.py signatures on one line.
+line-length = 120
+# The ad-hoc measurement/comparison scripts are throwaway analysis tools, not
+# shipped code. Only the packaged fixture generator is gated.
+include = ["ampx_fixtures/**/*.py", "pyproject.toml"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

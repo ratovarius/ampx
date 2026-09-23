@@ -3,55 +3,49 @@ description:
 alwaysApply: true
 ---
 
-## Project Overview
+## AmpX
 
-**AmpX** — *Modern audio player. Classic spirit.*
+Modern macOS music player with Winamp's UX spirit — compact floating window, playlist, EQ,
+visualizer — plus lossless audio, modern codecs, and a native macOS feel.
 
-**Goal:** a production-quality, modern macOS music player that preserves the Winamp UX spirit while using best-in-class audio engineering, high quality visualizations.
-
-Target users are music collectors and audiophiles who remember Winamp fondly and want that workflow — compact floating window, playlist, EQ, visualizer — but with lossless audio quality, modern codec support, and a native macOS feel.
+Branch flow: `feature/*` → `develop` → `main`.
 
 ---
 
-## Build & Test
+## Quality checks run in CI, not locally
 
-### Quick build (command line)
-```bash
-./build.sh --run        # debug build + launch
-./build.sh --release    # release build
-```
+`.github/workflows/quality.yml` gates PRs into `develop` and `main` with SwiftFormat,
+SwiftLint, ShellCheck, Ruff, actionlint, and the test suite. Only error-severity findings
+fail; warnings become PR annotations.
 
-### Iterating on UI (see the rendered app)
-```bash
-./scripts/shoot.sh            # build + relaunch + screenshot each window
-./scripts/shoot.sh --no-build # skip the build; just relaunch + screenshot (fast)
-```
-Screenshots land in `/tmp/ampx_shot0.png`, `…shot1.png`, etc. Captures **by window ID**
-(`screencapture -l<id>`) so it grabs the real window pixels even when occluded — no need to
-fight window focus. Essential for UI fidelity work: edit views → `shoot.sh` → compare
-to the reference screenshot → repeat.
+**Do not run `./build.sh`, `./scripts/run-tests.sh`, `./scripts/lint-swift.sh`, or
+`xcodebuild` to verify your own work** — that output is the largest avoidable context cost
+in this repo and CI reads it for free. Hand work over unverified and let CI report; run them
+locally only to debug a specific failure you cannot read from CI.
 
-### Clean build
-```bash
-xcodebuild -project AmpX.xcodeproj -scheme AmpX clean
-# or in Xcode: ⌘⇧K
-```
+Swift formatting is automatic via a `PostToolUse` hook
+(`scripts/hooks/format-edited-swift.sh`). Never run `swiftformat` or fix formatting by hand.
 
-### Running tests
-Use the project script — it generates the required fixtures first, then runs the suite:
-```bash
-./scripts/run-tests.sh
-```
+Read CI results cheaply: `gh pr checks`, `gh run view --log-failed`. Never whole logs.
 
-### Python (`scripts/`)
+---
 
-Fixture generation and any other Python in this repo run using uv.
+## Commands
 
 ```bash
-cd scripts
-uv sync
-uv run generate-fixtures
-uv run python -c "import ampx_fixtures"   # ad-hoc checks
+./build.sh --run                # debug build + launch (log: /tmp/ampx_build.log)
+./scripts/run-tests.sh          # fixtures + suite, quiet (log: /tmp/ampx_tests.log)
+./scripts/shoot.sh --no-build   # relaunch + screenshot → /tmp/ampx_shot<n>.png
+cd scripts && uv sync           # all Python runs via uv
 ```
 
-NEVER add ` Co-Authored-By: ` to commits, PRs or comments in github.
+`shoot.sh` captures by window ID, so occluded windows work — no focus fighting. Each PNG
+costs ~1.5k tokens; once modules are detached, add `--index <n>` to grab only what changed.
+
+---
+
+## Gotchas
+
+- Other Claude sessions edit this worktree concurrently. Before debugging an unexpected test
+  failure, check `git status` and file mtimes — it may not be yours. Never bare `git stash`.
+- NEVER add `Co-Authored-By:` to commits, PRs, or comments.
