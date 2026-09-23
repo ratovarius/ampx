@@ -3,7 +3,7 @@ import CoreGraphics
 
 enum AmpXCompactSliderDrawing {
     static func draw(
-        track: CGRect, thumb: CGRect, fill: AmpXTrackFill, value: Double,
+        track: CGRect, thumb: CGRect, fill: AmpXTrackFill, value: Double, thumbStyle: AmpXFaceStyle,
         skin: any AmpXSkin, context: CGContext, backingScale: CGFloat
     ) {
         skin.displayWell(track, in: context, backingScale: backingScale)
@@ -43,6 +43,6 @@ enum AmpXCompactSliderDrawing {
             }
             context.restoreGState()
         }
-        skin.metallicThumb(thumb, material: .steel, in: context, backingScale: backingScale)
+        skin.metallicThumb(thumb, material: .steel, style: thumbStyle, in: context, backingScale: backingScale)
     }
 }

@@ -205,6 +205,7 @@ final class AmpXSlider: AmpXControlView {
             AmpXCompactSliderDrawing.draw(
                 track: track, thumb: thumb, fill: fill,
                 value: AmpXControlMath.fraction(value: self.displayValueOverride ?? self.value, range: self.range),
+                thumbStyle: thumbStyle,
                 skin: self.skin, context: context, backingScale: backingScale
             )
         }
