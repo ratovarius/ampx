@@ -16,6 +16,10 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
 
     private var gripTracking = false
     private var suppressMouseUp = false
+    /// Header key held down by the current click; it paints pressed until mouse-up.
+    private var pressedButton: HeaderButton? {
+        didSet { needsDisplay = true }
+    }
 
     init(moduleID: AmpXModuleID, skin: any AmpXSkin) {
         self.moduleID = moduleID
@@ -237,32 +241,38 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
         title?.draw(x: titleX, baseline: baseline, context: context, skin: skin)
     }
 
+    /// Header keys share the button face, states and light ink.
     private func drawButton(_ button: HeaderButton, frame: CGRect, in context: CGContext, backingScale: CGFloat) {
-        skin.raisedFace(frame, style: .normal, in: context, backingScale: backingScale)
+        let style = AmpXFaceStyle.resolve(
+            pressed: self.pressedButton == button,
+            hovered: self.pressedButton == nil && self.hoveredButton == button
+        )
+        skin.raisedFace(frame, style: style, in: context, backingScale: backingScale)
         let icon: AmpXIcon
         let glyphRect: CGRect
-        let color: NSColor
         switch button {
-        // Face accents and dark ink read on the steel face; the former light tints did not.
         case .minimize:
             icon = .minimize
             glyphRect = AmpXMetrics.headerMinimizeGlyph
-            color = skin.faceAmber
         case .collapse:
             icon = .collapse
             glyphRect = AmpXMetrics.headerCollapseGlyph
-            color = skin.faceInk
         case .close:
             icon = .close
             glyphRect = AmpXMetrics.headerCloseGlyph
-            color = skin.faceOrange
         }
+        let sink = style.isPressed ? AmpXButton.pressedInkOffset : 0
         icon.draw(
-            in: self.scaled(glyphRect).offsetBy(dx: frame.minX, dy: frame.minY),
+            in: self.scaled(glyphRect).offsetBy(dx: frame.minX, dy: frame.minY + sink),
             context: context,
             skin: skin,
-            color: color
+            color: skin.faceInk
         )
+    }
+
+    private var hoveredButton: HeaderButton? {
+        guard isHovered, let window else { return nil }
+        return self.headerButton(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
 
     private func accessibilityTitle(for moduleID: AmpXModuleID) -> String {
@@ -289,7 +299,8 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
         self.suppressMouseUp = false
         guard self.bounds.contains(point) else { return }
 
-        if self.headerButton(at: point) != nil {
+        if let button = self.headerButton(at: point) {
+            self.pressedButton = button
             return
         }
 
@@ -315,6 +326,8 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        let pressed = self.pressedButton
+        self.pressedButton = nil
         if self.suppressMouseUp {
             self.suppressMouseUp = false
             return
@@ -325,7 +338,9 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
             return
         }
 
-        switch self.headerButton(at: convert(event.locationInWindow, from: nil)) {
+        let released = self.headerButton(at: convert(event.locationInWindow, from: nil))
+        // A key fires only when the click that pressed it is released over it.
+        switch pressed == released ? released : nil {
         case .close:
             self.onClose?()
         case .collapse:

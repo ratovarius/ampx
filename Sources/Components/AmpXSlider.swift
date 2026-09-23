@@ -5,11 +5,11 @@ final class AmpXSlider: AmpXControlView {
     enum Artwork {
         /// Full-bounds well with a small bevelled thumb (Equalizer, pending its reconstruction).
         case legacy
-        /// Slender pill track with a steel thumb.
+        /// Colored track with the shared key handle.
         case pill(AmpXTrackFill)
-        /// Recessed seek well whose bounds are the well, with a gold thumb.
+        /// Neutral seek channel with the shared key handle.
         case seek
-        /// Vertical EQ slot tinted by the displayed value, with a steel level thumb.
+        /// Vertical EQ slot tinted by the displayed value, with the shared key handle.
         case level
         case compact(AmpXTrackFill)
     }
@@ -68,7 +68,9 @@ final class AmpXSlider: AmpXControlView {
     var accessibilityRangeOverride: ClosedRange<Double>?
     var accessibilityValueFormatter: ((Double) -> Any)?
 
-    private var isDragging = false
+    private var isDragging = false {
+        didSet { needsDisplay = true }
+    }
 
     override func cancelInteraction() {
         self.isDragging = false
@@ -167,6 +169,7 @@ final class AmpXSlider: AmpXControlView {
         let backingScale = window?.backingScaleFactor ?? 1
         let track = self.trackRect
         let thumb = self.thumbRect
+        let thumbStyle = self.thumbStyle(thumb)
 
         switch self.artwork {
         case .legacy:
@@ -191,13 +194,13 @@ final class AmpXSlider: AmpXControlView {
                 in: context,
                 backingScale: backingScale
             )
-            skin.metallicThumb(thumb, material: .steel, in: context, backingScale: backingScale)
+            skin.metallicThumb(thumb, material: .steel, style: thumbStyle, in: context, backingScale: backingScale)
         case .seek:
             skin.seekWell(bounds, track: track, in: context, backingScale: backingScale)
-            skin.metallicThumb(thumb, material: .gold, in: context, backingScale: backingScale)
+            skin.metallicThumb(thumb, material: .gold, style: thumbStyle, in: context, backingScale: backingScale)
         case .level:
             skin.levelTrack(track, decibels: self.displayValueOverride ?? self.value, in: context, backingScale: backingScale)
-            skin.metallicThumb(thumb, material: .steelLevel, in: context, backingScale: backingScale)
+            skin.metallicThumb(thumb, material: .steelLevel, style: thumbStyle, in: context, backingScale: backingScale)
         case let .compact(fill):
             AmpXCompactSliderDrawing.draw(
                 track: track, thumb: thumb, fill: fill,
@@ -212,6 +215,15 @@ final class AmpXSlider: AmpXControlView {
         }
 
         drawFocusRing(in: context, backingScale: backingScale)
+    }
+
+    /// Handles share the key states: dragging reads as pressed, pointing at the handle as hovered.
+    private func thumbStyle(_ thumb: CGRect) -> AmpXFaceStyle {
+        var hovered = false
+        if isHovered, isEnabled, let window {
+            hovered = thumb.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
+        }
+        return AmpXFaceStyle.resolve(pressed: self.isDragging, hovered: hovered)
     }
 
     override func mouseDown(with event: NSEvent) {

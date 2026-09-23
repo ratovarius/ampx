@@ -36,7 +36,7 @@ final class PlayerCompactContent: AmpXCompactModuleView {
             button.action = AmpXTransportActions.make(for: icons[index], audioPlayer: audioPlayer, playlistManager: playlistManager)
             self.addSubview(button)
         }
-        self.transportButtons[1].iconColor = skin.faceGreen
+        self.transportButtons[1].iconColor = skin.green
         presentationState.$visualizerSettings
             .removeDuplicates()
             .sink { [weak spectrumWell] settings in spectrumWell?.settings = settings }

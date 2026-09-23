@@ -37,7 +37,7 @@ final class PlaylistCompactContent: AmpXCompactModuleView {
         self.addSubview(self.readout)
         self.addSubview(self.listOptionsButton)
         self.listOptionsButton.icon = .menu
-        self.listOptionsButton.iconColor = skin.faceAmber
+        self.listOptionsButton.iconColor = skin.faceInk
         self.listOptionsButton.confinesHitTestingToBounds = true
         self.listOptionsButton.focusRingInset = 1
         self.listOptionsButton.accessibilityTitle = "List Options"

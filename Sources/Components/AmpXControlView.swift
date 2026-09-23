@@ -29,11 +29,31 @@ class AmpXControlView: AmpXDrawingView {
     }
 
     /// `point` is in the superview's coordinate system; the expanded hit area is tested in local coordinates.
+    /// Where expanded areas of neighboring controls overlap, the control whose frame is nearest wins, so a
+    /// dense row of keys never lets one key steal a click that landed closer to its neighbor.
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard self.isEnabled, !isHidden else { return nil }
         let localPoint = superview.map { convert(point, from: $0) } ?? point
-        let expanded = self.confinesHitTestingToBounds ? bounds : AmpXControlMath.expandedHitRect(for: bounds)
-        return expanded.contains(localPoint) ? self : nil
+        guard self.hitArea(for: bounds).contains(localPoint) else { return nil }
+        guard !bounds.contains(localPoint), let superview else { return self }
+
+        let distance = AmpXControlMath.distance(from: point, to: frame)
+        for case let sibling as AmpXControlView in superview.subviews where sibling !== self {
+            guard sibling.isEnabled, !sibling.isHidden else { continue }
+            if sibling.frame.contains(point) {
+                return nil
+            }
+            if AmpXControlMath.distance(from: point, to: sibling.frame) < distance,
+               sibling.hitArea(for: sibling.frame).contains(point)
+            {
+                return nil
+            }
+        }
+        return self
+    }
+
+    private func hitArea(for rect: CGRect) -> CGRect {
+        self.confinesHitTestingToBounds ? rect : AmpXControlMath.expandedHitRect(for: rect)
     }
 
     override func becomeFirstResponder() -> Bool {

@@ -20,9 +20,16 @@ enum AmpXMetrics {
     static let minimumPlaylistWidth: CGFloat = compositionWidth
     static let defaultPlaylistWidth: CGFloat = compositionWidth
 
-    static let primaryButtonSize = CGSize(width: 44, height: 40)
-    static let secondaryButtonSize = CGSize(width: 64, height: 32)
-    static let utilityButtonSize = CGSize(width: 28, height: 28)
+    /// Midnight Hardware key tiers: 36 pt main transport row, 28 pt toggles and actions, 20 pt header,
+    /// mini transport and scroll keys. Every key shares a 2 pt radius and 12 pt medium labels.
+    static let primaryButtonSize = CGSize(width: 44, height: 36)
+    static let secondaryButtonSize = CGSize(width: 64, height: 28)
+    static let utilityButtonSize = CGSize(width: 20, height: 20)
+    static let keyLabelFontSize: CGFloat = 12
+    /// Button-local lamp shared by every toggle; labels start at `keyLampLabelX`.
+    static let keyLampSize = CGSize(width: 8, height: 8)
+    static let keyLampX: CGFloat = 7
+    static let keyLampLabelX: CGFloat = 21
 
     // MARK: - Module chrome (module coordinates, V2 records 2–12)
 
@@ -41,7 +48,7 @@ enum AmpXMetrics {
     static let headerBrandInkTop: CGFloat = 6
     static let headerMinimizeButton = CGRect(x: 412, y: 5, width: 20, height: 20)
     static let headerCollapseButton = CGRect(x: 438, y: 5, width: 20, height: 20)
-    static let headerCloseButton = CGRect(x: 463.5, y: 5, width: 20, height: 20)
+    static let headerCloseButton = CGRect(x: 464, y: 5, width: 20, height: 20)
     /// Glyph ink boxes relative to their header button.
     static let headerMinimizeGlyph = CGRect(x: 5.25, y: 11, width: 8.75, height: 2.75)
     static let headerCollapseGlyph = CGRect(x: 4.75, y: 4.5, width: 10.5, height: 10.5)
@@ -51,9 +58,9 @@ enum AmpXMetrics {
 
     static let metadataDigitStyle: MetadataDigitStyle = .mono
 
-    static let playerDisplayWell = CGRect(x: 13.5, y: 10.0, width: 168.0, height: 95.0)
-    static let playerDisplayInterior = CGRect(x: 15.5, y: 12.5, width: 164.0, height: 90.5)
-    static let playerTrackWell = CGRect(x: 187.5, y: 10.0, width: 288.5, height: 31.5)
+    static let playerDisplayWell = CGRect(x: 14, y: 10.0, width: 168.0, height: 95.0)
+    static let playerDisplayInterior = CGRect(x: 16, y: 12.5, width: 164.0, height: 90.5)
+    static let playerTrackWell = CGRect(x: 188, y: 10.0, width: 288, height: 31.5)
     static let playerTrackTextInk = CGRect(x: 193.5, y: 18.0, width: 214.5, height: 14.0)
     static let playerTimer = CGRect(x: 84.5, y: 18.0, width: 82.0, height: 25.5)
     static let playerPlayGlyph = CGRect(x: 35.0, y: 21.0, width: 14.0, height: 18.0)
@@ -61,61 +68,61 @@ enum AmpXMetrics {
     static let playerChannelLabelL = CGRect(x: 19.0, y: 64.0, width: 9.0, height: 13.5)
     static let playerChannelLabelR = CGRect(x: 19.0, y: 85.0, width: 9.0, height: 13.5)
 
-    static let playerBitrateWell = CGRect(x: 187.5, y: 46.0, width: 39.5, height: 25.0)
+    static let playerBitrateWell = CGRect(x: 188, y: 46.0, width: 40, height: 24)
     static let playerBitrateInk = CGRect(x: 193.5, y: 52.0, width: 25.5, height: 12.5)
     static let playerKbpsInk = CGRect(x: 232.0, y: 53.5, width: 26.5, height: 13.5)
-    static let playerSampleRateWell = CGRect(x: 274.0, y: 46.5, width: 33.0, height: 24.5)
+    static let playerSampleRateWell = CGRect(x: 274.0, y: 46, width: 34, height: 24)
     static let playerSampleRateInk = CGRect(x: 282.0, y: 52.0, width: 16.5, height: 12.5)
     static let playerKHzInk = CGRect(x: 312.5, y: 53.5, width: 20.5, height: 11.5)
     static let playerMonoInk = CGRect(x: 390.5, y: 55.5, width: 30.0, height: 9.0)
     static let playerStereoInk = CGRect(x: 430.5, y: 53.5, width: 41.0, height: 11.0)
 
     /// Slider frames enclose the visible track and thumb; hit areas expand from these.
-    static let playerVolume = CGRect(x: 188.5, y: 79, width: 105.5, height: 24)
-    static let playerBalance = CGRect(x: 302.5, y: 79, width: 67, height: 24)
-    static let playerSliderTrackHeight: CGFloat = 11
-    static let playerSliderThumbSize = CGSize(width: 21.5, height: 20)
-    /// Thumb center sits below the track center (thumb 83–103 vs track 85.5–96.5).
-    static let playerSliderThumbOffset: CGFloat = 2
-    static let playerPosition = CGRect(x: 13.5, y: 111.5, width: 462.5, height: 19.5)
-    static let playerPositionTrackSize = CGSize(width: 454, height: 11)
-    static let playerPositionThumbSize = CGSize(width: 47.5, height: 16)
-    static let playerPositionThumbOffset: CGFloat = 0.5
+    static let playerVolume = CGRect(x: 188, y: 79, width: 106, height: 24)
+    static let playerBalance = CGRect(x: 302, y: 79, width: 68, height: 24)
+    static let playerSliderTrackHeight: CGFloat = 12
+    static let playerSliderThumbSize = CGSize(width: 20, height: 20)
+    /// Handles sit centered on their tracks.
+    static let playerSliderThumbOffset: CGFloat = 0
+    static let playerPosition = CGRect(x: 14, y: 111, width: 462, height: 24)
+    static let playerPositionTrackSize = CGSize(width: 454, height: 12)
+    static let playerPositionThumbSize = CGSize(width: 44, height: 20)
+    static let playerPositionThumbOffset: CGFloat = 0
 
-    static let playerEQToggle = CGRect(x: 376.5, y: 77.0, width: 46.5, height: 28.5)
-    static let playerPLToggle = CGRect(x: 428.0, y: 77.0, width: 47.5, height: 28.5)
+    static let playerEQToggle = CGRect(x: 376, y: 77.0, width: 48, height: 28)
+    static let playerPLToggle = CGRect(x: 428.0, y: 77.0, width: 48, height: 28)
     /// Button-local indicator lamps and label ink (left edge, baseline).
-    static let playerEQIndicator = CGRect(x: 6.75, y: 8.5, width: 9.5, height: 11)
-    static let playerPLIndicator = CGRect(x: 6.25, y: 8.5, width: 10, height: 11)
-    /// Baselines sit on the letter bottoms; the Q tail reaches the 20.5 pt ink bottom.
-    static let playerEQLabelInk = CGPoint(x: 22, y: 19.5)
-    static let playerPLLabelInk = CGPoint(x: 22.5, y: 19.5)
-    static let playerShuffleIndicator = CGRect(x: 8.75, y: 12, width: 10, height: 11.5)
-    static let playerShuffleLabelInk = CGPoint(x: 25.5, y: 24.5)
+    static let playerEQIndicator = CGRect(x: 7, y: 10, width: 8, height: 8)
+    static let playerPLIndicator = CGRect(x: 7, y: 10, width: 8, height: 8)
+    static let playerEQLabelInk = CGPoint(x: 21, y: 18.5)
+    static let playerPLLabelInk = CGPoint(x: 21, y: 18.5)
+    static let playerShuffleIndicator = CGRect(x: 7, y: 14, width: 8, height: 8)
+    static let playerShuffleLabelInk = CGPoint(x: 21, y: 22.5)
 
     static let playerTransport: [CGRect] = [
-        CGRect(x: 14.0, y: 139.5, width: 44.0, height: 38.5),
-        CGRect(x: 61.0, y: 139.5, width: 46.0, height: 38.5),
-        CGRect(x: 109.5, y: 139.5, width: 42.0, height: 38.5),
-        CGRect(x: 155.5, y: 139.5, width: 43.5, height: 38.5),
-        CGRect(x: 203.5, y: 139.5, width: 43.5, height: 38.5),
-        CGRect(x: 252.5, y: 139.5, width: 47.0, height: 38.5),
-        CGRect(x: 303.5, y: 139.5, width: 84.0, height: 38.5),
-        CGRect(x: 390.5, y: 139.5, width: 42.5, height: 38.5),
-        CGRect(x: 441.5, y: 142.0, width: 33.5, height: 35.5),
+        CGRect(x: 14, y: 140, width: 44, height: 36),
+        CGRect(x: 62, y: 140, width: 44, height: 36),
+        CGRect(x: 110, y: 140, width: 44, height: 36),
+        CGRect(x: 158, y: 140, width: 44, height: 36),
+        CGRect(x: 206, y: 140, width: 44, height: 36),
+        CGRect(x: 254, y: 140, width: 44, height: 36),
+        CGRect(x: 302, y: 140, width: 86, height: 36),
+        CGRect(x: 392, y: 140, width: 36, height: 36),
+        CGRect(x: 432, y: 140, width: 44, height: 36),
     ]
 
-    /// Transport glyph ink boxes (content coordinates); Shuffle uses indicator + label instead.
+    /// Transport glyph boxes (content coordinates): a shared 16 pt cell centered in each key;
+    /// Shuffle uses indicator + label instead.
     static let playerTransportGlyphs: [CGRect?] = [
-        CGRect(x: 28.5, y: 150.5, width: 14.5, height: 16.0),
-        CGRect(x: 78.0, y: 151.0, width: 13.5, height: 15.5),
-        CGRect(x: 124.5, y: 151.5, width: 12.0, height: 14.5),
-        CGRect(x: 171.5, y: 152.5, width: 12.5, height: 12.5),
-        CGRect(x: 219.0, y: 150.5, width: 14.0, height: 16.0),
-        CGRect(x: 268.5, y: 152.0, width: 15.0, height: 14.5),
+        CGRect(x: 28, y: 150, width: 16, height: 16),
+        CGRect(x: 76, y: 150, width: 16, height: 16),
+        CGRect(x: 124, y: 150, width: 16, height: 16),
+        CGRect(x: 172, y: 150, width: 16, height: 16),
+        CGRect(x: 220, y: 150, width: 16, height: 16),
+        CGRect(x: 268, y: 150, width: 16, height: 16),
         nil,
-        CGRect(x: 402.5, y: 150.5, width: 18.5, height: 16.0),
-        CGRect(x: 450.5, y: 152.5, width: 15.5, height: 14.0),
+        CGRect(x: 402, y: 150, width: 16, height: 16),
+        CGRect(x: 446, y: 150, width: 16, height: 16),
     ]
 
     /// Spectrum: 16 columns × 6 segments sampled from the reference display.
@@ -128,17 +135,16 @@ enum AmpXMetrics {
 
     // MARK: - Equalizer (content coordinates, ReferenceMeasurementsV2 eq-measurements-v2)
 
-    static let eqOnToggle = CGRect(x: 14, y: 9.5, width: 55.5, height: 33)
-    static let eqAutoToggle = CGRect(x: 75.5, y: 9.5, width: 70.5, height: 33)
-    static let eqPresetsButton = CGRect(x: 382, y: 9.5, width: 93.5, height: 33)
+    static let eqOnToggle = CGRect(x: 14, y: 10, width: 56, height: 28)
+    static let eqAutoToggle = CGRect(x: 74, y: 10, width: 72, height: 28)
+    static let eqPresetsButton = CGRect(x: 384, y: 10, width: 92, height: 28)
     /// Button-local lamps, label ink (left edge, baseline) and dropdown triangle.
-    /// Lamp outline sits just outside the measured 8.5 × 9 pt green core.
-    static let eqOnIndicator = CGRect(x: 10, y: 10.5, width: 10.5, height: 11)
-    static let eqAutoIndicator = CGRect(x: 10, y: 10, width: 10.5, height: 11)
-    static let eqOnLabelInk = CGPoint(x: 28.5, y: 21)
-    static let eqAutoLabelInk = CGPoint(x: 30, y: 21)
-    static let eqPresetsLabelInk = CGPoint(x: 13.5, y: 21)
-    static let eqPresetsTriangle = CGRect(x: 74.5, y: 13, width: 8, height: 7)
+    static let eqOnIndicator = CGRect(x: 7, y: 10, width: 8, height: 8)
+    static let eqAutoIndicator = CGRect(x: 7, y: 10, width: 8, height: 8)
+    static let eqOnLabelInk = CGPoint(x: 21, y: 18.5)
+    static let eqAutoLabelInk = CGPoint(x: 21, y: 18.5)
+    static let eqPresetsLabelInk = CGPoint(x: 10, y: 18.5)
+    static let eqPresetsTriangle = CGRect(x: 76, y: 11, width: 8, height: 6)
 
     /// Curve drawn on the panel (no well): edge knots at the frame edges, band knots from +20 pt at 18.39 pt pitch.
     static let eqCurveFrame = CGRect(x: 161, y: 5, width: 201, height: 42)
@@ -147,36 +153,36 @@ enum AmpXMetrics {
     static let eqGridMinY: CGFloat = 10
     static let eqGridMaxY: CGFloat = 47
 
-    /// Measured thumb centers; the reference spacing is uneven (67–72 px).
+    /// Band centers on an even 34 pt pitch.
     static let eqPreampCenterX: CGFloat = 36
-    static let eqBandCenterX: [CGFloat] = [135, 169.75, 203.25, 237.25, 271.75, 306.25, 339.75, 374.25, 408, 444]
-    static let eqSliderSlotSize = CGSize(width: 13, height: 109.5)
-    static let eqSliderSlotCenterY: CGFloat = 108.25
-    static let eqSliderThumbSize = CGSize(width: 20, height: 24)
-    /// Thumb-center travel: +12 dB at the 58.5 pt tick row, −12 dB at 157.25 pt.
-    static let eqSliderTravel: CGFloat = 98.75
+    static let eqBandCenterX: [CGFloat] = [135, 169, 203, 237, 271, 305, 339, 373, 407, 441]
+    static let eqSliderSlotSize = CGSize(width: 12, height: 110)
+    static let eqSliderSlotCenterY: CGFloat = 108
+    static let eqSliderThumbSize = CGSize(width: 20, height: 20)
+    /// Thumb-center travel: +12 dB at the 59 pt tick row, −12 dB at 157 pt.
+    static let eqSliderTravel: CGFloat = 98
     static let eqTickWidth: CGFloat = 6.5
     static let eqPreampTickOffset: CGFloat = 15.75
     static let eqOuterBandTickOffset: CGFloat = 17.25
     static let eqDecibelLabelCenterX: CGFloat = 80
-    static let eqDecibelLabelBaselines: [CGFloat] = [64, 111.5, 159.5]
+    static let eqDecibelLabelBaselines: [CGFloat] = [63.5, 112.5, 161.5]
     static let eqPreampLabelInkX: CGFloat = 20
     static let eqBandLabelBaseline: CGFloat = 180.5
 
     // MARK: - Playlist (content coordinates, playlist-measurements-v2)
 
     /// Black row area inside the rows well; its height is the default viewport (reference: 196 pt).
-    static let playlistRows = CGRect(x: 15, y: 10, width: 440.5, height: 196)
+    static let playlistRows = CGRect(x: 15.5, y: 10, width: 437, height: 196)
     /// Well lip around the row area: left, top, right, bottom.
     static let playlistRowsWellOutsets = (left: CGFloat(2), top: CGFloat(1.5), right: CGFloat(2.5), bottom: CGFloat(2))
-    /// Scrollbar x/width; it starts 1.5 pt above the row area and is 1 pt shorter than the viewport.
-    static let playlistScrollbar = CGRect(x: 461, y: 8.5, width: 15, height: 195)
-    static let playlistScrollbarUpButtonHeight: CGFloat = 18.5
-    static let playlistScrollbarDownButtonHeight: CGFloat = 21
-    static let playlistScrollbarThumbLength: CGFloat = 33
-    static let playlistScrollbarThumbInset: CGFloat = 1
-    static let playlistScrollbarUpGlyph = CGRect(x: 3.5, y: 4.5, width: 8.5, height: 9.5)
-    static let playlistScrollbarDownGlyph = CGRect(x: 3.5, y: 6, width: 8.5, height: 9.5)
+    /// Scrollbar x/width; it spans the rows well lip, from 1.5 pt above the row area to 2 pt below it.
+    static let playlistScrollbar = CGRect(x: 456, y: 8.5, width: 20, height: 199.5)
+    static let playlistScrollbarUpButtonHeight: CGFloat = 20
+    static let playlistScrollbarDownButtonHeight: CGFloat = 20
+    static let playlistScrollbarThumbLength: CGFloat = 36
+    static let playlistScrollbarThumbInset: CGFloat = 2
+    static let playlistScrollbarUpGlyph = CGRect(x: 6, y: 6, width: 8, height: 8)
+    static let playlistScrollbarDownGlyph = CGRect(x: 6, y: 6, width: 8, height: 8)
     /// Footer frame starts this far below the row area and follows the viewport.
     static let playlistFooterGap: CGFloat = 2
     static let playlistFooterHeight: CGFloat = 68.5
@@ -194,26 +200,26 @@ enum AmpXMetrics {
 
     /// Footer-local frames (footer origin at the row area's left content edge x = 0).
     static let playlistFooterButtons: [(label: String, rect: CGRect)] = [
-        ("ADD", CGRect(x: 12.5, y: 8.5, width: 43, height: 44)),
-        ("REM", CGRect(x: 58, y: 8.5, width: 44, height: 44)),
-        ("SEL", CGRect(x: 104.5, y: 8.5, width: 44, height: 44)),
-        ("MISC", CGRect(x: 151, y: 8.5, width: 45.5, height: 44)),
-        ("LIST\nOPTS", CGRect(x: 419, y: 7, width: 58, height: 48.5)),
+        ("ADD", CGRect(x: 14, y: 4, width: 44, height: 28)),
+        ("REM", CGRect(x: 62, y: 4, width: 44, height: 28)),
+        ("SEL", CGRect(x: 110, y: 4, width: 44, height: 28)),
+        ("MISC", CGRect(x: 158, y: 4, width: 44, height: 28)),
+        ("LIST OPTS", CGRect(x: 394, y: 4, width: 82, height: 28)),
     ]
     /// Footer controls at or beyond this reference x keep their right anchor when the Playlist is wider.
-    static let playlistFooterRightGroupMinX: CGFloat = 204.5
-    static let playlistFooterCounterWell = CGRect(x: 204.5, y: 6.5, width: 205, height: 21)
+    static let playlistFooterRightGroupMinX: CGFloat = 206
+    static let playlistFooterCounterWell = CGRect(x: 206, y: 4, width: 184, height: 28)
     /// Counter text ink left edge and baseline, relative to the counter well.
-    static let playlistFooterCounterInk = CGPoint(x: 64.5, y: 15.5)
-    static let playlistFooterRemainingWell = CGRect(x: 358, y: 34, width: 52, height: 20)
+    static let playlistFooterCounterInk = CGPoint(x: 48, y: 18.5)
+    static let playlistFooterRemainingWell = CGRect(x: 346, y: 36, width: 44, height: 20)
     static let playlistFooterRemainingBaseline: CGFloat = 14.5
     static let playlistFooterReadoutFontSize: CGFloat = 12
     static let playlistFooterTransport: [(frame: CGRect, glyph: CGRect)] = [
-        (CGRect(x: 204.5, y: 29.5, width: 26.5, height: 26.5), CGRect(x: 8.5, y: 7.5, width: 9.5, height: 11.5)),
-        (CGRect(x: 234.5, y: 29.5, width: 26.5, height: 26.5), CGRect(x: 9.5, y: 7.5, width: 8.5, height: 12)),
-        (CGRect(x: 264.5, y: 29.5, width: 26, height: 26.5), CGRect(x: 9, y: 7.5, width: 8, height: 11.5)),
-        (CGRect(x: 294, y: 29.5, width: 26.5, height: 26.5), CGRect(x: 8.5, y: 8, width: 9, height: 10.5)),
-        (CGRect(x: 324, y: 29.5, width: 27, height: 26.5), CGRect(x: 9, y: 7.5, width: 9.5, height: 11.5)),
+        (CGRect(x: 206, y: 36, width: 24, height: 20), CGRect(x: 7, y: 5, width: 10, height: 10)),
+        (CGRect(x: 234, y: 36, width: 24, height: 20), CGRect(x: 7, y: 5, width: 10, height: 10)),
+        (CGRect(x: 262, y: 36, width: 24, height: 20), CGRect(x: 7, y: 5, width: 10, height: 10)),
+        (CGRect(x: 290, y: 36, width: 24, height: 20), CGRect(x: 7, y: 5, width: 10, height: 10)),
+        (CGRect(x: 318, y: 36, width: 24, height: 20), CGRect(x: 7, y: 5, width: 10, height: 10)),
     ]
 
     enum MetadataDigitStyle: String {

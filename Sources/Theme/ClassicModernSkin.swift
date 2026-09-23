@@ -17,12 +17,13 @@ struct ClassicModernSkin: AmpXSkin {
     let display = NSColor(hex: 0x000000)
     let gold = NSColor(srgbRed: 0.749, green: 0.627, blue: 0.322, alpha: 1)
     let goldLight = NSColor(srgbRed: 1.0, green: 0.953, blue: 0.286, alpha: 1)
-    let faceInk = NSColor(srgbRed: 0.063, green: 0.086, blue: 0.141, alpha: 1)
-    let faceInkDim = NSColor(srgbRed: 0.361, green: 0.400, blue: 0.471, alpha: 1)
-    // At least 3:1 against the mid-gradient steel face.
-    let faceGreen = NSColor(srgbRed: 0, green: 80 / 255, blue: 18 / 255, alpha: 1)
-    let faceAmber = NSColor(srgbRed: 110 / 255, green: 64 / 255, blue: 0, alpha: 1)
-    let faceOrange = NSColor(srgbRed: 140 / 255, green: 50 / 255, blue: 0, alpha: 1)
+    // Light ink on the Midnight Hardware navy face.
+    let faceInk = NSColor(srgbRed: 238 / 255, green: 243 / 255, blue: 252 / 255, alpha: 1)
+    let faceInkDim = NSColor(srgbRed: 128 / 255, green: 141 / 255, blue: 163 / 255, alpha: 1)
+    // The navy face is dark enough for the bright accents themselves.
+    let faceGreen = NSColor(hex: 0x00FF32)
+    let faceAmber = NSColor(hex: 0xFFD21A)
+    let faceOrange = NSColor(hex: 0xFF9D00)
 
     func font(size: CGFloat, weight: NSFont.Weight) -> NSFont {
         AmpXFonts.font(size: size, weight: weight)
@@ -103,41 +104,57 @@ struct ClassicModernSkin: AmpXSkin {
         ))
     }
 
+    /// Midnight Hardware: one navy key material for every button and handle. Hover lifts the face and
+    /// brightens the bevel; a press darkens both but keeps the bevel raised.
+    private enum Hardware {
+        static let radius: CGFloat = 2
+        static let face: [(CGFloat, NSColor)] = [(0, rgb(49, 64, 89)), (0.48, rgb(39, 53, 78)), (1, rgb(30, 42, 64))]
+        static let hovered: [(CGFloat, NSColor)] = [(0, rgb(57, 72, 97)), (0.48, rgb(47, 61, 86)), (1, rgb(38, 50, 72))]
+        static let pressed: [(CGFloat, NSColor)] = [(0, rgb(39, 54, 79)), (0.48, rgb(31, 45, 69)), (1, rgb(24, 36, 56))]
+        static let edges = Edges(
+            top: [rgb(6, 9, 16), rgb(93, 112, 141), rgb(62, 79, 106)],
+            left: [rgb(6, 9, 16), rgb(76, 95, 124), rgb(52, 69, 96)],
+            bottom: [rgb(3, 5, 13), rgb(12, 20, 35), rgb(23, 34, 53)],
+            right: [rgb(3, 5, 13), rgb(17, 28, 45), rgb(31, 44, 65)]
+        )
+        static let menuFace: [(CGFloat, NSColor)] = [(0, rgb(252, 165, 48)), (0.5, rgb(245, 150, 36)), (1, rgb(232, 126, 22))]
+        static let menuHovered: [(CGFloat, NSColor)] = [(0, rgb(255, 173, 56)), (1, rgb(240, 134, 30))]
+        static let menuPressed: [(CGFloat, NSColor)] = [(0, rgb(220, 133, 25)), (1, rgb(200, 103, 15))]
+        static let menuEdges = Edges(
+            top: [rgb(6, 6, 7), rgb(125, 116, 61), rgb(255, 230, 99), rgb(242, 170, 48)],
+            left: [rgb(6, 6, 7), rgb(196, 138, 52), rgb(250, 190, 80)],
+            bottom: [rgb(11, 6, 14), rgb(122, 46, 14), rgb(203, 80, 9), rgb(200, 93, 13)],
+            right: [rgb(11, 6, 14), rgb(150, 70, 15), rgb(215, 110, 20)]
+        )
+        static let hoverBands: CGFloat = 1.12
+        static let pressedBands: CGFloat = 0.78
+    }
+
     func raisedFace(_ rect: CGRect, style: AmpXFaceStyle, in context: CGContext, backingScale: CGFloat) {
         let face = self.snapped(rect, backingScale: backingScale)
-        let radius: CGFloat = style == .menu ? 3 : 2
         context.saveGState()
-        context.addPath(CGPath(roundedRect: face, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        context.addPath(CGPath(roundedRect: face, cornerWidth: Hardware.radius, cornerHeight: Hardware.radius, transform: nil))
         context.clip()
 
         switch style {
-        case .normal, .hovered:
-            // Light steel, the same material as the slider thumbs: Winamp's grey buttons.
-            let lift: CGFloat = style == .hovered ? 8 : 0
-            self.drawVerticalGradient(
-                in: face,
-                stops: [(0, rgb(178 + lift, 188 + lift, 206 + lift)), (1, rgb(138 + lift, 149 + lift, 171 + lift))],
-                context: context
-            )
-            self.drawBands(in: face, unit: 0.5, context: context, edges: Edges(
-                top: [rgb(6, 9, 16), rgb(96, 106, 124), rgb(242, 246, 252), rgb(224, 231, 242), rgb(200, 209, 224)],
-                left: [rgb(6, 9, 16), rgb(150, 160, 178), rgb(236, 241, 249), rgb(206, 214, 228)],
-                bottom: [rgb(3, 5, 13), rgb(40, 47, 62), rgb(64, 73, 92), rgb(88, 98, 120), rgb(104, 114, 136), rgb(118, 129, 150)],
-                right: [rgb(3, 5, 12), rgb(58, 66, 84), rgb(92, 102, 124)]
-            ))
+        case .normal:
+            self.drawVerticalGradient(in: face, stops: Hardware.face, context: context)
+            self.drawBands(in: face, unit: 0.5, context: context, edges: Hardware.edges)
+        case .hovered:
+            self.drawVerticalGradient(in: face, stops: Hardware.hovered, context: context)
+            self.drawBands(in: face, unit: 0.5, context: context, edges: Hardware.edges.scaled(Hardware.hoverBands))
         case .pressed:
-            // Darker steel with the bevel inverted (shadow on top, light along the bottom).
-            self.drawVerticalGradient(
-                in: face,
-                stops: [(0, rgb(118, 128, 148)), (1, rgb(104, 114, 134))],
-                context: context
-            )
-            self.drawBands(in: face, unit: 0.5, context: context, edges: Edges(
-                top: [rgb(4, 6, 12), rgb(44, 52, 70), rgb(70, 80, 100), rgb(90, 100, 120)],
-                left: [rgb(4, 6, 12), rgb(56, 64, 84), rgb(80, 90, 110)],
-                bottom: [rgb(3, 5, 13), rgb(150, 160, 178), rgb(170, 180, 196), rgb(140, 150, 170)],
-                right: [rgb(3, 5, 12), rgb(140, 150, 168), rgb(124, 134, 154)]
-            ))
+            self.drawVerticalGradient(in: face, stops: Hardware.pressed, context: context)
+            self.drawBands(in: face, unit: 0.5, context: context, edges: Hardware.edges.scaled(Hardware.pressedBands))
+        case .menu:
+            self.drawVerticalGradient(in: face, stops: Hardware.menuFace, context: context)
+            self.drawBands(in: face, unit: 0.5, context: context, edges: Hardware.menuEdges)
+        case .menuHovered:
+            self.drawVerticalGradient(in: face, stops: Hardware.menuHovered, context: context)
+            self.drawBands(in: face, unit: 0.5, context: context, edges: Hardware.menuEdges.scaled(Hardware.hoverBands))
+        case .menuPressed:
+            self.drawVerticalGradient(in: face, stops: Hardware.menuPressed, context: context)
+            self.drawBands(in: face, unit: 0.5, context: context, edges: Hardware.menuEdges.scaled(Hardware.pressedBands))
         case .surface:
             self.drawVerticalGradient(
                 in: face,
@@ -149,18 +166,6 @@ struct ClassicModernSkin: AmpXSkin {
                 left: [rgb(6, 9, 16), rgb(60, 70, 90), rgb(98, 113, 139), rgb(58, 70, 94)],
                 bottom: [rgb(3, 5, 13), rgb(1, 2, 8), rgb(7, 14, 26), rgb(15, 25, 41), rgb(16, 23, 40), rgb(21, 28, 46)],
                 right: [rgb(3, 5, 12), rgb(14, 20, 34), rgb(26, 35, 52)]
-            ))
-        case .menu:
-            self.drawVerticalGradient(
-                in: face,
-                stops: [(0, rgb(252, 165, 48)), (0.5, rgb(245, 150, 36)), (1, rgb(232, 126, 22))],
-                context: context
-            )
-            self.drawBands(in: face, unit: 0.5, context: context, edges: Edges(
-                top: [rgb(6, 6, 7), rgb(125, 116, 61), rgb(255, 230, 99), rgb(242, 170, 48)],
-                left: [rgb(6, 6, 7), rgb(196, 138, 52), rgb(250, 190, 80)],
-                bottom: [rgb(11, 6, 14), rgb(122, 46, 14), rgb(203, 80, 9), rgb(200, 93, 13)],
-                right: [rgb(11, 6, 14), rgb(150, 70, 15), rgb(215, 110, 20)]
             ))
         }
         context.restoreGState()
@@ -206,143 +211,72 @@ struct ClassicModernSkin: AmpXSkin {
         let track = self.snapped(rect, backingScale: backingScale)
         let ramp = AmpXSliderColorRamp.color(for: fill, fraction: fraction)
         let color = TrackColor(r: ramp.r, g: ramp.g, b: ramp.b)
+        // Winamp's full-width bar: the ramp color spans the whole track; only its color follows the value.
+        self.drawTrackShell(track, context: context) { inner in
+            self.drawVerticalGradient(in: inner, stops: [
+                (0, rgb(color.r * 0.88, color.g * 0.85, color.b)),
+                (0.2, rgb(color.r, color.g, color.b)),
+                (0.8, rgb(color.r, color.g, color.b)),
+                (1, rgb(min(255, color.r + 8), min(255, color.g + 50), min(255, color.b + 110))),
+            ], context: context)
+        }
+    }
 
-        let ring = track.insetBy(dx: -0.5, dy: -0.5)
-        context.addPath(CGPath(roundedRect: ring, cornerWidth: ring.height / 2, cornerHeight: ring.height / 2, transform: nil))
+    func seekWell(_: CGRect, track: CGRect, in context: CGContext, backingScale: CGFloat) {
+        self.neutralTrack(track, in: context, backingScale: backingScale)
+    }
+
+    func neutralTrack(_ rect: CGRect, in context: CGContext, backingScale: CGFloat) {
+        self.drawTrackShell(self.snapped(rect, backingScale: backingScale), context: context) { inner in
+            self.drawVerticalGradient(in: inner, stops: [(0, rgb(12, 18, 33)), (1, rgb(17, 26, 44))], context: context)
+        }
+    }
+
+    /// Shared track construction: a 0.5 pt steel ring, a lower lip 1 pt down, a black channel and the fill
+    /// inset 1.5 pt, all on the 2 pt key radius.
+    private func drawTrackShell(_ track: CGRect, context: CGContext, fill: (CGRect) -> Void) {
+        func rounded(_ rect: CGRect, _ radius: CGFloat) -> CGPath {
+            let r = min(radius, rect.width / 2, rect.height / 2)
+            return CGPath(roundedRect: rect, cornerWidth: r, cornerHeight: r, transform: nil)
+        }
+        let radius = Hardware.radius
+        context.addPath(rounded(track.insetBy(dx: -0.5, dy: -0.5), radius + 0.5))
         context.setFillColor(rgb(58, 70, 90).cgColor)
         context.fillPath()
-        let lip = track.offsetBy(dx: 0, dy: 1)
-        context.addPath(CGPath(roundedRect: lip, cornerWidth: lip.height / 2, cornerHeight: lip.height / 2, transform: nil))
+        context.addPath(rounded(track.offsetBy(dx: 0, dy: 1), radius))
         context.setFillColor(rgb(88, 106, 130).cgColor)
         context.fillPath()
-
-        context.addPath(CGPath(roundedRect: track, cornerWidth: track.height / 2, cornerHeight: track.height / 2, transform: nil))
+        context.addPath(rounded(track, radius))
         context.setFillColor(rgb(2, 3, 6).cgColor)
         context.fillPath()
 
         let inner = track.insetBy(dx: 1.5, dy: 1.5)
+        guard inner.width > 0, inner.height > 0 else { return }
         context.saveGState()
-        context.addPath(CGPath(roundedRect: inner, cornerWidth: inner.height / 2, cornerHeight: inner.height / 2, transform: nil))
+        context.addPath(rounded(inner, 0.5))
         context.clip()
-        // Winamp's full-width bar: the ramp color spans the whole track; only its color follows the value.
-        self.drawVerticalGradient(in: inner, stops: [
-            (0, rgb(color.r * 0.88, color.g * 0.85, color.b)),
-            (0.2, rgb(color.r, color.g, color.b)),
-            (0.8, rgb(color.r, color.g, color.b)),
-            (1, rgb(min(255, color.r + 8), min(255, color.g + 50), min(255, color.b + 110))),
-        ], context: context)
+        fill(inner)
         context.restoreGState()
     }
 
-    func seekWell(_ well: CGRect, track: CGRect, in context: CGContext, backingScale: CGFloat) {
-        let outer = self.snapped(well, backingScale: backingScale)
-        let channel = self.snapped(track, backingScale: backingScale)
-        context.setFillColor(rgb(17, 26, 44).cgColor)
-        context.fill(outer)
-        self.drawBands(in: outer, unit: 0.5, context: context, edges: Edges(
-            top: [rgb(47, 59, 83), rgb(33, 44, 68), rgb(5, 9, 21), rgb(1, 0, 8), rgb(10, 13, 26)],
-            left: [rgb(40, 52, 76), rgb(20, 28, 46), rgb(5, 9, 21)],
-            bottom: [rgb(14, 23, 42), rgb(60, 73, 100), rgb(76, 90, 121)],
-            right: [rgb(60, 73, 100), rgb(40, 52, 76), rgb(20, 28, 46)]
-        ))
-        let lip = CGRect(x: channel.minX, y: channel.maxY, width: channel.width, height: max(0, outer.maxY - 1.5 - channel.maxY))
-        self.fillRows(in: lip, colors: [rgb(73, 88, 116), rgb(79, 95, 125)] + Array(repeating: rgb(47, 60, 87), count: 4), context: context)
-
-        context.setFillColor(rgb(12, 18, 33).cgColor)
-        context.fill(channel)
-        self.drawBands(in: channel, unit: 0.5, context: context, edges: Edges(
-            top: [rgb(0, 0, 2), rgb(6, 11, 20)],
-            left: [rgb(0, 0, 2), rgb(8, 12, 22)],
-            bottom: [rgb(23, 29, 48), rgb(10, 15, 29)],
-            right: [rgb(23, 29, 48)]
-        ))
-    }
-
-    func metallicThumb(_ rect: CGRect, material: AmpXThumbMaterial, in context: CGContext, backingScale: CGFloat) {
+    /// Every handle is a key: the shared face, plus three grip cuts across its travel.
+    func metallicThumb(
+        _ rect: CGRect,
+        material: AmpXThumbMaterial,
+        style: AmpXFaceStyle,
+        in context: CGContext,
+        backingScale: CGFloat
+    ) {
         let thumb = self.snapped(rect, backingScale: backingScale)
-        switch material {
-        case .steel:
-            self.drawSteelThumb(thumb, context: context)
-        case .steelLevel:
-            drawSteelLevelThumb(thumb, context: context)
-        case .gold:
-            self.drawGoldThumb(thumb, context: context)
-        case .goldTab:
-            self.drawGoldTab(thumb, context: context)
-        }
-    }
-
-    private func drawSteelThumb(_ thumb: CGRect, context: CGContext) {
-        context.addPath(CGPath(roundedRect: thumb, cornerWidth: 2, cornerHeight: 2, transform: nil))
-        context.setFillColor(rgb(2, 4, 8).cgColor)
-        context.fillPath()
-
-        let face = thumb.insetBy(dx: 1, dy: 1)
-        context.saveGState()
-        context.addPath(CGPath(roundedRect: face, cornerWidth: 1.5, cornerHeight: 1.5, transform: nil))
-        context.clip()
-        self.drawVerticalGradient(in: face, stops: [
-            (0, rgb(134, 140, 148)), (0.03, rgb(234, 241, 249)), (0.1, rgb(218, 226, 240)),
-            (0.25, rgb(161, 171, 191)), (0.4, rgb(143, 153, 175)), (0.8, rgb(124, 139, 166)),
-            (0.93, rgb(103, 116, 139)), (1, rgb(61, 71, 95)),
-        ], context: context)
-        context.setFillColor(rgb(213, 222, 235).cgColor)
-        context.fill(CGRect(x: face.minX, y: face.minY, width: 1, height: face.height))
-        context.setFillColor(rgb(61, 71, 95).cgColor)
-        context.fill(CGRect(x: face.maxX - 1, y: face.minY, width: 1, height: face.height))
-        context.restoreGState()
-
-        let grooveHeight = min(12, face.height - 6)
+        self.raisedFace(thumb, style: style, in: context, backingScale: backingScale)
+        let sink: CGFloat = style.isPressed ? 0.5 : 0
+        context.setFillColor(self.faceInk.cgColor)
         for offset: CGFloat in [-3, 0, 3] {
-            let groove = CGRect(
-                x: thumb.midX + offset - 0.75,
-                y: thumb.midY - grooveHeight / 2,
-                width: 1.5,
-                height: grooveHeight
-            )
-            context.setFillColor(rgb(169, 182, 200).cgColor)
-            context.fill(groove.insetBy(dx: -0.5, dy: -0.5))
-            context.setFillColor(rgb(6, 14, 33).cgColor)
-            context.fill(groove)
+            let cut = material.travelsVertically
+                ? CGRect(x: thumb.midX - 4, y: thumb.midY + offset - 0.5 + sink, width: 8, height: 1)
+                : CGRect(x: thumb.midX + offset - 0.5, y: thumb.midY - 4 + sink, width: 1, height: 8)
+            context.fill(cut)
         }
-    }
-
-    private func drawGoldThumb(_ thumb: CGRect, context: CGContext) {
-        context.setFillColor(rgb(8, 5, 3).cgColor)
-        context.fill(thumb)
-        let outer = thumb.insetBy(dx: 1, dy: 1)
-        let inner = outer.insetBy(dx: 4.25, dy: 3)
-
-        func quad(_ points: [CGPoint], _ color: NSColor) {
-            let path = CGMutablePath()
-            path.addLines(between: points)
-            path.closeSubpath()
-            context.addPath(path)
-            context.setFillColor(color.cgColor)
-            context.fillPath()
-        }
-        let tl = CGPoint(x: outer.minX, y: outer.minY), tr = CGPoint(x: outer.maxX, y: outer.minY)
-        let bl = CGPoint(x: outer.minX, y: outer.maxY), br = CGPoint(x: outer.maxX, y: outer.maxY)
-        let itl = CGPoint(x: inner.minX, y: inner.minY), itr = CGPoint(x: inner.maxX, y: inner.minY)
-        let ibl = CGPoint(x: inner.minX, y: inner.maxY), ibr = CGPoint(x: inner.maxX, y: inner.maxY)
-        quad([tl, tr, itr, itl], rgb(240, 212, 145))
-        quad([tl, itl, ibl, bl], rgb(224, 192, 118))
-        quad([tr, br, ibr, itr], rgb(176, 140, 64))
-        quad([bl, ibl, ibr, br], rgb(170, 134, 58))
-
-        context.setFillColor(rgb(255, 255, 211).cgColor)
-        context.fill(CGRect(x: outer.minX, y: outer.minY, width: outer.width, height: 0.5))
-
-        context.setLineWidth(0.5)
-        context.setStrokeColor(rgb(255, 246, 205).cgColor)
-        context.strokeLineSegments(between: [tl, itl, tr, itr])
-        context.setStrokeColor(rgb(120, 90, 40).cgColor)
-        context.strokeLineSegments(between: [bl, ibl, br, ibr])
-
-        self.drawVerticalGradient(in: inner, stops: [
-            (0, rgb(130, 96, 38)), (0.22, rgb(150, 115, 52)), (0.4, rgb(240, 209, 139)),
-            (0.62, rgb(255, 255, 229)), (0.78, rgb(214, 182, 104)), (1, rgb(197, 163, 81)),
-        ], context: context)
     }
 
     // MARK: - Band drawing
@@ -358,6 +292,22 @@ struct ClassicModernSkin: AmpXSkin {
         var left: [NSColor]
         var bottom: [NSColor]
         var right: [NSColor]
+
+        /// Every band's RGB multiplied by `factor`, clamped to 1.
+        func scaled(_ factor: CGFloat) -> Edges {
+            func scale(_ colors: [NSColor]) -> [NSColor] {
+                colors.map { color in
+                    let c = color.usingColorSpace(.sRGB) ?? color
+                    return NSColor(
+                        srgbRed: min(1, c.redComponent * factor),
+                        green: min(1, c.greenComponent * factor),
+                        blue: min(1, c.blueComponent * factor),
+                        alpha: c.alphaComponent
+                    )
+                }
+            }
+            return Edges(top: scale(self.top), left: scale(self.left), bottom: scale(self.bottom), right: scale(self.right))
+        }
     }
 
     private enum Palette {
@@ -429,32 +379,6 @@ struct ClassicModernSkin: AmpXSkin {
     }
 }
 
-// MARK: - Playlist scrollbar tab
-
-extension ClassicModernSkin {
-    /// Gold tab sampled from the reference Playlist scrollbar thumb.
-    func drawGoldTab(_ tab: CGRect, context: CGContext) {
-        context.addPath(CGPath(roundedRect: tab, cornerWidth: 1, cornerHeight: 1, transform: nil))
-        context.setFillColor(rgb(3, 2, 6).cgColor)
-        context.fillPath()
-
-        let face = tab.insetBy(dx: 0.5, dy: 0.5)
-        self.drawVerticalGradient(in: face, stops: [
-            (0, rgb(209, 201, 150)), (0.02, rgb(255, 243, 181)), (0.04, rgb(239, 220, 155)),
-            (0.07, rgb(198, 168, 93)), (0.5, rgb(193, 162, 84)), (0.9, rgb(188, 157, 79)),
-            (0.93, rgb(143, 117, 58)), (0.97, rgb(115, 92, 44)), (1, rgb(67, 56, 29)),
-        ], context: context)
-        context.setFillColor(rgb(255, 255, 247).cgColor)
-        context.fill(CGRect(x: face.minX + 0.5, y: face.minY + 1, width: 0.5, height: face.height - 2))
-        context.setFillColor(rgb(230, 219, 174).cgColor)
-        context.fill(CGRect(x: face.minX + 1, y: face.minY + 1, width: 0.5, height: face.height - 2))
-        context.setFillColor(rgb(118, 97, 48).cgColor)
-        context.fill(CGRect(x: face.maxX - 1.5, y: face.minY + 1, width: 1, height: face.height - 2))
-        context.setFillColor(rgb(78, 62, 33).cgColor)
-        context.fill(CGRect(x: face.maxX - 0.5, y: face.minY + 1, width: 0.5, height: face.height - 2))
-    }
-}
-
 // MARK: - Equalizer level sliders
 
 extension ClassicModernSkin {
@@ -473,42 +397,15 @@ extension ClassicModernSkin {
     }
 
     func levelTrack(_ slot: CGRect, decibels: Double, in context: CGContext, backingScale: CGFloat) {
-        let slot = self.snapped(slot, backingScale: backingScale)
-        let radius = slot.width / 2
-
-        func pill(_ rect: CGRect) -> CGPath {
-            let r = min(radius, rect.width / 2)
-            return CGPath(roundedRect: rect, cornerWidth: r, cornerHeight: r, transform: nil)
-        }
-
-        context.addPath(pill(slot.offsetBy(dx: 0.5, dy: 1)))
-        context.setFillColor(rgb(52, 63, 86).cgColor)
-        context.fillPath()
-        context.addPath(pill(slot))
-        context.setFillColor(rgb(2, 3, 8).cgColor)
-        context.fillPath()
-        context.addPath(pill(slot.insetBy(dx: 1, dy: 1)))
-        context.setFillColor(rgb(14, 23, 37).cgColor)
-        context.fillPath()
-
-        let bar = slot.insetBy(dx: 2.5, dy: 3)
         let color = self.levelColor(decibels: decibels)
         let bottom = LevelRGB(r: color.r, g: color.g * 0.96, b: color.b * 0.5)
-        context.saveGState()
-        context.addPath(pill(bar))
-        context.clip()
-        self.drawVerticalGradient(in: bar, stops: [
-            (0, rgb(color.r, color.g, min(255, color.b + 40))),
-            (0.05, color.color),
-            (1, bottom.color),
-        ], context: context)
-        let edge = rgb(color.r * 0.84, color.g * 0.55, color.b * 0.15).withAlphaComponent(0.8)
-        context.setFillColor(edge.cgColor)
-        context.fill(CGRect(x: bar.minX, y: bar.minY, width: 1, height: bar.height))
-        context.fill(CGRect(x: bar.maxX - 1, y: bar.minY, width: 1, height: bar.height))
-        context.setFillColor(rgb(255, 251, 225).withAlphaComponent(0.85).cgColor)
-        context.fill(CGRect(x: bar.minX + 1, y: bar.minY, width: 0.5, height: bar.height))
-        context.restoreGState()
+        self.drawTrackShell(self.snapped(slot, backingScale: backingScale), context: context) { bar in
+            self.drawVerticalGradient(in: bar, stops: [
+                (0, rgb(color.r, color.g, min(255, color.b + 40))),
+                (0.05, color.color),
+                (1, bottom.color),
+            ], context: context)
+        }
     }
 
     /// Bar hue by gain: shared slider green at −12 dB, yellow near 0, and shared red at +12 dB.
@@ -529,37 +426,6 @@ extension ClassicModernSkin {
             return lower.color.mixed(with: upper.color, t)
         }
         return stops[stops.count - 1].color
-    }
-
-    func drawSteelLevelThumb(_ thumb: CGRect, context: CGContext) {
-        context.addPath(CGPath(roundedRect: thumb, cornerWidth: 2, cornerHeight: 2, transform: nil))
-        context.setFillColor(rgb(1, 2, 5).cgColor)
-        context.fillPath()
-
-        let face = thumb.insetBy(dx: 1, dy: 1)
-        context.saveGState()
-        context.addPath(CGPath(roundedRect: face, cornerWidth: 1.5, cornerHeight: 1.5, transform: nil))
-        context.clip()
-        self.drawVerticalGradient(in: face, stops: [
-            (0, rgb(208, 216, 222)), (0.04, rgb(227, 235, 244)), (0.12, rgb(156, 169, 188)),
-            (0.2, rgb(126, 141, 165)), (0.6, rgb(117, 131, 156)), (0.86, rgb(118, 132, 157)),
-            (0.93, rgb(93, 105, 127)), (1, rgb(63, 74, 95)),
-        ], context: context)
-        context.setFillColor(rgb(232, 243, 255).cgColor)
-        context.fill(CGRect(x: face.minX, y: face.minY, width: 0.5, height: face.height))
-        context.setFillColor(rgb(185, 198, 213).cgColor)
-        context.fill(CGRect(x: face.minX + 0.5, y: face.minY, width: 0.5, height: face.height))
-        context.setFillColor(rgb(71, 82, 106).cgColor)
-        context.fill(CGRect(x: face.maxX - 1, y: face.minY, width: 1, height: face.height))
-        context.restoreGState()
-
-        for offset: CGFloat in [-3, 3] {
-            let groove = CGRect(x: thumb.midX - 3.5, y: thumb.midY - 0.5 + offset - 0.75, width: 7, height: 1.5)
-            context.setFillColor(rgb(177, 189, 204).cgColor)
-            context.fill(CGRect(x: groove.minX, y: groove.maxY + 0.5, width: groove.width + 0.5, height: 0.75))
-            context.setFillColor(rgb(8, 10, 18).cgColor)
-            context.fill(groove)
-        }
     }
 }
 

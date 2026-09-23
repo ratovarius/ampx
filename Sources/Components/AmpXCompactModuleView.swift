@@ -40,11 +40,11 @@ class AmpXCompactModuleView: AmpXModuleContent {
         self.expandButton.accessibilityTitle = "Expand \(moduleID.rawValue)"
         self.expandButton.action = { [weak self] in self?.onExpand?() }
         self.closeButton.icon = .close
-        self.closeButton.iconColor = skin.faceAmber
+        self.closeButton.iconColor = skin.faceInk
         self.closeButton.accessibilityTitle = "Close \(moduleID.rawValue)"
         self.closeButton.action = { [weak self] in self?.onClose?() }
         self.minimizeButton?.icon = .minimize
-        self.minimizeButton?.iconColor = skin.faceAmber
+        self.minimizeButton?.iconColor = skin.faceInk
         self.minimizeButton?.accessibilityTitle = "Minimize Player"
         self.minimizeButton?.action = { [weak self] in self?.onMinimize?() }
     }

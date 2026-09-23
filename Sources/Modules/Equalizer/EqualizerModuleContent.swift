@@ -63,10 +63,9 @@ final class EqualizerModuleContent: AmpXModuleContent {
         }
 
         self.presetsButton.label = "PRESETS"
-        self.presetsButton.labelFontSize = 12.5
-        self.presetsButton.labelWeight = .regular
+        self.presetsButton.applyKeyLabelStyle()
         self.presetsButton.labelBaselineOrigin = Self.labelOrigin(
-            "PRESETS", size: 12.5, inkX: AmpXMetrics.eqPresetsLabelInk.x, baseline: AmpXMetrics.eqPresetsLabelInk.y, skin: skin
+            "PRESETS", inkX: AmpXMetrics.eqPresetsLabelInk.x, baseline: AmpXMetrics.eqPresetsLabelInk.y, skin: skin
         )
         self.presetsButton.icon = .dropdown
         self.presetsButton.iconColor = skin.faceInk
@@ -99,9 +98,8 @@ final class EqualizerModuleContent: AmpXModuleContent {
 
     private func configureToggle(_ button: AmpXButton, label: String, indicator: CGRect, labelInk: CGPoint) {
         button.label = label
-        button.labelFontSize = 13
-        button.labelWeight = .regular
-        button.labelBaselineOrigin = Self.labelOrigin(label, size: 13, inkX: labelInk.x, baseline: labelInk.y, skin: skin)
+        button.applyKeyLabelStyle()
+        button.labelBaselineOrigin = Self.labelOrigin(label, inkX: labelInk.x, baseline: labelInk.y, skin: skin)
         button.showsActiveIndicator = true
         button.indicatorRect = indicator
     }
@@ -117,8 +115,9 @@ final class EqualizerModuleContent: AmpXModuleContent {
         slider.accessibilityTitle = title
     }
 
-    private static func labelOrigin(_ text: String, size: CGFloat, inkX: CGFloat, baseline: CGFloat, skin: any AmpXSkin) -> CGPoint {
-        let ink = AmpXLabel(text: text, color: skin.text, fontSize: size, weight: .regular).inkBounds(skin: skin)
+    private static func labelOrigin(_ text: String, inkX: CGFloat, baseline: CGFloat, skin: any AmpXSkin) -> CGPoint {
+        let ink = AmpXLabel(text: text, color: skin.text, fontSize: AmpXMetrics.keyLabelFontSize, weight: AmpXButton.keyLabelWeight)
+            .inkBounds(skin: skin)
         return CGPoint(x: inkX - ink.minX, y: baseline)
     }
 

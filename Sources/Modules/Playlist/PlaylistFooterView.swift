@@ -60,9 +60,8 @@ final class PlaylistFooterView: AmpXDrawingView {
         for (label, _) in AmpXMetrics.playlistFooterButtons {
             let button = AmpXButton(skin: skin)
             button.label = label
-            button.labelFontSize = 12.5
-            button.labelWeight = .regular
-            button.accessibilityTitle = label.replacingOccurrences(of: "\n", with: " ")
+            button.applyKeyLabelStyle()
+            button.accessibilityTitle = label
             button.action = { [weak self, weak button] in
                 guard let button else { return }
                 self?.showMenu(for: label, button: button)
@@ -78,7 +77,7 @@ final class PlaylistFooterView: AmpXDrawingView {
             button.accessibilityTitle = self.miniTransportLabel(for: icon)
             button.action = self.transportAction(for: icon)
             if icon == .play {
-                button.iconColor = skin.faceGreen
+                button.iconColor = skin.green
                 button.isActive = true
             }
             self.miniTransportButtons.append(button)
@@ -136,7 +135,7 @@ final class PlaylistFooterView: AmpXDrawingView {
             menu.addItem(self.menuItem(title: "Randomize", action: #selector(PlaylistFooterMenuActions.randomizeTracks)))
             menu.addItem(.separator())
             menu.addItem(self.menuItem(title: "File Info", action: #selector(PlaylistFooterMenuActions.fileInfo)))
-        case "LIST\nOPTS":
+        case "LIST OPTS":
             self.listOptionsMenu.show(relativeTo: button)
             return
         default:
