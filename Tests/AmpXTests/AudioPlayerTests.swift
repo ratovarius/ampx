@@ -253,6 +253,7 @@ final class AudioPlayerTests: XCTestCase {
     }
 
     func testPlaybackTimeSnapshotReturnsTimeWhilePlaying() throws {
+        try AmpXTestEnvironment.skipOnCI("needs a real audio output device and real-time playback")
         // Needs a file still playing after the wait: a finished track now stops the node
         // and its clock, so the 0.1 s `short.wav` fixture would read back 0.
         let url = try Self.makeSilentWAVFixture(durationSeconds: 2)
@@ -313,6 +314,7 @@ final class AudioPlayerTests: XCTestCase {
     }
 
     func testPlayAfterNaturalCompletionReplaysFromStartAndFinishesAgain() throws {
+        try AmpXTestEnvironment.skipOnCI("needs a real audio output device and real-time playback")
         let url = try Self.makeSilentWAVFixture(durationSeconds: 0.4)
         defer { try? FileManager.default.removeItem(at: url) }
         let track = Track(title: "Blip", artist: "Test", url: url)
@@ -415,6 +417,7 @@ final class AudioPlayerTests: XCTestCase {
     /// ~10 Hz timer snaps the slider/time display back toward zero while audio
     /// correctly continues from the seek point.
     func testSeekWhilePlayingSnapshotIncludesSegmentOffset() throws {
+        try AmpXTestEnvironment.skipOnCI("needs a real audio output device and real-time playback")
         let longURL = try Self.makeSilentWAVFixture(durationSeconds: 2.0)
         defer { try? FileManager.default.removeItem(at: longURL) }
 

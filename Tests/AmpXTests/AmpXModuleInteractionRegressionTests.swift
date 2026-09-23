@@ -185,7 +185,10 @@ final class AmpXModuleInteractionRegressionTests: XCTestCase {
         let eq = try XCTUnwrap(coordinator.moduleView(for: .equalizer))
         let window = try XCTUnwrap(eq.window)
         XCTAssertEqual(window.frame.width, 490)
-        XCTAssertEqual(eq.frame.size, CGSize(width: 490, height: AmpXMetrics.equalizerHeight))
+        // The half-point EQ height snaps to whole pixels, so a 1x display rounds it up.
+        let scale = window.backingScaleFactor
+        let eqHeight = (AmpXMetrics.equalizerHeight * scale).rounded() / scale
+        XCTAssertEqual(eq.frame.size, CGSize(width: 490, height: eqHeight))
         coordinator.reopenModule(.equalizer)
         XCTAssertIdentical(eq.window, window)
         coordinator.stackWindowController?.updateLayout()

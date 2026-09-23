@@ -64,6 +64,7 @@ extension AmpXReferenceRenderingTests {
     }
 
     func testModuleContentScalesDrawingAndHitTestingTogether() throws {
+        try AmpXTestEnvironment.skipUnlessRetina()
         let content = self.makePlayerContent()
         let module = AmpXModuleView(moduleID: .player, content: content, skin: self.skin)
         let window = NSWindow(

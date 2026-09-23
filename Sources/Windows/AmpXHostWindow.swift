@@ -16,4 +16,11 @@ final class AmpXHostWindow: NSWindow {
     override nonisolated var canBecomeMain: Bool {
         true
     }
+
+    /// The coordinator and stack controller already keep hosts inside the visible frame. AppKit's
+    /// own constraint pulls the top edge under the real display's menu bar on some systems, which
+    /// fights restored and live-resized frames (seen on CI runners' small virtual displays).
+    override nonisolated func constrainFrameRect(_ frameRect: NSRect, to _: NSScreen?) -> NSRect {
+        frameRect
+    }
 }

@@ -187,6 +187,7 @@ final class TransportBehaviorTests: XCTestCase {
     }
 
     func testEnablingShuffleMidPlaylistDoesNotReplayCurrentTrack() throws {
+        try AmpXTestEnvironment.skipOnCI("needs a real audio output device and real-time playback")
         try self.loadTracks(count: 5)
         self.playAndSettle(at: 0)
         self.manager.next()

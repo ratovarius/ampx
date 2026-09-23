@@ -49,6 +49,10 @@ jobs:
       # Generates fixtures, then runs the suite. Streams the full log here because a
       # CI log costs nothing to keep and is the only record when a run fails.
       - name: Test
+        # xcodebuild forwards TEST_RUNNER_* to the test process with the prefix stripped, so tests
+        # see CI=true and skip what needs real audio hardware or GPU frame pacing.
+        env:
+          TEST_RUNNER_CI: "true"
         run: ./scripts/run-tests.sh --verbose -- -resultBundlePath "$RUNNER_TEMP/AmpXTests.xcresult"
 
       # Parallel test runs print only "failed on …"; the assertion messages live in the
