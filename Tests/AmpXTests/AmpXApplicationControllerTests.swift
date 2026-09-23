@@ -3,11 +3,18 @@ import XCTest
 
 @MainActor
 final class AmpXApplicationControllerTests: XCTestCase {
+    private struct Harness {
+        let application: AmpXApplicationController
+        let player: AudioPlayer
+        let manager: PlaylistManager
+        let hosts: AmpXHostCoordinator
+    }
+
     private func makeController(
         audioPlayer: AudioPlayer? = nil,
         playlistManager: PlaylistManager? = nil,
         entheaEnabled: Bool = false
-    ) -> (AmpXApplicationController, AudioPlayer, PlaylistManager, AmpXHostCoordinator) {
+    ) -> Harness {
         let player = audioPlayer ?? AudioPlayer(installRemoteCommands: false)
         let manager = playlistManager ?? PlaylistManager(
             audioPlayer: MockAudioPlayer(),
@@ -28,11 +35,12 @@ final class AmpXApplicationControllerTests: XCTestCase {
             playlistManager: manager,
             hosts: hosts
         )
-        return (application, player, manager, hosts)
+        return Harness(application: application, player: player, manager: manager, hosts: hosts)
     }
 
     func testStartBindsPlaybackCoordinationOnce() {
-        let (application, player, manager, _) = self.makeController()
+        let harness = self.makeController()
+        let (application, player, manager) = (harness.application, harness.player, harness.manager)
         application.start()
         XCTAssertTrue(application.isPlaybackCoordinationBound)
         XCTAssertNotNil(player.onTrackFinished)
@@ -108,7 +116,8 @@ final class AmpXApplicationControllerTests: XCTestCase {
     }
 
     func testTerminateHandlesTheaterShutdown() {
-        let (application, _, _, hosts) = self.makeController(entheaEnabled: true)
+        let harness = self.makeController(entheaEnabled: true)
+        let (application, hosts) = (harness.application, harness.hosts)
         application.start()
         hosts.reopenModule(.enthea)
         hosts.toggleTheater()
