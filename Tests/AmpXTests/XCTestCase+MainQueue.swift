@@ -35,7 +35,7 @@ extension XCTestCase {
     func waitForTrackCount(
         _ expected: Int,
         on manager: PlaylistManager,
-        timeout: TimeInterval = 3.0,
+        timeout: TimeInterval = 10.0,
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {

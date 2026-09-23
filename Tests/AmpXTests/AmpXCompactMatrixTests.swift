@@ -104,7 +104,7 @@ final class AmpXCompactMatrixTests: XCTestCase {
 
     private func makeCoordinator(state: AmpXModuleOrder, store: AmpXLayoutStore) -> AmpXHostCoordinator {
         AmpXHostCoordinator(
-            state: state, skin: ClassicModernSkin(), layoutStore: store,
+            state: state, skin: ClassicModernSkin(), layoutStore: store, screen: AmpXTestScreen.standard,
             audioPlayer: AudioPlayer(installRemoteCommands: false),
             playlistManager: PlaylistManager(
                 audioPlayer: MockAudioPlayer(),
