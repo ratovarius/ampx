@@ -41,34 +41,41 @@ final class AmpXLayoutTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(wide.frames[.player]?.width), 490, accuracy: 0.0001)
     }
 
+    private struct LayoutCase {
+        let name: String
+        let state: AmpXModuleOrder
+        let expectedHeight: CGFloat
+        let moduleCount: Int
+    }
+
     func testTableDrivenLayouts() {
-        let cases: [(name: String, state: AmpXModuleOrder, expectedHeight: CGFloat, moduleCount: Int)] = [
-            (
-                "full default stack",
-                AmpXModuleOrder(),
-                223.5 + 225.5 + 305,
-                3
+        let cases: [LayoutCase] = [
+            LayoutCase(
+                name: "full default stack",
+                state: AmpXModuleOrder(),
+                expectedHeight: 223.5 + 225.5 + 305,
+                moduleCount: 3
             ),
-            (
-                "collapsed equalizer",
-                {
+            LayoutCase(
+                name: "collapsed equalizer",
+                state: {
                     var state = AmpXModuleOrder()
                     state.setCollapsed(.equalizer, true)
                     return state
                 }(),
-                223.5 + AmpXCompactMetrics.equalizerHeight + 305,
-                3
+                expectedHeight: 223.5 + AmpXCompactMetrics.equalizerHeight + 305,
+                moduleCount: 3
             ),
-            (
-                "player only",
-                {
+            LayoutCase(
+                name: "player only",
+                state: {
                     var state = AmpXModuleOrder()
                     state.close(.equalizer)
                     state.close(.playlist)
                     return state
                 }(),
-                223.5,
-                1
+                expectedHeight: 223.5,
+                moduleCount: 1
             ),
         ]
 

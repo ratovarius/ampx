@@ -118,7 +118,7 @@ final class EntheaTrackBridgeTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("enthea-bridge-\(UUID().uuidString).wav")
         defer { try? FileManager.default.removeItem(at: url) }
-        try EntheaTrackAnalyzerTests_writeMinimalSlam(url: url)
+        try writeMinimalSlam(url: url)
 
         bridge.trackDidChange(url: url)
 
@@ -164,7 +164,7 @@ private final class RecordingTrackEvaluator: EntheaJavaScriptEvaluating {
     }
 }
 
-private func EntheaTrackAnalyzerTests_writeMinimalSlam(url: URL) throws {
+private func writeMinimalSlam(url: URL) throws {
     let sampleRate = 44100.0
     let duration = 3.0
     let frameCount = AVAudioFrameCount(duration * sampleRate)
