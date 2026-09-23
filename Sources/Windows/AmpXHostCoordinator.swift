@@ -8,6 +8,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     private let skin: any AmpXSkin
     private let layoutStore: AmpXLayoutStore
     private let screen: NSScreen
+    /// A screen passed in explicitly (tests) pins all stack geometry to it instead of the window's live screen.
+    let pinnedScreen: NSScreen?
     private let audioPlayer: AudioPlayer
     private let playlistManager: PlaylistManager
     private let playerPresentationState = AmpXPlayerPresentationState()
@@ -58,6 +60,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         }
         self.skin = skin
         self.screen = resolvedScreen
+        self.pinnedScreen = screen
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
         self.layoutStore = layoutStore ?? AmpXLayoutStore(defaults: .standard, screen: resolvedScreen)
@@ -272,7 +275,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             state: self.state,
             width: width,
             playlistViewportHeight: self.playlistViewportHeight,
-            availableHeight: AmpXStackWindowController.availableHeight(for: self.stackWindow),
+            availableHeight: AmpXStackWindowController.availableHeight(for: self.stackWindow, pinnedScreen: self.pinnedScreen),
             playlistWidth: self.playlistWidth
         )
 
@@ -334,7 +337,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             state: self.state,
             width: width,
             playlistViewportHeight: adjusted,
-            availableHeight: AmpXStackWindowController.availableHeight(for: self.stackWindow)
+            availableHeight: AmpXStackWindowController.availableHeight(for: self.stackWindow, pinnedScreen: self.pinnedScreen)
         ).playlistViewportHeight
         self.stackWindowController?.setPreferredPlaylistViewportHeight(self.playlistViewportHeight)
         self.stackWindowController?.updateLayout()
@@ -406,7 +409,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
                 state: self.state,
                 width: AmpXMetrics.compositionWidth,
                 playlistViewportHeight: height,
-                availableHeight: AmpXStackWindowController.availableHeight(for: self.stackWindow),
+                availableHeight: AmpXStackWindowController.availableHeight(for: self.stackWindow, pinnedScreen: self.pinnedScreen),
                 playlistWidth: self.playlistWidth
             ).playlistViewportHeight
             self.stackWindowController?.setPreferredPlaylistViewportHeight(self.playlistViewportHeight)

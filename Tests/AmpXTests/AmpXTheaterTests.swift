@@ -62,9 +62,9 @@ final class AmpXTheaterTests: XCTestCase {
         XCTAssertEqual(ObjectIdentifier(view.content), identity)
 
         let restoredWindowFrame = try XCTUnwrap(hosts.detachedWindowFrame(for: .enthea))
-        let clampedPrevious = try AmpXLayoutStore.clampedToVisibleFrame(
+        let clampedPrevious = AmpXLayoutStore.clampedToVisibleFrame(
             previousWindowFrame,
-            screen: XCTUnwrap(NSScreen.main)
+            screen: AmpXTestScreen.standard
         )
         XCTAssertEqual(restoredWindowFrame.origin.x, clampedPrevious.origin.x, accuracy: 1)
         XCTAssertEqual(restoredWindowFrame.origin.y, clampedPrevious.origin.y, accuracy: 1)

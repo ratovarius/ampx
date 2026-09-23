@@ -59,8 +59,8 @@ final class AmpXStackWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// Height the stack may occupy: the visible frame of the window's screen, not the window's own height.
-    static func availableHeight(for window: NSWindow?) -> CGFloat {
-        let screen = window?.screen ?? NSScreen.main ?? NSScreen.screens.first
+    static func availableHeight(for window: NSWindow?, pinnedScreen: NSScreen? = nil) -> CGFloat {
+        let screen = pinnedScreen ?? window?.screen ?? NSScreen.main ?? NSScreen.screens.first
         return max(screen?.visibleFrame.height ?? .greatestFiniteMagnitude, 1)
     }
 
@@ -99,14 +99,14 @@ final class AmpXStackWindowController: NSWindowController, NSWindowDelegate {
             state: coordinator.state,
             width: width,
             playlistViewportHeight: self.preferredPlaylistViewportHeight,
-            availableHeight: Self.availableHeight(for: window),
+            availableHeight: Self.availableHeight(for: window, pinnedScreen: coordinator.pinnedScreen),
             playlistWidth: self.preferredPlaylistWidth
         )
         let minimumContentWidth = AmpXLayout.calculate(
             state: coordinator.state,
             width: AmpXMetrics.compositionWidth,
             playlistViewportHeight: self.preferredPlaylistViewportHeight,
-            availableHeight: Self.availableHeight(for: window),
+            availableHeight: Self.availableHeight(for: window, pinnedScreen: coordinator.pinnedScreen),
             playlistWidth: AmpXMetrics.minimumPlaylistWidth
         ).contentWidth
         self.fixedContentWidth = layout.contentWidth
@@ -251,7 +251,7 @@ final class AmpXStackWindowController: NSWindowController, NSWindowDelegate {
 
     /// Keeps the window's vertical extent inside the visible frame when it fits; a taller stack stays top-aligned.
     private func constrainedToVisibleFrame(_ frame: CGRect) -> CGRect {
-        guard let visible = (window?.screen ?? NSScreen.main)?.visibleFrame else { return frame }
+        guard let visible = (self.coordinator?.pinnedScreen ?? window?.screen ?? NSScreen.main)?.visibleFrame else { return frame }
         var result = frame
         if result.width <= visible.width {
             result.origin.x = min(max(result.minX, visible.minX), visible.maxX - result.width)

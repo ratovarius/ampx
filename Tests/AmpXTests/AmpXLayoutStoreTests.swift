@@ -183,6 +183,6 @@ final class AmpXLayoutStoreTests: XCTestCase {
     }
 
     private func testScreen() -> NSScreen {
-        NSScreen.main!
+        AmpXTestScreen.standard
     }
 }

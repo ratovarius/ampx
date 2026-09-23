@@ -49,7 +49,18 @@ jobs:
       # Generates fixtures, then runs the suite. Streams the full log here because a
       # CI log costs nothing to keep and is the only record when a run fails.
       - name: Test
-        run: ./scripts/run-tests.sh --verbose
+        run: ./scripts/run-tests.sh --verbose -- -resultBundlePath "$RUNNER_TEMP/AmpXTests.xcresult"
+
+      # Parallel test runs print only "failed on …"; the assertion messages live in the
+      # result bundle. Open it in Xcode, or: xcrun xcresulttool get test-results tests --path <bundle>
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AmpXTests-xcresult
+          path: ${{ runner.temp }}/AmpXTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
 
   static:
     name: Static analysis
