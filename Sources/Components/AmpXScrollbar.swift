@@ -35,6 +35,7 @@ final class AmpXScrollbar: AmpXControlView {
     private var pressedArrow: Part? {
         didSet { needsDisplay = true }
     }
+
     private var dragStartOffset: CGFloat = 0
     private var dragStartY: CGFloat = 0
 
@@ -135,9 +136,15 @@ final class AmpXScrollbar: AmpXControlView {
     private var hoveredPart: Part? {
         guard isHovered, isEnabled, self.pressedArrow == nil, !self.isDraggingThumb, let window else { return nil }
         let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-        if self.thumbRect().contains(point) { return .thumb }
-        if self.upArrowRect().contains(point) { return .up }
-        if self.downArrowRect().contains(point) { return .down }
+        if self.thumbRect().contains(point) {
+            return .thumb
+        }
+        if self.upArrowRect().contains(point) {
+            return .up
+        }
+        if self.downArrowRect().contains(point) {
+            return .down
+        }
         return nil
     }
 
