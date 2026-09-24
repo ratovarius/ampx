@@ -11,6 +11,8 @@ final class TransportBehaviorTests: XCTestCase {
     private var tempDirectory: URL!
 
     override func setUpWithError() throws {
+        // Without an audio output device the engine can block the main actor for minutes.
+        try AmpXTestEnvironment.skipOnCI("needs a real audio output device and real-time playback")
         self.tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("AmpXTransport-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: self.tempDirectory, withIntermediateDirectories: true)
@@ -187,7 +189,6 @@ final class TransportBehaviorTests: XCTestCase {
     }
 
     func testEnablingShuffleMidPlaylistDoesNotReplayCurrentTrack() throws {
-        try AmpXTestEnvironment.skipOnCI("needs a real audio output device and real-time playback")
         try self.loadTracks(count: 5)
         self.playAndSettle(at: 0)
         self.manager.next()

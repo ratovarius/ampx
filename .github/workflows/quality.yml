@@ -51,6 +51,8 @@ jobs:
       - name: Test
         # xcodebuild forwards TEST_RUNNER_* to the test process with the prefix stripped, so tests
         # see CI=true and skip what needs real audio hardware or GPU frame pacing.
+        # A hung test otherwise holds the runner until the 6 h job limit.
+        timeout-minutes: 30
         env:
           TEST_RUNNER_CI: "true"
         run: ./scripts/run-tests.sh --verbose -- -resultBundlePath "$RUNNER_TEMP/AmpXTests.xcresult"
