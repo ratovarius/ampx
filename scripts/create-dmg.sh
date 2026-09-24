@@ -43,9 +43,21 @@ mkdir -p "$RELEASE_DIR"
 # Step 1: Build the release version (skip if already built)
 echo "🔨 Building release version..."
 if [ "$SKIP_BUILD" != "true" ]; then
+    # GitHub-hosted runners have no Apple Development identity. Ad-hoc sign so
+    # Automatic signing does not look up a provisioning profile.
+    SIGN_ARGS=()
+    if [ "${CI:-}" = "true" ]; then
+        SIGN_ARGS=(
+            CODE_SIGN_STYLE=Manual
+            CODE_SIGN_IDENTITY=-
+            CODE_SIGNING_ALLOWED=YES
+            ONLY_ACTIVE_ARCH=NO
+        )
+    fi
     if ! xcodebuild -project "${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj" \
                     -scheme "${PROJECT_NAME}" \
                     -configuration Release \
+                    "${SIGN_ARGS[@]}" \
                     clean build; then
         echo "❌ Build failed!"
         exit 1
@@ -93,29 +105,38 @@ echo ""
 echo "💿 Creating DMG..."
 
 # Remove any existing DMG with the same name
-if [ -f "${RELEASE_DIR}/${DMG_NAME}.dmg" ]; then
-    rm "${RELEASE_DIR}/${DMG_NAME}.dmg"
+FINAL_DMG="${RELEASE_DIR}/${DMG_NAME}.dmg"
+if [ -f "$FINAL_DMG" ]; then
+    rm "$FINAL_DMG"
 fi
 
-# Create temporary DMG
-TEMP_DMG="${RELEASE_DIR}/${DMG_NAME}-temp.dmg"
-hdiutil create -volname "${PROJECT_NAME}" \
-               -srcfolder "$BUILD_DIR" \
-               -ov \
-               -format UDRW \
-               "$TEMP_DMG"
+if [ "${CI:-}" = "true" ]; then
+    # Hosted runners have no Finder session to lay out the window.
+    hdiutil create -volname "${PROJECT_NAME}" \
+                   -srcfolder "$BUILD_DIR" \
+                   -ov \
+                   -format UDZO \
+                   "$FINAL_DMG"
+else
+    # Create temporary DMG
+    TEMP_DMG="${RELEASE_DIR}/${DMG_NAME}-temp.dmg"
+    hdiutil create -volname "${PROJECT_NAME}" \
+                   -srcfolder "$BUILD_DIR" \
+                   -ov \
+                   -format UDRW \
+                   "$TEMP_DMG"
 
-# Mount the temporary DMG
-echo "📂 Mounting DMG for customization..."
-MOUNT_DIR="/Volumes/${PROJECT_NAME}"
-hdiutil attach "$TEMP_DMG" -mountpoint "$MOUNT_DIR"
+    # Mount the temporary DMG
+    echo "📂 Mounting DMG for customization..."
+    MOUNT_DIR="/Volumes/${PROJECT_NAME}"
+    hdiutil attach "$TEMP_DMG" -mountpoint "$MOUNT_DIR"
 
-# Give the system time to mount
-sleep 2
+    # Give the system time to mount
+    sleep 2
 
-# Customize the DMG appearance using AppleScript
-echo "🎨 Customizing DMG appearance..."
-osascript <<EOF
+    # Customize the DMG appearance using AppleScript
+    echo "🎨 Customizing DMG appearance..."
+    osascript <<EOF
 tell application "Finder"
     tell disk "${PROJECT_NAME}"
         open
@@ -134,22 +155,22 @@ tell application "Finder"
 end tell
 EOF
 
-# Ensure changes are written
-sync
+    # Ensure changes are written
+    sync
 
-# Unmount the DMG
-echo "📤 Ejecting temporary DMG..."
-hdiutil detach "$MOUNT_DIR"
+    # Unmount the DMG
+    echo "📤 Ejecting temporary DMG..."
+    hdiutil detach "$MOUNT_DIR"
 
-# Convert to compressed, read-only DMG
-echo "🗜️  Compressing final DMG..."
-FINAL_DMG="${RELEASE_DIR}/${DMG_NAME}.dmg"
-hdiutil convert "$TEMP_DMG" \
-                -format UDZO \
-                -o "$FINAL_DMG"
+    # Convert to compressed, read-only DMG
+    echo "🗜️  Compressing final DMG..."
+    hdiutil convert "$TEMP_DMG" \
+                    -format UDZO \
+                    -o "$FINAL_DMG"
 
-# Remove temporary DMG
-rm "$TEMP_DMG"
+    # Remove temporary DMG
+    rm "$TEMP_DMG"
+fi
 
 # Clean up build directory
 echo "🧹 Cleaning up..."

@@ -1,0 +1,91 @@
+name: Release
+
+# Publish a GitHub Release when a merge to main carries a MARKETING_VERSION
+# that does not already have a tag. Version bumps stay in the Xcode project;
+# this workflow builds the DMG and writes the notes from commits since the
+# previous tag. A push that does not change the version is a no-op.
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      publish: ${{ steps.plan.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide whether to publish
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -A 1 "MARKETING_VERSION" AmpX.xcodeproj/project.pbxproj \
+            | grep -oE "[0-9]+\.[0-9]+(\.[0-9]+)?" \
+            | head -n 1)
+          if [ -z "$version" ]; then
+            echo "Could not read MARKETING_VERSION" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if gh release view "v${version}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "v${version} already exists; skipping"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "Will publish v${version}"
+          fi
+
+  publish:
+    name: Publish
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build DMG
+        run: ./scripts/create-dmg.sh "${{ needs.plan.outputs.version }}"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          notes="${RUNNER_TEMP}/release-notes.md"
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f "tag_name=v${VERSION}" \
+            -f "target_commitish=${GITHUB_SHA}" \
+            --jq .body > "$notes"
+          cat >> "$notes" <<EOF
+
+          ### Install
+          1. Open \`AmpX-${VERSION}.dmg\`
+          2. Drag AmpX to Applications
+          3. First launch: Control-click → **Open** (or System Settings → Privacy & Security → **Open Anyway**) — ad-hoc signed, not notarized
+
+          Requires **macOS 26.0+**.
+          EOF
+          gh release create "v${VERSION}" \
+            "release/AmpX-${VERSION}.dmg" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "AmpX ${VERSION}" \
+            --notes-file "$notes"
