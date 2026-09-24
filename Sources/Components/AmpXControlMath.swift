@@ -56,6 +56,13 @@ enum AmpXControlMath {
         )
     }
 
+    /// Distance from `point` to the nearest edge of `rect`; zero inside it.
+    static func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return (dx * dx + dy * dy).squareRoot()
+    }
+
     private static func snap(
         _ value: Double,
         step: Double,

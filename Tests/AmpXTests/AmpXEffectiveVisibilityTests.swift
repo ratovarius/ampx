@@ -208,7 +208,7 @@ final class AmpXEffectiveVisibilityTests: XCTestCase {
             state: AmpXModuleOrder(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
-            screen: NSScreen.main!
+            screen: AmpXTestScreen.standard
         )
     }
 

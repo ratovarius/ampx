@@ -49,10 +49,12 @@ final class AmpXMiniVisualizerPerformanceTests: XCTestCase {
     }
 
     func testHiddenHostDoesNotSubmitFramesAndFailedMetalUsesFallback() throws {
+        try AmpXTestEnvironment.skipOnCI("frame pacing is unreliable on the runner's virtual GPU")
         try self.assertHiddenHostAndFallback(compact: false)
     }
 
     func testCompactHiddenHostDoesNotSubmitFramesAndFailedMetalUsesFallback() throws {
+        try AmpXTestEnvironment.skipOnCI("frame pacing is unreliable on the runner's virtual GPU")
         try self.assertHiddenHostAndFallback(compact: true)
     }
 

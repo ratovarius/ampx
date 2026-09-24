@@ -76,3 +76,5 @@ iOSInjectionProject/
 # DMG packaging output (scripts/create-dmg.sh)
 release/
 dmg-build/
+
+docs/superpowers/

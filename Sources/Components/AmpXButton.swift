@@ -28,7 +28,8 @@ final class AmpXButton: AmpXControlView {
         didSet { needsDisplay = true }
     }
 
-    /// Active state is shown as a depressed face (e.g. Play while playing).
+    /// Active state is shown as a depressed face. Unused by the Midnight Hardware keys, which keep
+    /// transient presses and persistent state (green glyph or lamp) separate.
     var showsActiveFace = false {
         didSet { needsDisplay = true }
     }
@@ -65,6 +66,17 @@ final class AmpXButton: AmpXControlView {
 
     var accessibilityTitle: String?
 
+    /// Shared key label weight; size is `AmpXMetrics.keyLabelFontSize`.
+    static let keyLabelWeight: NSFont.Weight = .medium
+
+    /// Pressed ink sinks this far, so the key reads as travelling without inverting its bevel.
+    static let pressedInkOffset: CGFloat = 0.5
+
+    func applyKeyLabelStyle() {
+        self.labelFontSize = AmpXMetrics.keyLabelFontSize
+        self.labelWeight = Self.keyLabelWeight
+    }
+
     private(set) var isPressed = false {
         didSet { needsDisplay = true }
     }
@@ -83,6 +95,15 @@ final class AmpXButton: AmpXControlView {
 
     private var displaysActive: Bool {
         self.displayActiveOverride ?? self.isActive
+    }
+
+    /// Glyph and label ink: light on both the navy key face and the orange menu face.
+    private var inkColor: NSColor {
+        self.style == .menu ? skin.text : skin.faceInk
+    }
+
+    private var dimInkColor: NSColor {
+        self.style == .menu ? skin.textDim : skin.faceInkDim
     }
 
     private var labelLines: [String] {
@@ -118,42 +139,42 @@ final class AmpXButton: AmpXControlView {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         let backingScale = window?.backingScaleFactor ?? 1
 
-        let faceStyle: AmpXFaceStyle = switch self.style {
-        case .menu: .menu
-        case .bevel where self.isPressed || (self.showsActiveFace && self.displaysActive): .pressed
-        case .bevel where isHovered && isEnabled: .hovered
-        case .bevel: .normal
-        }
+        let faceStyle = AmpXFaceStyle.resolve(
+            pressed: self.isPressed || (self.showsActiveFace && self.displaysActive),
+            hovered: isHovered && isEnabled,
+            menu: self.style == .menu
+        )
         skin.raisedFace(bounds, style: faceStyle, in: context, backingScale: backingScale)
-        if self.style == .menu, self.isPressed {
-            context.setFillColor(skin.borderDark.withAlphaComponent(0.25).cgColor)
-            context.fill(bounds.insetBy(dx: 1, dy: 1))
-        }
 
         if !isEnabled {
             context.setFillColor(skin.background.withAlphaComponent(0.35).cgColor)
             context.fill(bounds.insetBy(dx: 1, dy: 1))
         }
 
+        context.saveGState()
+        if faceStyle.isPressed {
+            context.translateBy(x: 0, y: Self.pressedInkOffset)
+        }
         if self.label != nil {
             self.drawLabel(in: context)
         }
 
         if let icon {
-            let tint = self.iconColor ?? (self.displaysActive ? skin.green : skin.text)
-            icon.draw(in: self.resolvedIconRect, context: context, skin: skin, color: isEnabled ? tint : skin.textDim)
+            let tint = self.iconColor ?? (self.displaysActive ? skin.green : self.inkColor)
+            icon.draw(in: self.resolvedIconRect, context: context, skin: skin, color: isEnabled ? tint : self.dimInkColor)
         }
 
         if self.showsActiveIndicator {
             self.drawIndicator(in: context)
         }
+        context.restoreGState()
 
         drawFocusRing(in: context, backingScale: backingScale)
     }
 
     private func drawLabel(in context: CGContext) {
         let font = self.labelFont
-        let color = isEnabled ? skin.text : skin.textDim
+        let color = isEnabled ? self.inkColor : self.dimInkColor
         let rect = self.labelRect
         let lineHeight = font.ascender - font.descender
         for (index, line) in self.labelLines.enumerated() {
@@ -168,65 +189,28 @@ final class AmpXButton: AmpXControlView {
         }
     }
 
+    /// Every toggle lamp is the same 8 × 8 pt rounded square; only its core changes with state.
     private func drawIndicator(in context: CGContext) {
-        guard let lamp = indicatorRect else {
-            let indicator = CGRect(x: bounds.maxX - 7, y: bounds.midY - 2, width: 4, height: 4)
-            if self.displaysActive {
-                context.setFillColor(skin.green.cgColor)
-                context.fill(indicator)
-            } else {
-                context.setFillColor(skin.textDim.cgColor)
-                context.fillEllipse(in: indicator)
-            }
-            return
-        }
-
-        guard self.displaysActive else {
-            self.drawInactiveLamp(in: lamp, context: context)
-            return
-        }
-        context.setFillColor(NSColor(srgbRed: 0.02, green: 0.05, blue: 0.04, alpha: 1).cgColor)
-        context.fill(lamp)
-        let inner = lamp.insetBy(dx: 1, dy: 1)
-        if self.displaysActive {
-            context.setFillColor(NSColor(srgbRed: 0.10, green: 0.78, blue: 0.08, alpha: 1).cgColor)
-            context.fill(inner)
-            context.setFillColor(NSColor(srgbRed: 0.28, green: 0.94, blue: 0.20, alpha: 1).cgColor)
-            context.fill(inner.insetBy(dx: 0.5, dy: 0.5))
-            context.setFillColor(NSColor(srgbRed: 0.62, green: 1, blue: 0.52, alpha: 1).cgColor)
-            context.fill(CGRect(x: inner.minX + 0.5, y: inner.minY + 0.5, width: inner.width - 1, height: 0.5))
-        } else {
-            context.setFillColor(NSColor(srgbRed: 0.17, green: 0.2, blue: 0.25, alpha: 1).cgColor)
-            context.fill(inner)
-        }
-    }
-
-    /// Unlit lamp: a round steel-gray dome, as the reference AUTO indicator.
-    private func drawInactiveLamp(in lamp: CGRect, context: CGContext) {
+        let size = AmpXMetrics.keyLampSize
+        let lamp = self.indicatorRect ?? CGRect(
+            x: AmpXMetrics.keyLampX,
+            y: bounds.midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
         func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> CGColor {
             NSColor(srgbRed: r / 255, green: g / 255, blue: b / 255, alpha: 1).cgColor
         }
-        context.setFillColor(color(62, 76, 100))
-        context.fillEllipse(in: lamp.offsetBy(dx: 0.5, dy: 0.75))
-        context.setFillColor(color(8, 15, 28))
-        context.fillEllipse(in: lamp)
-        let dome = lamp.insetBy(dx: 0.75, dy: 0.75)
-        context.saveGState()
-        context.addEllipse(in: dome)
-        context.clip()
-        if let gradient = CGGradient(
-            colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
-            colors: [color(104, 117, 139), color(150, 163, 183), color(170, 183, 200)] as CFArray,
-            locations: [0, 0.6, 1]
-        ) {
-            context.drawLinearGradient(
-                gradient,
-                start: CGPoint(x: dome.minX, y: dome.minY),
-                end: CGPoint(x: dome.maxX, y: dome.maxY),
-                options: []
-            )
-        }
-        context.restoreGState()
+        let on = self.displaysActive
+        context.addPath(CGPath(roundedRect: lamp, cornerWidth: 2, cornerHeight: 2, transform: nil))
+        context.setFillColor(color(5, 13, 10))
+        context.fillPath()
+        let core = lamp.insetBy(dx: 1, dy: 1)
+        context.addPath(CGPath(roundedRect: core, cornerWidth: 1, cornerHeight: 1, transform: nil))
+        context.setFillColor(on ? color(71, 240, 51) : color(41, 55, 70))
+        context.fillPath()
+        context.setFillColor(on ? color(158, 255, 133) : color(69, 83, 103))
+        context.fill(CGRect(x: lamp.minX + 1.5, y: lamp.minY + 1.5, width: lamp.width - 3, height: 0.5))
     }
 
     private func measuredWidth(of text: String) -> CGFloat {

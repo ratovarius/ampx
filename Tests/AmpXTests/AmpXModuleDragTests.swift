@@ -193,7 +193,7 @@ final class AmpXModuleDragTests: XCTestCase {
             state: AmpXModuleOrder(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
-            screen: NSScreen.main!
+            screen: AmpXTestScreen.standard
         )
     }
 

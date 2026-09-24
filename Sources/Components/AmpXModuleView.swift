@@ -104,8 +104,9 @@ final class AmpXModuleView: NSView {
     }
 
     /// Recessed content frame shared by all modules; spans the header seam as in the reference.
+    /// Insets follow the content scale, so a stretched Playlist keeps a constant border width.
     var contentFrameRect: CGRect {
-        let scale = bounds.width / AmpXMetrics.compositionWidth
+        let scale = Self.stretchesHorizontally(self.moduleID) ? 1 : Self.scale(forWidth: bounds.width)
         let insets = AmpXMetrics.contentFrameInsets
         return CGRect(
             x: insets.left * scale,

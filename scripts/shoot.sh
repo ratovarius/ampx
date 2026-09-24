@@ -1,8 +1,16 @@
 #!/bin/bash
 # Build → relaunch → screenshot the AmpX window(s) for UI iteration.
-# Usage: ./scripts/shoot.sh [--no-build | --capture-only] [--output-prefix <path>] [-- <open-args>]
+# Usage: ./scripts/shoot.sh [--no-build | --capture-only] [--index <n>]
+#                           [--output-prefix <path>] [-- <open-args>]
 #   Captures each on-screen AmpX window by window ID (works even when occluded)
-#   to /tmp/ampx_shot*.png. Prints the paths so an agent can read them.
+#   to /tmp/ampx_shot*.png. Prints the paths so an agent can read them, labeled
+#   with each window's pixel size so you can tell them apart.
+#
+#   --index <n> captures only the nth window (0-based). The default stacked layout is
+#   a single window, so this only matters once modules are detached — but then each
+#   extra PNG an agent reads costs ~1.5k tokens, so grab just the one you changed.
+#   (Selection is by index, not title: AmpX's windows are borderless and report an
+#   empty CGWindowName, so there is no title to match on.)
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,6 +20,7 @@ DESTINATION="platform=macOS,arch=${ARCH}"
 NO_BUILD=false
 CAPTURE_ONLY=false
 OUTPUT_PREFIX=/tmp/ampx_shot
+WINDOW_INDEX=""
 APP_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -28,6 +37,14 @@ while [[ $# -gt 0 ]]; do
         --output-prefix)
             [[ $# -ge 2 ]] || { echo "--output-prefix requires a path"; exit 1; }
             OUTPUT_PREFIX="$2"
+            shift 2
+            ;;
+        --index)
+            [[ $# -ge 2 ]] || { echo "--index requires a 0-based window number"; exit 1; }
+            case "$2" in
+                ''|*[!0-9]*) echo "--index must be a non-negative integer"; exit 1 ;;
+            esac
+            WINDOW_INDEX="$2"
             shift 2
             ;;
         --)
@@ -81,22 +98,44 @@ if [[ "$CAPTURE_ONLY" == false ]]; then
     sleep 2.5
 fi
 
-# Enumerate AmpX's on-screen windows (layer 0 = normal) and capture each by ID.
-IDS=$(swift - <<'SWIFT'
+# Enumerate AmpX's on-screen windows (layer 0 = normal) as "<id> <width>x<height>" lines.
+# Size is the only reliable discriminator: these windows are borderless and carry no title.
+WINDOWS=$(swift - <<'SWIFT'
 import CoreGraphics
 let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
 for w in list where (w[kCGWindowOwnerName as String] as? String ?? "").contains("AmpX") {
     if (w[kCGWindowLayer as String] as? Int ?? 0) == 0 {
-        print(w[kCGWindowNumber as String] as? Int ?? -1)
+        let id = w[kCGWindowNumber as String] as? Int ?? -1
+        let bounds = w[kCGWindowBounds as String] as? [String: Any] ?? [:]
+        let width = Int(bounds["Width"] as? Double ?? 0)
+        let height = Int(bounds["Height"] as? Double ?? 0)
+        print("\(id) \(width)x\(height)")
     }
 }
 SWIFT
 )
 
-i=0
-for id in $IDS; do
-    out="${OUTPUT_PREFIX}${i}.png"
-    screencapture -x -o -l"$id" "$out" && echo "📸 $out"
-    i=$((i + 1))
-done
-if [[ $i -eq 0 ]]; then echo "⚠️  no AmpX windows found on screen"; fi
+found=0
+captured=0
+while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    id="${line%% *}"
+    size="${line#* }"
+    index=$found
+    found=$((found + 1))
+
+    if [[ -n "$WINDOW_INDEX" && "$index" != "$WINDOW_INDEX" ]]; then
+        continue
+    fi
+
+    out="${OUTPUT_PREFIX}${index}.png"
+    screencapture -x -o -l"$id" "$out"
+    echo "📸 $out  [window ${index}, ${size}]"
+    captured=$((captured + 1))
+done <<<"$WINDOWS"
+
+if [[ $found -eq 0 ]]; then
+    echo "⚠️  no AmpX windows found on screen"
+elif [[ $captured -eq 0 ]]; then
+    echo "⚠️  --index ${WINDOW_INDEX} out of range: ${found} AmpX window(s) on screen (0..$((found - 1)))"
+fi

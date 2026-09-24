@@ -222,6 +222,7 @@ final class AmpXReferenceRenderingTests: XCTestCase {
     )
 
     func testPlayerStaticReferenceCaptureIsDeterministic() throws {
+        try AmpXTestEnvironment.skipUnlessRetina()
         let content = self.makePlayerContent()
         content.referencePresentation = Self.playerReference
         let module = AmpXModuleView(moduleID: .player, content: content, skin: skin)

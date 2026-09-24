@@ -11,8 +11,8 @@ final class AmpXModuleInteractionRegressionTests: XCTestCase {
         let coordinator = AmpXHostCoordinator(
             state: state,
             skin: ClassicModernSkin(),
-            layoutStore: AmpXLayoutStore(defaults: defaults),
-            screen: NSScreen.main!,
+            layoutStore: AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard),
+            screen: AmpXTestScreen.standard,
             entheaEnabled: true
         )
         addTeardownBlock { @MainActor in
@@ -99,7 +99,7 @@ final class AmpXModuleInteractionRegressionTests: XCTestCase {
         header.mouseDown(with: down)
         XCTAssertTrue(coordinator.dragController.isDragging)
 
-        let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+        let visible = AmpXTestScreen.standard.visibleFrame
         let destination = CGPoint(x: min(stackWindow.frame.maxX + 70, visible.maxX - 510), y: visible.maxY - 120)
         // Place the stack away from the destination while preserving a valid on-screen detached frame.
         stackWindow.setFrameOrigin(CGPoint(x: visible.minX, y: stackWindow.frame.minY))
@@ -147,7 +147,7 @@ final class AmpXModuleInteractionRegressionTests: XCTestCase {
     func testOpeningVisualizerAtRightScreenEdgeKeepsItsHeaderOnScreen() throws {
         let coordinator = self.makeCoordinator()
         let window = try XCTUnwrap(coordinator.stackWindow)
-        let visibleFrame = try XCTUnwrap(window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame)
+        let visibleFrame = AmpXTestScreen.standard.visibleFrame
         guard visibleFrame.width >= 986 else {
             throw XCTSkip("The fixed two-column host is wider than this display")
         }
@@ -185,7 +185,10 @@ final class AmpXModuleInteractionRegressionTests: XCTestCase {
         let eq = try XCTUnwrap(coordinator.moduleView(for: .equalizer))
         let window = try XCTUnwrap(eq.window)
         XCTAssertEqual(window.frame.width, 490)
-        XCTAssertEqual(eq.frame.size, CGSize(width: 490, height: AmpXMetrics.equalizerHeight))
+        // The half-point EQ height snaps to whole pixels, so a 1x display rounds it up.
+        let scale = window.backingScaleFactor
+        let eqHeight = (AmpXMetrics.equalizerHeight * scale).rounded() / scale
+        XCTAssertEqual(eq.frame.size, CGSize(width: 490, height: eqHeight))
         coordinator.reopenModule(.equalizer)
         XCTAssertIdentical(eq.window, window)
         coordinator.stackWindowController?.updateLayout()

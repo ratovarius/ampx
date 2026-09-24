@@ -12,8 +12,8 @@ final class AmpXStackResizeTests: XCTestCase {
         let coordinator = AmpXHostCoordinator(
             state: AmpXModuleOrder(),
             skin: ClassicModernSkin(),
-            layoutStore: AmpXLayoutStore(defaults: defaults),
-            screen: NSScreen.main!
+            layoutStore: AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard),
+            screen: AmpXTestScreen.standard
         )
         addTeardownBlock { @MainActor in
             for id in coordinator.state.detached {

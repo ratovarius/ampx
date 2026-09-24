@@ -1,0 +1,105 @@
+name: Code Quality
+
+# Merge gate for both directions: feature/* -> develop, develop -> main.
+# Deliberately no `push` trigger — that would double every PR run.
+#
+# This is where lint, static analysis, and tests run. They are intentionally NOT part
+# of the local development loop (see AGENTS.md): verbose tool output is expensive to
+# read, and CI reads it for free.
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  swift:
+    name: Swift
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftFormat and SwiftLint
+        run: |
+          for tool in swiftformat swiftlint; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              brew install "$tool"
+            fi
+            "$tool" --version
+          done
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/uv.lock
+
+      # Errors fail the job; warnings become annotations on the PR diff.
+      - name: Lint
+        run: ./scripts/lint-swift.sh --github
+
+      # Generates fixtures, then runs the suite. Streams the full log here because a
+      # CI log costs nothing to keep and is the only record when a run fails.
+      - name: Test
+        # xcodebuild forwards TEST_RUNNER_* to the test process with the prefix stripped, so tests
+        # see CI=true and skip what needs real audio hardware or GPU frame pacing.
+        # A hung test otherwise holds the runner until the 6 h job limit.
+        timeout-minutes: 30
+        env:
+          TEST_RUNNER_CI: "true"
+        run: ./scripts/run-tests.sh --verbose -- -resultBundlePath "$RUNNER_TEMP/AmpXTests.xcresult"
+
+      # Parallel test runs print only "failed on …"; the assertion messages live in the
+      # result bundle. Open it in Xcode, or: xcrun xcresulttool get test-results tests --path <bundle>
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AmpXTests-xcresult
+          path: ${{ runner.temp }}/AmpXTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
+
+  static:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/uv.lock
+
+      - name: ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck build.sh scripts/*.sh scripts/hooks/*.sh
+
+      - name: Ruff
+        working-directory: scripts
+        run: |
+          uv sync --group dev
+          uv run ruff check --output-format github .
+          uv run ruff format --check .
+
+      - name: actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "${archive}" actionlint
+          ./actionlint -color

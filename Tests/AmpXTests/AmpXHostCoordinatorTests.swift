@@ -165,7 +165,7 @@ final class AmpXHostCoordinatorTests: XCTestCase {
         let window = try XCTUnwrap(coordinator.stackWindow)
         var frame = window.frame
         frame.origin.x += 48
-        frame.origin.y += 36
+        frame.origin.y -= 36
         window.setFrame(frame, display: false)
 
         coordinator.flushLayoutPersistence()
@@ -187,7 +187,7 @@ final class AmpXHostCoordinatorTests: XCTestCase {
         )
         coordinator.showStack()
         let window = try XCTUnwrap(coordinator.stackWindow)
-        let visible = try XCTUnwrap(window.screen ?? NSScreen.main).visibleFrame
+        let visible = try self.testScreen().visibleFrame
         let stackModules = [AmpXModuleID.player, .equalizer, .playlist].compactMap { coordinator.moduleView(for: $0) }
         let compositionBottom = try XCTUnwrap(stackModules.map(\.frame.maxY).max())
 
@@ -247,7 +247,7 @@ final class AmpXHostCoordinatorTests: XCTestCase {
     }
 
     private func testScreen() -> NSScreen {
-        NSScreen.main!
+        AmpXTestScreen.standard
     }
 }
 
@@ -258,6 +258,6 @@ extension XCTestCase {
         let suite = "AmpXLayoutTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
-        return AmpXLayoutStore(defaults: defaults)
+        return AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard)
     }
 }

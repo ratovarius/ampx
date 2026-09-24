@@ -71,8 +71,10 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
         header.onGripMouseUp = { _ in gripEvents += 1 }
         compact.onGripMouseDown = { _ in gripEvents += 1 }
         compact.onGripMouseUp = { _ in gripEvents += 1 }
-        for (view, point) in [(header as NSView, self.center(header.gripFrame)),
-                              (compact as NSView, self.center(compact.chromeLayout.grip))] {
+        for (view, point) in [
+            (header as NSView, self.center(header.gripFrame)),
+            (compact as NSView, self.center(compact.chromeLayout.grip)),
+        ] {
             view.mouseDown(with: self.event(.leftMouseDown, view: view, point: point, clicks: 1))
             view.mouseUp(with: self.event(.leftMouseUp, view: view, point: point, clicks: 1))
         }
@@ -85,13 +87,17 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
         coordinator.showStack()
         coordinator.setPlaylistWidth(800)
         defer {
-            for id in coordinator.state.detached { coordinator.closeModule(id) }
+            for id in coordinator.state.detached {
+                coordinator.closeModule(id)
+            }
             coordinator.closeStack()
         }
         for id in [AmpXModuleID.player, .equalizer, .playlist] {
             let module = try XCTUnwrap(coordinator.moduleView(for: id))
             for detached in id == .player ? [false] : [false, true] {
-                if detached { coordinator.detach(id, at: CGPoint(x: 100, y: 600), inheritedWidth: 490) }
+                if detached {
+                    coordinator.detach(id, at: CGPoint(x: 100, y: 600), inheritedWidth: 490)
+                }
                 let host = try XCTUnwrap(module.window)
                 let expandedSize = module.frame.size
                 let content = module.content
@@ -109,7 +115,9 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
                 XCTAssertIdentical(module.window, host)
                 XCTAssertIdentical(module.content, content)
                 XCTAssertEqual(module.frame.size, expandedSize)
-                if detached { coordinator.redock(id, at: 2) }
+                if detached {
+                    coordinator.redock(id, at: 2)
+                }
             }
         }
     }
@@ -118,8 +126,12 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
         AmpXHostCoordinator(
             state: AmpXModuleOrder(), skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: AudioPlayer(installRemoteCommands: false),
-            playlistManager: PlaylistManager(audioPlayer: MockAudioPlayer(), restoreBookmarks: false,
-                                              restorePlaylist: false, alertPresenter: SilentPlaylistAlertPresenter()),
+            playlistManager: PlaylistManager(
+                audioPlayer: MockAudioPlayer(),
+                restoreBookmarks: false,
+                restorePlaylist: false,
+                alertPresenter: SilentPlaylistAlertPresenter()
+            ),
             entheaEnabled: false
         )
     }

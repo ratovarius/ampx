@@ -43,12 +43,10 @@ mkdir -p "$RELEASE_DIR"
 # Step 1: Build the release version (skip if already built)
 echo "🔨 Building release version..."
 if [ "$SKIP_BUILD" != "true" ]; then
-    xcodebuild -project "${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj" \
-               -scheme "${PROJECT_NAME}" \
-               -configuration Release \
-               clean build
-
-    if [ $? -ne 0 ]; then
+    if ! xcodebuild -project "${PROJECT_DIR}/${PROJECT_NAME}.xcodeproj" \
+                    -scheme "${PROJECT_NAME}" \
+                    -configuration Release \
+                    clean build; then
         echo "❌ Build failed!"
         exit 1
     fi

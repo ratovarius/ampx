@@ -44,6 +44,7 @@ final class AmpXCompactHostTests: XCTestCase {
     }
 
     func testCompactChromeMinimizesClosesAndReopensTheSameHost() async throws {
+        try AmpXTestEnvironment.skipOnCI("window minimize/reopen timing is unreliable on a headless runner")
         let coordinator = self.makeCoordinator()
         coordinator.setCollapsed(.player, true)
         let module = try XCTUnwrap(coordinator.moduleView(for: .player))

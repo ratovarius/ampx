@@ -12,8 +12,8 @@ final class AmpXPlaylistWidthTests: XCTestCase {
         let coordinator = AmpXHostCoordinator(
             state: AmpXModuleOrder(),
             skin: ClassicModernSkin(),
-            layoutStore: AmpXLayoutStore(defaults: defaults),
-            screen: NSScreen.main!
+            layoutStore: AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard),
+            screen: AmpXTestScreen.standard
         )
         addTeardownBlock { @MainActor in
             for id in coordinator.state.detached {
@@ -76,8 +76,8 @@ final class AmpXPlaylistWidthTests: XCTestCase {
         XCTAssertEqual(module.header.frame.height, AmpXMetrics.headerHeight)
 
         let frames = PlaylistModuleContent.layout(viewportHeight: 196, width: 700)
-        XCTAssertEqual(frames.rows.width, 650.5)
-        XCTAssertEqual(frames.scrollbar.minX, 671)
+        XCTAssertEqual(frames.rows.width, 647)
+        XCTAssertEqual(frames.scrollbar.minX, 666)
         XCTAssertEqual(frames.scrollbar.width, AmpXMetrics.playlistScrollbar.width)
         XCTAssertEqual(frames.footer.width, 700)
     }
@@ -206,9 +206,9 @@ final class AmpXPlaylistWidthTests: XCTestCase {
         let suite = "AmpXPlaylistWidthTests.store.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
-        let store = try AmpXLayoutStore(defaults: defaults, screen: XCTUnwrap(NSScreen.main))
+        let store = AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard)
 
-        var layout = try AmpXLayoutStore.defaultLayout(for: XCTUnwrap(NSScreen.main))
+        var layout = AmpXLayoutStore.defaultLayout(for: AmpXTestScreen.standard)
         XCTAssertEqual(layout.playlistWidth, AmpXMetrics.compositionWidth)
         layout.playlistWidth = 812
         store.save(layout)
