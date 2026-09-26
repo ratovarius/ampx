@@ -47,23 +47,31 @@ enum AmpXSnapGeometry {
     /// The per-axis nudge (at most `snapDistance`) that makes any moving window flush with, or
     /// aligned to, any stationary window (Webamp `snapDiffManyToMany`). Zero on an axis with no
     /// edge in range. Applied to the whole moving group so a dragged cluster stays rigid.
+    ///
+    /// Webamp keeps the first candidate; callers build these lists from dictionaries, so the
+    /// smallest nudge per axis (ties to the lower value) is taken instead to stay deterministic.
     static func snapCorrection(moving: [CGRect], stationary: [CGRect]) -> CGVector {
         var dx: CGFloat?
         var dy: CGFloat?
         for box in moving {
             for other in stationary {
-                if dx == nil || dx == 0, self.overlapY(box, other), let snapped = self.snappedX(box, other) {
-                    dx = snapped - box.minX
+                if self.overlapY(box, other), let snapped = self.snappedX(box, other) {
+                    dx = self.smaller(dx, snapped - box.minX)
                 }
-                if dy == nil || dy == 0, self.overlapX(box, other), let snapped = self.snappedY(box, other) {
-                    dy = snapped - box.minY
-                }
-                if let dx, let dy, dx != 0, dy != 0 {
-                    return CGVector(dx: dx, dy: dy)
+                if self.overlapX(box, other), let snapped = self.snappedY(box, other) {
+                    dy = self.smaller(dy, snapped - box.minY)
                 }
             }
         }
         return CGVector(dx: dx ?? 0, dy: dy ?? 0)
+    }
+
+    private static func smaller(_ current: CGFloat?, _ candidate: CGFloat) -> CGFloat {
+        guard let current else { return candidate }
+        if abs(candidate) != abs(current) {
+            return abs(candidate) < abs(current) ? candidate : current
+        }
+        return min(candidate, current)
     }
 
     /// The nudge that makes the moving group's bounding box stick to an edge of `bounds`, e.g. the

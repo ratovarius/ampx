@@ -66,8 +66,11 @@ final class AmpXLayoutStore {
 
     fileprivate static func normalizedLayout(from dto: AmpXLayoutV2DTO, screen: NSScreen) -> AmpXSavedLayout {
         let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed)
-        let viewport = self.validatedPlaylistViewportHeight(dto.playlistViewportHeight)
-        let width = self.validatedPlaylistWidth(dto.playlistWidth)
+        let (viewport, width) = self.boundedPlaylistSize(
+            viewportHeight: self.validatedPlaylistViewportHeight(dto.playlistViewportHeight),
+            width: self.validatedPlaylistWidth(dto.playlistWidth),
+            screen: screen
+        )
 
         var saved: [AmpXModuleID: CGRect] = [:]
         for (rawID, frameDTO) in dto.frames ?? [:] {
@@ -83,8 +86,7 @@ final class AmpXLayoutStore {
             playlistWidth: width,
             anchorTopLeft: anchor
         )
-        let frames = fallback.merging(saved) { _, stored in stored }
-            .mapValues { self.clampedToVisibleFrame($0, screen: screen) }
+        let frames = self.clampedClustersToVisibleFrame(fallback.merging(saved) { _, stored in stored }, screen: screen)
 
         return AmpXSavedLayout(state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width)
     }
@@ -93,8 +95,11 @@ final class AmpXLayoutStore {
     /// arrangement is anchored at the old stack's top-left instead.
     fileprivate static func migratedLayout(from dto: AmpXLayoutV1DTO, screen: NSScreen) -> AmpXSavedLayout {
         let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed)
-        let viewport = self.validatedPlaylistViewportHeight(dto.playlistViewportHeight)
-        let width = self.validatedPlaylistWidth(dto.playlistWidth)
+        let (viewport, width) = self.boundedPlaylistSize(
+            viewportHeight: self.validatedPlaylistViewportHeight(dto.playlistViewportHeight),
+            width: self.validatedPlaylistWidth(dto.playlistWidth),
+            screen: screen
+        )
         let anchor = dto.stackFrame?.cgRect.flatMap { self.isValidFrame($0) ? CGPoint(x: $0.minX, y: $0.maxY) : nil }
             ?? AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame)
         let frames = AmpXLayout.defaultFrames(
@@ -140,6 +145,44 @@ final class AmpXLayoutStore {
             && frame.size.height.isFinite
             && frame.size.width > 0
             && frame.size.height > 0
+    }
+
+    /// Moves each docked cluster onto the visible frame with one translation, so windows saved on
+    /// a larger or disconnected display reopen still docked. A cluster bigger than the visible
+    /// frame falls back to clamping each window on its own.
+    static func clampedClustersToVisibleFrame(_ frames: [AmpXModuleID: CGRect], screen: NSScreen) -> [AmpXModuleID: CGRect] {
+        let visible = screen.visibleFrame
+        var remaining = frames
+        var clamped: [AmpXModuleID: CGRect] = [:]
+        for id in AmpXModuleID.allCases where remaining[id] != nil {
+            let members = AmpXSnapGeometry.connected(from: id, frames: remaining)
+                .compactMap { member in remaining.removeValue(forKey: member).map { (member, $0) } }
+            let bounds = members.reduce(CGRect.null) { $0.union($1.1) }
+            guard bounds.width <= visible.width, bounds.height <= visible.height else {
+                for (member, frame) in members {
+                    clamped[member] = self.clampedToVisibleFrame(frame, screen: screen)
+                }
+                continue
+            }
+            let dx = min(max(bounds.minX, visible.minX), visible.maxX - bounds.width) - bounds.minX
+            let dy = min(max(bounds.minY, visible.minY), visible.maxY - bounds.height) - bounds.minY
+            for (member, frame) in members {
+                clamped[member] = frame.offsetBy(dx: dx, dy: dy)
+            }
+        }
+        return clamped
+    }
+
+    /// Playlist preferences saved on a larger display, bounded so the window fits this one.
+    private static func boundedPlaylistSize(viewportHeight: CGFloat, width: CGFloat, screen: NSScreen) -> (CGFloat, CGFloat) {
+        let visible = screen.visibleFrame
+        let size = AmpXLayout.moduleSize(.playlist, state: AmpXModuleState(), playlistViewportHeight: viewportHeight, playlistWidth: width)
+        let chromeHeight = size.height - viewportHeight
+        let chromeWidth = size.width - width
+        return (
+            max(min(viewportHeight, visible.height - chromeHeight), AmpXMetrics.minimumPlaylistViewportHeight),
+            max(min(width, visible.width - chromeWidth), AmpXMetrics.minimumPlaylistWidth)
+        )
     }
 
     static func clampedToVisibleFrame(_ frame: CGRect, screen: NSScreen) -> CGRect {

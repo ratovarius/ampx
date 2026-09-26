@@ -107,6 +107,11 @@ final class AmpXModuleWindowController: NSWindowController, NSWindowDelegate {
         self.coordinator?.moduleWindowDidEndLiveResize(self.moduleID, frame: window.frame)
     }
 
+    /// Any click that activates the window (title drag included) retargets module commands.
+    func windowDidBecomeKey(_: Notification) {
+        self.coordinator?.noteFocusedModule(self.moduleID)
+    }
+
     func windowDidMiniaturize(_: Notification) {
         self.coordinator?.moduleWindowDidMiniaturize(self.moduleID)
     }

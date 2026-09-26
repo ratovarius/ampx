@@ -48,6 +48,15 @@ final class AmpXSnapGeometryTests: XCTestCase {
         XCTAssertEqual(correction.dy, 6)
     }
 
+    func testSnapCorrectionPicksNearestTargetWhateverTheOrder() {
+        let moving = self.below(self.player, gap: 4)
+        let lower = self.below(moving, gap: 8)
+        for stationary in [[self.player, lower], [lower, self.player]] {
+            let correction = AmpXSnapGeometry.snapCorrection(moving: [moving], stationary: stationary)
+            XCTAssertEqual(correction.dy, 4)
+        }
+    }
+
     func testSnapCorrectionAlignsLeftEdges() {
         let moving = self.below(self.player, dx: 7)
         let correction = AmpXSnapGeometry.snapCorrection(moving: [moving], stationary: [self.player])

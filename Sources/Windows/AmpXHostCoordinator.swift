@@ -194,10 +194,17 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         }
     }
 
-    /// ⌘W: closes the key module window (the Player's quits).
+    /// ⌘W: closes the key module window (the Player's quits). The theater window exits theater;
+    /// any other key window just closes, so ⌘W there never falls through to quitting.
     func closeKeyModule() {
-        let key = AmpXModuleID.allCases.first { self.window(for: $0) === NSApp.keyWindow }
-        self.closeModule(key ?? self.focusedModuleID)
+        guard let keyWindow = NSApp.keyWindow else { return }
+        if let id = AmpXModuleID.allCases.first(where: { self.window(for: $0) === keyWindow }) {
+            self.closeModule(id)
+        } else if keyWindow === self.theaterController.window {
+            self.theaterController.exit()
+        } else {
+            keyWindow.performClose(nil)
+        }
     }
 
     // MARK: - Playlist size

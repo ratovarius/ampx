@@ -80,6 +80,51 @@ final class AmpXLayoutStoreTests: XCTestCase {
         XCTAssertTrue(self.screen.visibleFrame.contains(frame), "\(frame)")
     }
 
+    func testDockedClusterIsClampedAsOneAndStaysDocked() throws {
+        let (defaults, name) = self.isolatedDefaults()
+        defer { cleanup(name) }
+
+        let visible = self.screen.visibleFrame
+        var layout = AmpXLayoutStore.defaultLayout(for: self.screen)
+        let player = try XCTUnwrap(layout.frames[.player])
+        let enthea = try XCTUnwrap(layout.frames[.enthea])
+        // Player near the right edge with ENTHEA flush to its right, hanging off screen.
+        let shift = visible.maxX - player.maxX - 20
+        for (id, frame) in layout.frames {
+            layout.frames[id] = frame.offsetBy(dx: shift, dy: 0)
+        }
+        XCTAssertGreaterThan(enthea.offsetBy(dx: shift, dy: 0).maxX, visible.maxX)
+        self.store(defaults).save(layout)
+
+        let loaded = self.store(defaults).load()
+        let loadedPlayer = try XCTUnwrap(loaded.frames[.player])
+        let loadedEnthea = try XCTUnwrap(loaded.frames[.enthea])
+        XCTAssertEqual(loadedEnthea.minX, loadedPlayer.maxX)
+        XCTAssertEqual(loadedEnthea.maxY, loadedPlayer.maxY)
+        XCTAssertLessThanOrEqual(loadedEnthea.maxX, visible.maxX)
+        XCTAssertEqual(loaded.frames[.equalizer]?.minX, loadedPlayer.minX)
+    }
+
+    func testOversizedPlaylistPreferencesAreBoundedToScreen() throws {
+        let (defaults, name) = self.isolatedDefaults()
+        defer { cleanup(name) }
+
+        var layout = AmpXLayoutStore.defaultLayout(for: self.screen)
+        layout.playlistWidth = 20000
+        layout.playlistViewportHeight = 20000
+        self.store(defaults).save(layout)
+
+        let loaded = self.store(defaults).load()
+        let size = AmpXLayout.moduleSize(
+            .playlist,
+            state: loaded.state,
+            playlistViewportHeight: loaded.playlistViewportHeight,
+            playlistWidth: loaded.playlistWidth
+        )
+        XCTAssertLessThanOrEqual(size.width, self.screen.visibleFrame.width)
+        XCTAssertLessThanOrEqual(size.height, self.screen.visibleFrame.height)
+    }
+
     func testV1MigrationKeepsStateAndAnchorsAtStackTopLeft() throws {
         let (defaults, name) = self.isolatedDefaults()
         defer { cleanup(name) }
