@@ -1,122 +1,76 @@
 import CoreGraphics
 
-struct AmpXLayoutResult: Equatable {
-    var scale: CGFloat
-    var frames: [AmpXModuleID: CGRect]
-    var contentWidth: CGFloat {
-        self.frames.values.map(\.maxX).max() ?? AmpXMetrics.compositionWidth
-    }
-
-    /// Host height is the taller of the left stack and right visualizer.
-    var contentHeight: CGFloat
-    /// Effective Playlist viewport after fitting the stack into the available height.
-    var playlistViewportHeight: CGFloat
-}
-
+/// Per-module window sizes and the Winamp default arrangement. Each module is its own window, so
+/// there is no composition to lay out — only how big each window is and where it starts.
 enum AmpXLayout {
-    static func scale(width: CGFloat) -> CGFloat {
-        let raw = width / AmpXMetrics.compositionWidth
-        return min(1.35, max(0.85, raw))
+    /// Gap between the default Player top edge and the top of the screen's visible frame.
+    static let defaultTopInset: CGFloat = 20
+
+    static func adjustedPlaylistViewportHeight(preferred: CGFloat, heightDelta: CGFloat) -> CGFloat {
+        max(AmpXMetrics.minimumPlaylistViewportHeight, preferred + heightDelta)
     }
 
-    static func adjustedPlaylistViewportHeight(
-        preferred: CGFloat,
-        heightDelta: CGFloat,
-        scale: CGFloat
-    ) -> CGFloat {
-        guard scale > 0 else { return preferred }
-        let adjusted = preferred + heightDelta / scale
-        return max(AmpXMetrics.minimumPlaylistViewportHeight, adjusted)
-    }
-
-    /// Module width: only the Playlist varies (spec Revision 9), never below the fixed Equalizer width.
+    /// Module width: only the Playlist varies (spec Revision 9), never below its minimum.
     static func moduleWidth(_ moduleID: AmpXModuleID, playlistWidth: CGFloat) -> CGFloat {
         moduleID == .playlist
             ? max(AmpXMetrics.minimumPlaylistWidth, playlistWidth)
             : AmpXMetrics.compositionWidth
     }
 
-    /// Left modules stack edge-to-edge top-down; ENTHEA docks at the top right, clear of the widest left module.
-    /// When taller than `availableHeight`, only the expanded Playlist viewport shrinks, by the excess,
-    /// down to its three-row minimum.
-    static func calculate(
-        state: AmpXModuleOrder,
-        width _: CGFloat,
+    /// Content size of a module's window; collapsed modules use their compact (windowshade) height.
+    static func moduleSize(
+        _ moduleID: AmpXModuleID,
+        state: AmpXModuleState,
         playlistViewportHeight: CGFloat,
-        availableHeight: CGFloat,
-        playlistWidth: CGFloat = AmpXMetrics.defaultPlaylistWidth
-    ) -> AmpXLayoutResult {
-        let layoutScale: CGFloat = 1
-        let compositionWidth = AmpXMetrics.compositionWidth * layoutScale
-        let originX: CGFloat = 0
-        let visibleModules = self.stackModules(in: state).filter { $0 != .enthea }
-
-        var effectivePlaylistViewport = playlistViewportHeight
-        let preferredHeight = self.totalContentHeight(
-            state: state,
-            modules: visibleModules,
-            scale: layoutScale,
-            playlistViewportHeight: playlistViewportHeight
-        )
-        if preferredHeight > availableHeight,
-           self.shouldShrinkPlaylist(state: state, modules: visibleModules)
-        {
-            let excess = (preferredHeight - availableHeight) / layoutScale
-            effectivePlaylistViewport = max(
-                AmpXMetrics.minimumPlaylistViewportHeight,
-                playlistViewportHeight - excess
-            )
-        }
-
-        let leftHeight = self.totalContentHeight(
-            state: state,
-            modules: visibleModules,
-            scale: layoutScale,
-            playlistViewportHeight: effectivePlaylistViewport
-        )
-        var frames = self.layoutFrames(
-            modules: visibleModules,
-            state: state,
-            originX: originX,
-            scale: layoutScale,
-            playlistViewportHeight: effectivePlaylistViewport,
-            playlistWidth: playlistWidth
-        )
-
-        var contentHeight = leftHeight
-        if self.stackModules(in: state).contains(.enthea) {
-            let height = self.moduleHeight(moduleID: .enthea, state: state, playlistViewportHeight: effectivePlaylistViewport)
-            // The right column clears the widest left module, so a wide Playlist never overlaps it.
-            let leftWidth = frames.values.map(\.maxX).max() ?? compositionWidth
-            frames[.enthea] = CGRect(x: leftWidth + AmpXMetrics.moduleGap, y: 0, width: compositionWidth, height: height)
-            contentHeight = max(contentHeight, height)
-        }
-
-        return AmpXLayoutResult(
-            scale: layoutScale,
-            frames: frames,
-            contentHeight: contentHeight,
-            playlistViewportHeight: effectivePlaylistViewport
+        playlistWidth: CGFloat
+    ) -> CGSize {
+        CGSize(
+            width: self.moduleWidth(moduleID, playlistWidth: playlistWidth),
+            height: self.moduleHeight(moduleID, state: state, playlistViewportHeight: playlistViewportHeight)
         )
     }
 
-    private static func stackModules(in state: AmpXModuleOrder) -> [AmpXModuleID] {
-        state.order.filter { moduleID in
-            !state.closed.contains(moduleID) && !state.detached.contains(moduleID)
+    /// Winamp's default arrangement with the Player's top-left at `anchorTopLeft`: Equalizer flush
+    /// below the Player, Playlist flush below the Equalizer, ENTHEA flush right of the Player.
+    /// Closed modules get a frame too, so reopening one has somewhere to go.
+    static func defaultFrames(
+        state: AmpXModuleState,
+        playlistViewportHeight: CGFloat,
+        playlistWidth: CGFloat,
+        anchorTopLeft: CGPoint
+    ) -> [AmpXModuleID: CGRect] {
+        func size(_ id: AmpXModuleID) -> CGSize {
+            self.moduleSize(id, state: state, playlistViewportHeight: playlistViewportHeight, playlistWidth: playlistWidth)
         }
+
+        var frames: [AmpXModuleID: CGRect] = [:]
+        var top = anchorTopLeft.y
+        for id in [AmpXModuleID.player, .equalizer, .playlist] {
+            let size = size(id)
+            frames[id] = CGRect(x: anchorTopLeft.x, y: top - size.height, width: size.width, height: size.height)
+            top -= size.height
+        }
+        let entheaSize = size(.enthea)
+        frames[.enthea] = CGRect(
+            x: anchorTopLeft.x + size(.player).width,
+            y: anchorTopLeft.y - entheaSize.height,
+            width: entheaSize.width,
+            height: entheaSize.height
+        )
+        return frames
     }
 
-    private static func shouldShrinkPlaylist(
-        state: AmpXModuleOrder,
-        modules: [AmpXModuleID]
-    ) -> Bool {
-        modules.contains(.playlist)
-            && !state.collapsed.contains(.playlist)
+    /// Player top-left for the default layout: centred horizontally, just below the visible top.
+    static func defaultAnchor(visibleFrame: CGRect) -> CGPoint {
+        CGPoint(
+            x: visibleFrame.midX - AmpXMetrics.compositionWidth / 2,
+            y: visibleFrame.maxY - self.defaultTopInset
+        )
     }
 
     private static func moduleHeight(
-        moduleID: AmpXModuleID,
-        state: AmpXModuleOrder,
+        _ moduleID: AmpXModuleID,
+        state: AmpXModuleState,
         playlistViewportHeight: CGFloat
     ) -> CGFloat {
         if state.collapsed.contains(moduleID) {
@@ -124,7 +78,7 @@ enum AmpXLayout {
             case .player: return AmpXCompactMetrics.playerHeight
             case .equalizer: return AmpXCompactMetrics.equalizerHeight
             case .playlist: return AmpXCompactMetrics.playlistHeight
-            default: return AmpXMetrics.headerHeight
+            case .enthea: return AmpXMetrics.headerHeight
             }
         }
 
@@ -134,56 +88,9 @@ enum AmpXLayout {
         case .equalizer:
             return AmpXMetrics.equalizerHeight
         case .playlist:
-            return AmpXMetrics.headerHeight
-                + AmpXMetrics.playlistNonRowChrome
-                + playlistViewportHeight
+            return AmpXMetrics.headerHeight + AmpXMetrics.playlistNonRowChrome + playlistViewportHeight
         case .enthea:
             return AmpXMetrics.entheaHeight
         }
-    }
-
-    private static func totalContentHeight(
-        state: AmpXModuleOrder,
-        modules: [AmpXModuleID],
-        scale: CGFloat,
-        playlistViewportHeight: CGFloat
-    ) -> CGFloat {
-        guard !modules.isEmpty else { return 0 }
-
-        var total: CGFloat = 0
-        for moduleID in modules {
-            total += self.moduleHeight(
-                moduleID: moduleID,
-                state: state,
-                playlistViewportHeight: playlistViewportHeight
-            )
-        }
-        return total * scale
-    }
-
-    private static func layoutFrames(
-        modules: [AmpXModuleID],
-        state: AmpXModuleOrder,
-        originX: CGFloat,
-        scale: CGFloat,
-        playlistViewportHeight: CGFloat,
-        playlistWidth: CGFloat
-    ) -> [AmpXModuleID: CGRect] {
-        var frames: [AmpXModuleID: CGRect] = [:]
-        var y: CGFloat = 0
-
-        for moduleID in modules {
-            let height = self.moduleHeight(
-                moduleID: moduleID,
-                state: state,
-                playlistViewportHeight: playlistViewportHeight
-            ) * scale
-            let width = self.moduleWidth(moduleID, playlistWidth: playlistWidth) * scale
-            frames[moduleID] = CGRect(x: originX, y: y, width: width, height: height)
-
-            y += height
-        }
-
-        return frames
     }
 }
