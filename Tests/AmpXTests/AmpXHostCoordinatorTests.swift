@@ -4,18 +4,6 @@ import XCTest
 /// One window per module with Winamp docking rules (spec 2026-09-26-winamp-docking-design.md).
 @MainActor
 final class AmpXHostCoordinatorTests: XCTestCase {
-    private var coordinators: [AmpXHostCoordinator] = []
-
-    override func tearDown() {
-        for coordinator in self.coordinators {
-            for id in AmpXModuleID.allCases {
-                coordinator.window(for: id)?.orderOut(nil)
-            }
-        }
-        self.coordinators = []
-        super.tearDown()
-    }
-
     private func makeCoordinator(
         state: AmpXModuleState = AmpXModuleState(),
         store: AmpXLayoutStore? = nil,
@@ -30,7 +18,7 @@ final class AmpXHostCoordinatorTests: XCTestCase {
             entheaEnabled: entheaEnabled,
             terminate: terminate
         )
-        self.coordinators.append(coordinator)
+        self.addTeardownBlock { @MainActor in coordinator.hideAllWindowsForTesting() }
         return coordinator
     }
 
