@@ -9,21 +9,33 @@ final class AmpXLayoutTests: XCTestCase {
     }
 
     func testModuleSizeUsesFullHeights() {
-        XCTAssertEqual(self.size(.player), CGSize(width: AmpXMetrics.compositionWidth, height: AmpXMetrics.playerHeight))
-        XCTAssertEqual(self.size(.equalizer).height, AmpXMetrics.equalizerHeight)
+        XCTAssertEqual(self.size(.player), CGSize(width: AmpXMetrics.compositionWidth, height: AmpXMetrics.playerHeight.rounded()))
+        XCTAssertEqual(self.size(.equalizer).height, AmpXMetrics.equalizerHeight.rounded())
         XCTAssertEqual(
             self.size(.playlist).height,
-            AmpXMetrics.headerHeight + AmpXMetrics.playlistNonRowChrome + self.viewport
+            (AmpXMetrics.headerHeight + AmpXMetrics.playlistNonRowChrome + self.viewport).rounded()
         )
-        XCTAssertEqual(self.size(.enthea).height, AmpXMetrics.entheaHeight)
+        XCTAssertEqual(self.size(.enthea).height, AmpXMetrics.entheaHeight.rounded())
+    }
+
+    func testModuleSizesAreWholePoints() {
+        var state = AmpXModuleState()
+        for id in AmpXModuleID.allCases {
+            for collapsed in [false, true] {
+                state.setCollapsed(id, collapsed)
+                let size = self.size(id, state: state, playlistWidth: 511.3)
+                XCTAssertEqual(size.width, size.width.rounded(), "\(id)")
+                XCTAssertEqual(size.height, size.height.rounded(), "\(id)")
+            }
+        }
     }
 
     func testModuleSizeCollapsedUsesCompactHeights() {
         var state = AmpXModuleState()
         state.setCollapsed(.player, true)
         state.setCollapsed(.playlist, true)
-        XCTAssertEqual(self.size(.player, state: state).height, AmpXCompactMetrics.playerHeight)
-        XCTAssertEqual(self.size(.playlist, state: state).height, AmpXCompactMetrics.playlistHeight)
+        XCTAssertEqual(self.size(.player, state: state).height, AmpXCompactMetrics.playerHeight.rounded())
+        XCTAssertEqual(self.size(.playlist, state: state).height, AmpXCompactMetrics.playlistHeight.rounded())
     }
 
     func testPlaylistWidthNeverBelowMinimum() {

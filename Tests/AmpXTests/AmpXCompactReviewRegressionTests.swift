@@ -36,21 +36,6 @@ final class AmpXCompactReviewRegressionTests: XCTestCase {
         XCTAssertEqual(actions, 2)
     }
 
-    func testExpandingCompactGripCancelsSharedDragAndLateMouseUp() throws {
-        let coordinator = self.makeCoordinator()
-        coordinator.setCollapsed(.equalizer, true)
-        let compact = try XCTUnwrap(coordinator.moduleView(for: .equalizer)?.compactContent)
-        let grip = compact.chromeLayout.grip
-        let point = CGPoint(x: grip.midX, y: grip.midY)
-        compact.mouseDown(with: self.mouse(.leftMouseDown, in: compact, point: point))
-        XCTAssertTrue(coordinator.dragController.isDragging)
-        coordinator.setCollapsed(.equalizer, false)
-        XCTAssertFalse(coordinator.dragController.isDragging)
-        let order = coordinator.state.order
-        compact.mouseUp(with: self.mouse(.leftMouseUp, in: compact, point: point))
-        XCTAssertEqual(coordinator.state.order, order)
-    }
-
     func testCollapsedPlaylistRejectsLateScrollbarDragAndWheelForwarding() async throws {
         let coordinator = self.makeCoordinator()
         let module = try XCTUnwrap(coordinator.moduleView(for: .playlist))
@@ -66,9 +51,8 @@ final class AmpXCompactReviewRegressionTests: XCTestCase {
         bar.mouseDragged(with: self.mouse(.leftMouseDragged, in: bar, point: CGPoint(x: thumb.midX, y: thumb.midY + 50)))
         bar.mouseUp(with: self.mouse(.leftMouseUp, in: bar))
         XCTAssertEqual(content.scrollOffset, offset, "Hidden scrollbar drag must be cancelled")
-        let viewport = try XCTUnwrap(module.superview?.superview as? AmpXStackViewport)
         let cgEvent = try XCTUnwrap(CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -5, wheel2: 0, wheel3: 0))
-        try viewport.scrollWheel(with: XCTUnwrap(NSEvent(cgEvent: cgEvent)))
+        try module.scrollWheel(with: XCTUnwrap(NSEvent(cgEvent: cgEvent)))
         XCTAssertEqual(content.scrollOffset, offset, "Compact Playlist must not scroll hidden rows")
     }
 
@@ -88,7 +72,7 @@ final class AmpXCompactReviewRegressionTests: XCTestCase {
 
     private func makeCoordinator() -> AmpXHostCoordinator {
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(), skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore(),
+            state: AmpXModuleState(), skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: AudioPlayer(installRemoteCommands: false),
             playlistManager: PlaylistManager(
                 audioPlayer: MockAudioPlayer(),
@@ -98,8 +82,8 @@ final class AmpXCompactReviewRegressionTests: XCTestCase {
             ),
             entheaEnabled: false
         )
-        self.addTeardownBlock { @MainActor in coordinator.closeStack() }
-        coordinator.showStack()
+        self.addTeardownBlock { @MainActor in coordinator.hideAllWindowsForTesting() }
+        coordinator.showAll()
         return coordinator
     }
 }

@@ -100,12 +100,32 @@ enum AmpXSnapGeometry {
     ///   - sizes: sizes after it. Keys missing from either input are ignored.
     /// - Returns: the new frame of every key present in both inputs.
     static func reflow<Key: Hashable>(before: [Key: CGRect], sizes: [Key: CGSize]) -> [Key: CGRect] {
-        let keys = before.keys
-            .filter { sizes[$0] != nil }
-            .sorted { lhs, rhs in
-                let a = before[lhs]!, b = before[rhs]!
-                return a.maxY != b.maxY ? a.maxY > b.maxY : a.minX < b.minX
-            }
+        self.reflow(before: before, keys: before.keys.filter { sizes[$0] != nil }) { key, old, shift in
+            let size = sizes[key]!
+            return CGRect(x: old.minX + shift.dx, y: old.maxY + shift.dy - size.height, width: size.width, height: size.height)
+        }
+    }
+
+    /// Like `reflow(before:sizes:)`, but the resized windows take the exact frames given — for a
+    /// live edge-resize, where AppKit may move the top or left edge. Attached windows follow the
+    /// edge they touch: a window below follows the bottom edge, one to the right the right edge.
+    static func reflow<Key: Hashable>(before: [Key: CGRect], resized: [Key: CGRect]) -> [Key: CGRect] {
+        self.reflow(before: before, keys: Array(before.keys)) { key, old, shift in
+            resized[key] ?? old.offsetBy(dx: shift.dx, dy: shift.dy)
+        }
+    }
+
+    /// Shared attachment walk: `newFrame` maps a window (its old frame and the shift inherited from
+    /// its parent) to its new frame; a child's shift is how far the parent edge it touches moved.
+    private static func reflow<Key: Hashable>(
+        before: [Key: CGRect],
+        keys unsorted: [Key],
+        newFrame: (Key, CGRect, CGVector) -> CGRect
+    ) -> [Key: CGRect] {
+        let keys = unsorted.sorted { lhs, rhs in
+            let a = before[lhs]!, b = before[rhs]!
+            return a.maxY != b.maxY ? a.maxY > b.maxY : a.minX < b.minX
+        }
 
         var incoming: [Key: [(parent: Key, isBelow: Bool)]] = [:]
         var outgoing: [Key: [Key]] = [:]
@@ -120,7 +140,7 @@ enum AmpXSnapGeometry {
             }
         }
 
-        // Kahn order so a parent's shift is known before its children read it. Nodes left in a
+        // Kahn order so a parent's new frame is known before its children read it. Nodes left in a
         // degenerate cycle are appended and use only already-resolved parents.
         var pending = Dictionary(uniqueKeysWithValues: keys.map { ($0, incoming[$0]?.count ?? 0) })
         var queue = keys.filter { pending[$0] == 0 }
@@ -138,29 +158,16 @@ enum AmpXSnapGeometry {
         let placed = Set(ordered)
         ordered += keys.filter { !placed.contains($0) }
 
-        var shifts: [Key: CGVector] = [:]
+        var result: [Key: CGRect] = [:]
         for node in ordered {
             var shift = CGVector.zero
-            if let edge = incoming[node]?.first(where: { shifts[$0.parent] != nil }) {
-                let parentShift = shifts[edge.parent]!
-                let old = before[edge.parent]!.size
-                let new = sizes[edge.parent]!
+            if let edge = incoming[node]?.first(where: { result[$0.parent] != nil }) {
+                let old = before[edge.parent]!, new = result[edge.parent]!
                 shift = edge.isBelow
-                    ? CGVector(dx: parentShift.dx, dy: parentShift.dy - (new.height - old.height))
-                    : CGVector(dx: parentShift.dx + (new.width - old.width), dy: parentShift.dy)
+                    ? CGVector(dx: new.minX - old.minX, dy: new.minY - old.minY)
+                    : CGVector(dx: new.maxX - old.maxX, dy: new.maxY - old.maxY)
             }
-            shifts[node] = shift
-        }
-
-        var result: [Key: CGRect] = [:]
-        for key in keys {
-            let old = before[key]!, size = sizes[key]!, shift = shifts[key] ?? .zero
-            result[key] = CGRect(
-                x: old.minX + shift.dx,
-                y: old.maxY + shift.dy - size.height,
-                width: size.width,
-                height: size.height
-            )
+            result[node] = newFrame(node, before[node]!, shift)
         }
         return result
     }

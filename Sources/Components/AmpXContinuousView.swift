@@ -60,8 +60,7 @@ class AmpXContinuousView: AmpXDrawingView {
             var ancestor = self.superview
             while let view = ancestor {
                 if let module = view as? AmpXModuleView {
-                    let coordinator = (self.window?.windowController as? AmpXStackWindowController)?.coordinator
-                        ?? (self.window?.windowController as? AmpXDetachedModuleWindowController)?.coordinator
+                    let coordinator = (self.window?.windowController as? AmpXModuleWindowController)?.coordinator
                     coordinator?.noteFocusedModule(module.moduleID)
                     break
                 }

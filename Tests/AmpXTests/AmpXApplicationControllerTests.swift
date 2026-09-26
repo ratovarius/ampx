@@ -23,7 +23,7 @@ final class AmpXApplicationControllerTests: XCTestCase {
             alertPresenter: SilentPlaylistAlertPresenter()
         )
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: player,
@@ -69,7 +69,7 @@ final class AmpXApplicationControllerTests: XCTestCase {
         )
         let player = AudioPlayer(installRemoteCommands: false)
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: player,
@@ -85,7 +85,7 @@ final class AmpXApplicationControllerTests: XCTestCase {
         XCTAssertTrue(mock.loadTrackCalls.isEmpty)
     }
 
-    func testCloseStackDoesNotStopPlayback() {
+    func testClosingModuleWindowsDoesNotStopPlayback() {
         let mock = MockAudioPlayer()
         let manager = PlaylistManager(
             audioPlayer: mock,
@@ -95,7 +95,7 @@ final class AmpXApplicationControllerTests: XCTestCase {
         )
         let player = AudioPlayer(installRemoteCommands: false)
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: player,
@@ -110,9 +110,11 @@ final class AmpXApplicationControllerTests: XCTestCase {
         application.start()
         mock.playCallCount = 1
 
-        hosts.closeStack()
+        hosts.closeModule(.playlist)
+        hosts.closeModule(.equalizer)
         XCTAssertEqual(mock.stopCallCount, 0)
-        XCTAssertFalse(hosts.isStackVisible)
+        XCTAssertEqual(hosts.window(for: .playlist)?.isVisible, false)
+        hosts.hideAllWindowsForTesting()
     }
 
     func testTerminateHandlesTheaterShutdown() {

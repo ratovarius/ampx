@@ -82,49 +82,35 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
         XCTAssertEqual(gripEvents, 4)
     }
 
-    func testDoubleClickRoundTripsDockedAndDetachedModulesWithoutChangingWidthOrHost() throws {
+    func testDoubleClickRoundTripsModulesWithoutChangingWidthOrHost() throws {
         let coordinator = self.makeCoordinator()
-        coordinator.showStack()
+        coordinator.showAll()
         coordinator.setPlaylistWidth(800)
-        defer {
-            for id in coordinator.state.detached {
-                coordinator.closeModule(id)
-            }
-            coordinator.closeStack()
-        }
+        defer { coordinator.hideAllWindowsForTesting() }
         for id in [AmpXModuleID.player, .equalizer, .playlist] {
             let module = try XCTUnwrap(coordinator.moduleView(for: id))
-            for detached in id == .player ? [false] : [false, true] {
-                if detached {
-                    coordinator.detach(id, at: CGPoint(x: 100, y: 600), inheritedWidth: 490)
-                }
-                let host = try XCTUnwrap(module.window)
-                let expandedSize = module.frame.size
-                let content = module.content
-                let top = host.frame.maxY
-                self.doubleClick(module.header, at: self.center(module.header.gripFrame))
-                XCTAssertTrue(coordinator.state.collapsed.contains(id))
-                XCTAssertFalse(coordinator.dragController.isDragging)
-                XCTAssertEqual(module.frame.width, expandedSize.width)
-                XCTAssertEqual(host.frame.maxY, top, accuracy: 0.5)
-                if let compact = module.compactContent {
-                    self.doubleClick(compact, at: self.center(compact.chromeLayout.grip))
-                }
-                XCTAssertFalse(coordinator.state.collapsed.contains(id))
-                XCTAssertFalse(coordinator.dragController.isDragging)
-                XCTAssertIdentical(module.window, host)
-                XCTAssertIdentical(module.content, content)
-                XCTAssertEqual(module.frame.size, expandedSize)
-                if detached {
-                    coordinator.redock(id, at: 2)
-                }
+            let host = try XCTUnwrap(module.window)
+            let expandedSize = module.frame.size
+            let content = module.content
+            let top = host.frame.maxY
+            self.doubleClick(module.header, at: self.center(module.header.gripFrame))
+            XCTAssertTrue(coordinator.state.collapsed.contains(id))
+            XCTAssertEqual(module.frame.width, expandedSize.width)
+            XCTAssertEqual(host.frame.maxY, top, accuracy: 0.5)
+            XCTAssertEqual(host.frame.height, module.frame.height, accuracy: 0.5)
+            if let compact = module.compactContent {
+                self.doubleClick(compact, at: self.center(compact.chromeLayout.grip))
             }
+            XCTAssertFalse(coordinator.state.collapsed.contains(id))
+            XCTAssertIdentical(module.window, host)
+            XCTAssertIdentical(module.content, content)
+            XCTAssertEqual(module.frame.size, expandedSize)
         }
     }
 
     private func makeCoordinator() -> AmpXHostCoordinator {
         AmpXHostCoordinator(
-            state: AmpXModuleOrder(), skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore(),
+            state: AmpXModuleState(), skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: AudioPlayer(installRemoteCommands: false),
             playlistManager: PlaylistManager(
                 audioPlayer: MockAudioPlayer(),

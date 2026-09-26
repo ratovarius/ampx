@@ -214,27 +214,6 @@ enum AmpXMenuBuilder {
         )
         menu.addItem(.separator())
         menu.addItem(
-            titled: "Move Module Up",
-            action: #selector(AmpXApplicationController.moveModuleUp(_:)),
-            target: application,
-            keyEquivalent: String(UnicodeScalar(NSUpArrowFunctionKey)!),
-            modifiers: [.command, .option]
-        )
-        menu.addItem(
-            titled: "Move Module Down",
-            action: #selector(AmpXApplicationController.moveModuleDown(_:)),
-            target: application,
-            keyEquivalent: String(UnicodeScalar(NSDownArrowFunctionKey)!),
-            modifiers: [.command, .option]
-        )
-        menu.addItem(
-            titled: "Detach/Re-dock Module",
-            action: #selector(AmpXApplicationController.toggleDetachModule(_:)),
-            target: application,
-            keyEquivalent: "d",
-            modifiers: [.command, .option]
-        )
-        menu.addItem(
             titled: "Collapse/Expand Module",
             action: #selector(AmpXApplicationController.toggleCollapseModule(_:)),
             target: application,
@@ -243,8 +222,8 @@ enum AmpXMenuBuilder {
         )
         menu.addItem(.separator())
         menu.addItem(
-            titled: "Close Stack",
-            action: #selector(AmpXApplicationController.closeStack(_:)),
+            titled: "Close",
+            action: #selector(AmpXApplicationController.closeModuleWindow(_:)),
             target: application,
             keyEquivalent: "w",
             modifiers: .command

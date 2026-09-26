@@ -50,7 +50,7 @@ final class AmpXAccessibilityTests: XCTestCase {
         let titles = actions.map(\.name)
         XCTAssertTrue(titles.contains("Collapse"))
         XCTAssertTrue(titles.contains("Close"))
-        XCTAssertTrue(titles.contains("Detach"))
+        XCTAssertFalse(titles.contains("Detach"))
 
         XCTAssertTrue(header.accessibilityCollapse())
         XCTAssertTrue(header.accessibilityClose())
@@ -86,34 +86,34 @@ final class AmpXAccessibilityTests: XCTestCase {
 
     func testCollapseFocusesCompactExpandAndExpansionRestoresContentFocus() throws {
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore()
         )
-        coordinator.showStack()
+        coordinator.showAll()
 
         let module = try XCTUnwrap(coordinator.moduleView(for: .equalizer))
         let slider = try XCTUnwrap(module.content.subviews.compactMap { $0 as? AmpXSlider }.first)
-        coordinator.stackWindow?.makeFirstResponder(slider)
+        coordinator.window(for: .equalizer)?.makeFirstResponder(slider)
 
         coordinator.setCollapsed(.equalizer, true)
         XCTAssertTrue(module.content.isHidden)
-        XCTAssertEqual(coordinator.stackWindow?.firstResponder, module.compactContent?.expandButton)
+        XCTAssertEqual(coordinator.window(for: .equalizer)?.firstResponder, module.compactContent?.expandButton)
 
         coordinator.setCollapsed(.equalizer, false)
         XCTAssertFalse(module.content.isHidden)
-        XCTAssertEqual(coordinator.stackWindow?.firstResponder, slider)
+        XCTAssertEqual(coordinator.window(for: .equalizer)?.firstResponder, slider)
     }
 
     func testCloseModuleTransfersFocusToNextModuleWrappingToPlayer() throws {
-        let state = AmpXModuleOrder()
+        let state = AmpXModuleState()
         let coordinator = AmpXHostCoordinator(state: state, skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore())
-        coordinator.showStack()
+        coordinator.showAll()
 
         let equalizer = try XCTUnwrap(coordinator.moduleView(for: .equalizer))
         let playlist = try XCTUnwrap(coordinator.moduleView(for: .playlist))
-        coordinator.stackWindow?.makeKeyAndOrderFront(nil)
-        coordinator.stackWindow?.makeFirstResponder(equalizer.header)
+        coordinator.window(for: .equalizer)?.makeKeyAndOrderFront(nil)
+        coordinator.window(for: .equalizer)?.makeFirstResponder(equalizer.header)
 
         coordinator.closeModule(.equalizer)
         XCTAssertEqual(coordinator.focusedModuleID, .playlist)

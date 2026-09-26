@@ -132,4 +132,28 @@ final class AmpXSnapGeometryTests: XCTestCase {
         XCTAssertEqual(equalizerShift, 102)
         XCTAssertEqual((result["side"]?.maxY ?? 0) - besideEqualizer.maxY, equalizerShift)
     }
+
+    func testLiveTopEdgeResizeLeavesWindowBelowInPlace() {
+        let playlist = self.below(self.player, height: 232)
+        let under = self.below(playlist)
+        // Dragging the top edge up: the bottom edge stays, so the window below must not move.
+        let grown = CGRect(x: playlist.minX, y: playlist.minY, width: playlist.width, height: playlist.height + 50)
+        let result = AmpXSnapGeometry.reflow(
+            before: ["pl": playlist, "under": under],
+            resized: ["pl": grown]
+        )
+        XCTAssertEqual(result["pl"], grown)
+        XCTAssertEqual(result["under"], under)
+    }
+
+    func testLiveBottomEdgeResizeCarriesWindowBelow() {
+        let playlist = self.below(self.player, height: 232)
+        let under = self.below(playlist)
+        let grown = CGRect(x: playlist.minX, y: playlist.minY - 40, width: playlist.width, height: playlist.height + 40)
+        let result = AmpXSnapGeometry.reflow(
+            before: ["pl": playlist, "under": under],
+            resized: ["pl": grown]
+        )
+        XCTAssertEqual(result["under"]?.maxY, grown.minY)
+    }
 }

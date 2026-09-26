@@ -12,14 +12,11 @@ final class AmpXEffectiveVisibilityTests: XCTestCase {
             closed: false,
             windowVisible: true,
             miniaturized: false,
-            occluded: false,
-            intersectsViewport: true
+            occluded: false
         )
         XCTAssertTrue(input.isVisible)
 
         input.collapsed = true
-        input.intersectsViewport = false
-        input.intersectsViewport = true
         XCTAssertFalse(input.isVisible)
     }
 
@@ -28,37 +25,36 @@ final class AmpXEffectiveVisibilityTests: XCTestCase {
         XCTAssertFalse(self.makeInputs(windowVisible: false).isVisible)
         XCTAssertFalse(self.makeInputs(miniaturized: true).isVisible)
         XCTAssertFalse(self.makeInputs(occluded: true).isVisible)
-        XCTAssertFalse(self.makeInputs(intersectsViewport: false).isVisible)
         XCTAssertFalse(self.makeInputs(collapsed: true).isVisible)
     }
 
-    func testDetachedHostPassesViewportGateButHonorsOtherInputs() {
-        let visible = AmpXEffectiveVisibility.detachedInputs(
+    func testModuleWindowHonorsWindowAndCollapseInputs() {
+        let visible = AmpXEffectiveVisibility.windowInputs(
             collapsed: false,
             closed: false,
             window: self.visibleWindow()
         )
-        XCTAssertTrue(visible.intersectsViewport)
         if visible.windowVisible, !visible.occluded {
             XCTAssertTrue(visible.isVisible)
         }
 
-        let collapsed = AmpXEffectiveVisibility.detachedInputs(
+        let collapsed = AmpXEffectiveVisibility.windowInputs(
             collapsed: true,
             closed: false,
             window: self.visibleWindow()
         )
-        XCTAssertTrue(collapsed.intersectsViewport)
         XCTAssertFalse(collapsed.isVisible)
+
+        let missing = AmpXEffectiveVisibility.windowInputs(collapsed: false, closed: false, window: nil)
+        XCTAssertFalse(missing.isVisible)
     }
 
-    func testTheaterHostPassesViewportGateButHonorsOtherInputs() {
+    func testTheaterHostHonorsOtherInputs() {
         let visible = AmpXEffectiveVisibility.theaterInputs(
             collapsed: false,
             closed: false,
             window: self.visibleWindow()
         )
-        XCTAssertTrue(visible.intersectsViewport)
         if visible.windowVisible, !visible.occluded {
             XCTAssertTrue(visible.isVisible)
         }
@@ -69,32 +65,6 @@ final class AmpXEffectiveVisibilityTests: XCTestCase {
             window: self.visibleWindow()
         )
         XCTAssertFalse(closed.isVisible)
-        XCTAssertTrue(closed.intersectsViewport)
-    }
-
-    func testStackIntersectionUsesContentCoordinates() {
-        let outside = AmpXEffectiveVisibility.stackInputs(
-            collapsed: false,
-            closed: false,
-            window: self.visibleWindow(),
-            moduleFrame: CGRect(x: 0, y: 500, width: 490, height: 200),
-            visibleContentRect: CGRect(x: 0, y: 0, width: 490, height: 400)
-        )
-        XCTAssertFalse(outside.intersectsViewport)
-
-        let intersecting = AmpXEffectiveVisibility.stackInputs(
-            collapsed: false,
-            closed: false,
-            window: self.visibleWindow(),
-            moduleFrame: CGRect(x: 0, y: 100, width: 490, height: 200),
-            visibleContentRect: CGRect(x: 0, y: 0, width: 490, height: 400)
-        )
-        XCTAssertTrue(intersecting.intersectsViewport)
-        if intersecting.windowVisible, !intersecting.occluded {
-            XCTAssertTrue(intersecting.isVisible)
-        } else {
-            XCTAssertFalse(outside.isVisible)
-        }
     }
 
     // MARK: - Display-link lifecycle
@@ -160,7 +130,7 @@ final class AmpXEffectiveVisibilityTests: XCTestCase {
 
     func testCoordinatorCollapseStopsContinuousRendering() throws {
         let coordinator = self.makeCoordinator()
-        coordinator.showStack()
+        coordinator.showAll()
         let continuous = try self.attachContinuousView(to: XCTUnwrap(coordinator.moduleView(for: .player)))
         continuous.setEffectivelyVisible(true)
 
@@ -175,16 +145,14 @@ final class AmpXEffectiveVisibilityTests: XCTestCase {
         closed: Bool = false,
         windowVisible: Bool = true,
         miniaturized: Bool = false,
-        occluded: Bool = false,
-        intersectsViewport: Bool = true
+        occluded: Bool = false
     ) -> AmpXVisibilityInputs {
         AmpXVisibilityInputs(
             collapsed: collapsed,
             closed: closed,
             windowVisible: windowVisible,
             miniaturized: miniaturized,
-            occluded: occluded,
-            intersectsViewport: intersectsViewport
+            occluded: occluded
         )
     }
 
@@ -205,7 +173,7 @@ final class AmpXEffectiveVisibilityTests: XCTestCase {
 
     private func makeCoordinator() -> AmpXHostCoordinator {
         AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             screen: AmpXTestScreen.standard

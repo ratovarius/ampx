@@ -11,8 +11,7 @@ final class AmpXCompactVisibilityTests: XCTestCase {
                 closed: false,
                 windowVisible: true,
                 miniaturized: false,
-                occluded: false,
-                intersectsViewport: true
+                occluded: false
             )
             XCTAssertEqual(
                 visible.presentationVisibility(hasCompactPresentation: true),
@@ -23,7 +22,7 @@ final class AmpXCompactVisibilityTests: XCTestCase {
                 AmpXPresentationVisibility(expanded: !collapsed, compact: false)
             )
             let gates: [WritableKeyPath<AmpXVisibilityInputs, Bool>] = [
-                \.closed, \.windowVisible, \.miniaturized, \.occluded, \.intersectsViewport,
+                \.closed, \.windowVisible, \.miniaturized, \.occluded,
             ]
             for gate in gates {
                 var input = visible

@@ -80,13 +80,7 @@ class AmpXControlView: AmpXDrawingView {
 
     private func findCoordinator(in window: NSWindow?) -> AmpXHostCoordinator? {
         guard let window else { return nil }
-        if let stack = window.windowController as? AmpXStackWindowController {
-            return stack.coordinator
-        }
-        if let detached = window.windowController as? AmpXDetachedModuleWindowController {
-            return detached.coordinator
-        }
-        return nil
+        return (window.windowController as? AmpXModuleWindowController)?.coordinator
     }
 
     override func resignFirstResponder() -> Bool {

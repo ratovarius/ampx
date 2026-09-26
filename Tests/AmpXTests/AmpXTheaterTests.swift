@@ -5,12 +5,13 @@ import XCTest
 final class AmpXTheaterTests: XCTestCase {
     func testTheaterPreservesHostIdentityAndPresentation() throws {
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             entheaEnabled: true
         )
         hosts.reopenModule(.enthea)
+        hosts.showAll()
         let view = try XCTUnwrap(hosts.moduleView(for: .enthea))
         let identity = ObjectIdentifier(view.content)
         let previousFrame = view.frame
@@ -31,20 +32,24 @@ final class AmpXTheaterTests: XCTestCase {
         XCTAssertEqual(presentation, [])
     }
 
-    func testTheaterPreservesDetachedHostIdentityAndWindowFrame() throws {
+    func testTheaterRestoresEntheaWindowFrameAndLeavesDockedNeighbours() throws {
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
+            screen: AmpXTestScreen.standard,
             entheaEnabled: true
         )
         hosts.reopenModule(.enthea)
-        hosts.showStack()
-        hosts.detach(.enthea, at: CGPoint(x: 400, y: 500), inheritedWidth: 490)
+        hosts.showAll()
+        defer { AmpXModuleID.allCases.forEach { hosts.window(for: $0)?.orderOut(nil) } }
 
         let view = try XCTUnwrap(hosts.moduleView(for: .enthea))
         let identity = ObjectIdentifier(view.content)
-        let previousWindowFrame = try XCTUnwrap(hosts.detachedWindowFrame(for: .enthea))
+        let entheaFrame = try XCTUnwrap(hosts.window(for: .enthea)?.frame)
+        let equalizerHeight = try XCTUnwrap(hosts.window(for: .equalizer)?.frame.height)
+        let under = CGRect(x: entheaFrame.minX, y: entheaFrame.minY - equalizerHeight, width: entheaFrame.width, height: equalizerHeight)
+        hosts.applyFrames([.equalizer: under])
 
         var presentation: NSApplication.PresentationOptions = []
         let controller = AmpXTheaterController(
@@ -57,25 +62,18 @@ final class AmpXTheaterTests: XCTestCase {
         controller.enter()
         XCTAssertTrue(controller.isActive)
         XCTAssertEqual(view.content.bounds.size, CGSize(width: 1200, height: 800))
+        XCTAssertEqual(hosts.window(for: .equalizer)?.frame, under)
 
         controller.exit()
         XCTAssertEqual(ObjectIdentifier(view.content), identity)
-
-        let restoredWindowFrame = try XCTUnwrap(hosts.detachedWindowFrame(for: .enthea))
-        let clampedPrevious = AmpXLayoutStore.clampedToVisibleFrame(
-            previousWindowFrame,
-            screen: AmpXTestScreen.standard
-        )
-        XCTAssertEqual(restoredWindowFrame.origin.x, clampedPrevious.origin.x, accuracy: 1)
-        XCTAssertEqual(restoredWindowFrame.origin.y, clampedPrevious.origin.y, accuracy: 1)
-        XCTAssertEqual(restoredWindowFrame.width, clampedPrevious.width, accuracy: 1)
-        XCTAssertEqual(restoredWindowFrame.height, clampedPrevious.height, accuracy: 1)
+        XCTAssertEqual(hosts.window(for: .enthea)?.frame, entheaFrame)
+        XCTAssertEqual(hosts.window(for: .equalizer)?.frame, under)
         XCTAssertEqual(presentation, [])
     }
 
     func testTheaterExpandsCollapsedEntheaBeforeEntering() throws {
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             entheaEnabled: true
@@ -102,14 +100,13 @@ final class AmpXTheaterTests: XCTestCase {
 
     func testTheaterExitRefreshesVisibilityAfterDeactivating() {
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             entheaEnabled: true
         )
         hosts.reopenModule(.enthea)
-        hosts.showStack()
-        hosts.detach(.enthea, at: CGPoint(x: 400, y: 500), inheritedWidth: 490)
+        hosts.showAll()
 
         var presentation: NSApplication.PresentationOptions = []
         let controller = AmpXTheaterController(
@@ -121,13 +118,12 @@ final class AmpXTheaterTests: XCTestCase {
         controller.enter()
         XCTAssertTrue(controller.isActive)
 
-        hosts.closeStack()
         controller.exit()
 
         XCTAssertFalse(controller.isActive)
-        XCTAssertTrue(hosts.state.detached.contains(.enthea))
-        // Detached ENTHEA should remain reachable after theater teardown.
+        // ENTHEA returns to its own window after theater teardown.
         XCTAssertNotNil(hosts.moduleView(for: .enthea))
-        XCTAssertNotNil(hosts.detachedWindowFrame(for: .enthea))
+        XCTAssertEqual(hosts.window(for: .enthea)?.isVisible, true)
+        XCTAssertTrue(hosts.moduleView(for: .enthea)?.window === hosts.window(for: .enthea))
     }
 }

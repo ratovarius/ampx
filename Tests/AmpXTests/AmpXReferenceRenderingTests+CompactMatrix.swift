@@ -4,14 +4,11 @@ import XCTest
 
 extension AmpXReferenceRenderingTests {
     func testCompactCompositionCaptureMatrix() throws {
-        for name in ["compact", "mixed", "reordered", "wide", "right"] {
-            var state = AmpXModuleOrder()
+        for name in ["compact", "mixed", "wide", "right"] {
+            var state = AmpXModuleState()
             state.collapsed = [.player, .equalizer, .playlist]
             if name == "mixed" {
                 state.collapsed.remove(.equalizer)
-            }
-            if name == "reordered" {
-                state.order = [.playlist, .player, .equalizer, .enthea]
             }
             if name == "right" {
                 state.reopen(.enthea)
@@ -43,16 +40,14 @@ extension AmpXReferenceRenderingTests {
                 title: "7. SLEAZE - GOD DAMN",
                 duration: "3:46"
             )
-            let layout = AmpXLayout.calculate(
-                state: state,
-                width: width,
-                playlistViewportHeight: 180,
-                availableHeight: 10000,
-                playlistWidth: width
-            )
-            let stack = AmpXModuleStackView(frame: CGRect(x: 0, y: 0, width: layout.contentWidth, height: layout.contentHeight))
-            stack.setModuleViews(views)
-            stack.applyLayout(layout, state: state, playlistViewportHeight: 180)
+            let layout = ReferenceStackView.defaultComposition(state: state, playlistViewportHeight: 180, playlistWidth: width)
+            let stack = ReferenceStackView(frame: CGRect(origin: .zero, size: layout.size))
+            for (id, frame) in layout.frames {
+                guard let view = views[id] else { continue }
+                stack.addSubview(view)
+                view.applyLayout(frame: frame)
+            }
+            (views[.playlist]?.content as? PlaylistModuleContent)?.setRowViewportHeight(180)
             for scale: CGFloat in [1, 2, 3] {
                 let png = try AmpXCompactCaptureSupport.capture(
                     stack,

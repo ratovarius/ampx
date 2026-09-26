@@ -27,7 +27,7 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         self.bindPlaybackCoordinationIfNeeded()
         self.loadStartupSoundIfNeeded()
         self.wirePlayerMenuButton()
-        self.hosts.showStack()
+        self.hosts.showAll()
     }
 
     func terminate() {
@@ -54,14 +54,8 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         case #selector(self.toggleVisualizer(_:)):
             menuItem.state = self.hosts.state.closed.contains(.enthea) ? .off : .on
             return self.hosts.isEntheaEnabled
-        case #selector(self.moveModuleUp(_:)), #selector(self.moveModuleDown(_:)):
-            return self.hosts.focusedModuleID != .player
-        case #selector(self.toggleDetachModule(_:)):
-            return self.hosts.focusedModuleID != .player
         case #selector(self.toggleCollapseModule(_:)):
             return true
-        case #selector(self.closeStack(_:)):
-            return self.hosts.isStackVisible
         default:
             return true
         }
@@ -136,27 +130,16 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     // MARK: - Window
 
     @objc func showAmpX(_: Any?) {
-        self.hosts.showStack()
-    }
-
-    @objc func moveModuleUp(_: Any?) {
-        self.hosts.performModuleCommand(.moveUp)
-    }
-
-    @objc func moveModuleDown(_: Any?) {
-        self.hosts.performModuleCommand(.moveDown)
-    }
-
-    @objc func toggleDetachModule(_: Any?) {
-        self.hosts.performModuleCommand(.toggleDetach)
+        self.hosts.showAll()
     }
 
     @objc func toggleCollapseModule(_: Any?) {
         self.hosts.performModuleCommand(.toggleCollapse)
     }
 
-    @objc func closeStack(_: Any?) {
-        self.hosts.closeStack()
+    /// ⌘W closes the key module window; on the Player that quits, as in Winamp.
+    @objc func closeModuleWindow(_: Any?) {
+        self.hosts.closeKeyModule()
     }
 
     @objc func popUpPlayerMenu(from sender: Any?) {

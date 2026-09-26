@@ -17,7 +17,9 @@ enum AmpXLayout {
             : AmpXMetrics.compositionWidth
     }
 
-    /// Content size of a module's window; collapsed modules use their compact (windowshade) height.
+    /// Size of a module's window; collapsed modules use their compact (windowshade) height.
+    /// Rounded to whole points: AppKit rounds borderless window sizes anyway, and docked windows
+    /// only stay flush when every edge lands on the same grid.
     static func moduleSize(
         _ moduleID: AmpXModuleID,
         state: AmpXModuleState,
@@ -25,8 +27,8 @@ enum AmpXLayout {
         playlistWidth: CGFloat
     ) -> CGSize {
         CGSize(
-            width: self.moduleWidth(moduleID, playlistWidth: playlistWidth),
-            height: self.moduleHeight(moduleID, state: state, playlistViewportHeight: playlistViewportHeight)
+            width: self.moduleWidth(moduleID, playlistWidth: playlistWidth).rounded(),
+            height: self.moduleHeight(moduleID, state: state, playlistViewportHeight: playlistViewportHeight).rounded()
         )
     }
 
@@ -63,8 +65,8 @@ enum AmpXLayout {
     /// Player top-left for the default layout: centred horizontally, just below the visible top.
     static func defaultAnchor(visibleFrame: CGRect) -> CGPoint {
         CGPoint(
-            x: visibleFrame.midX - AmpXMetrics.compositionWidth / 2,
-            y: visibleFrame.maxY - self.defaultTopInset
+            x: (visibleFrame.midX - AmpXMetrics.compositionWidth / 2).rounded(),
+            y: (visibleFrame.maxY - self.defaultTopInset).rounded()
         )
     }
 

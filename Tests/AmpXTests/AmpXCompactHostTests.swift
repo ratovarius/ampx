@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class AmpXCompactHostTests: XCTestCase {
-    func testWideCompactPlaylistPreservesBodySelectionScrollAndDetachedConstraints() async throws {
+    func testWideCompactPlaylistPreservesBodySelectionScrollAndWindowConstraints() async throws {
         let coordinator = self.makeCoordinator()
         coordinator.setPlaylistWidth(800)
         let module = try XCTUnwrap(coordinator.moduleView(for: .playlist))
@@ -27,15 +27,12 @@ final class AmpXCompactHostTests: XCTestCase {
         XCTAssertEqual(body.frame, bodyFrame)
         XCTAssertEqual(body.scrollOffset, scroll)
         XCTAssertTrue(body.resizeHandle.isHiddenOrHasHiddenAncestor)
-        XCTAssertEqual(coordinator.stackWindow?.contentMinSize.width, coordinator.stackWindow?.contentMaxSize.width)
-        coordinator.detach(.playlist, at: CGPoint(x: 700, y: 600), inheritedWidth: 490)
         let window = try XCTUnwrap(module.window)
         XCTAssertEqual(window.frame.width, 800)
         XCTAssertEqual(window.contentMinSize, window.contentMaxSize)
         XCTAssertEqual(window.frame.height, AmpXCompactMetrics.playlistHeight, accuracy: 0.5)
         XCTAssertEqual(window.contentView?.bounds.height, module.frame.height)
         XCTAssertEqual(compact.frame, module.bounds)
-        coordinator.redock(.playlist, at: 2)
         XCTAssertIdentical(module.compactContent, compact)
         coordinator.setCollapsed(.playlist, false)
         XCTAssertEqual(body.frame, bodyFrame)
@@ -43,26 +40,25 @@ final class AmpXCompactHostTests: XCTestCase {
         XCTAssertEqual(adapter.selection.selectedIDs, [tracks[50].id])
     }
 
-    func testCompactChromeMinimizesClosesAndReopensTheSameHost() async throws {
+    func testCompactChromeMinimizesRestoresAndCloseQuits() async throws {
         try AmpXTestEnvironment.skipOnCI("window minimize/reopen timing is unreliable on a headless runner")
         let coordinator = self.makeCoordinator()
         coordinator.setCollapsed(.player, true)
         let module = try XCTUnwrap(coordinator.moduleView(for: .player))
         let compact = try XCTUnwrap(module.compactContent)
-        let window = try XCTUnwrap(coordinator.stackWindow)
+        let window = try XCTUnwrap(coordinator.window(for: .player))
         let minimized = self.expectation(forNotification: NSWindow.didMiniaturizeNotification, object: window)
         compact.minimizeButton?.action?()
         await self.fulfillment(of: [minimized], timeout: 3)
         XCTAssertTrue(window.isMiniaturized, "Minimize must complete")
         let restored = self.expectation(forNotification: NSWindow.didDeminiaturizeNotification, object: window)
         NSApp.activate()
-        coordinator.showStack()
+        coordinator.showAll()
         await self.fulfillment(of: [restored], timeout: 3)
         XCTAssertFalse(window.isMiniaturized)
+        XCTAssertFalse(self.quitRequested)
         compact.closeButton.action?()
-        XCTAssertFalse(window.isVisible)
-        coordinator.showStack()
-        XCTAssertTrue(window.isVisible)
+        XCTAssertTrue(self.quitRequested, "Closing the Player quits AmpX, as in Winamp")
         XCTAssertTrue(module.isContentCollapsed)
         XCTAssertIdentical(module.compactContent, compact)
     }
@@ -109,7 +105,7 @@ final class AmpXCompactHostTests: XCTestCase {
     func testCollapseCancelsButtonAndNestedSeekTracking() throws {
         let coordinator = self.makeCoordinator()
         let player = try XCTUnwrap(coordinator.moduleView(for: .player))
-        let window = try XCTUnwrap(coordinator.stackWindow)
+        let window = try XCTUnwrap(coordinator.window(for: .player))
         let seek = try XCTUnwrap(player.content.subviews.first { $0 is PositionBarView })
         let slider = try XCTUnwrap(seek.subviews.first as? AmpXSlider)
         let button = try XCTUnwrap(player.content.subviews.compactMap { $0 as? AmpXButton }.first)
@@ -147,9 +143,10 @@ final class AmpXCompactHostTests: XCTestCase {
         let player = try XCTUnwrap(coordinator.moduleView(for: .player))
         let body = player.content
         let oldFrame = body.frame
-        let window = try XCTUnwrap(coordinator.stackWindow)
+        let window = try XCTUnwrap(coordinator.window(for: .player))
         let topLeft = CGPoint(x: window.frame.minX, y: window.frame.maxY)
-        let oldEQY = try XCTUnwrap(coordinator.moduleView(for: .equalizer)).frame.minY
+        let eqWindow = try XCTUnwrap(coordinator.window(for: .equalizer))
+        let oldEQTop = eqWindow.frame.maxY
         coordinator.setCollapsed(.player, true)
         let compact = try XCTUnwrap(player.compactContent)
         XCTAssertTrue(player.header.isHidden)
@@ -157,7 +154,8 @@ final class AmpXCompactHostTests: XCTestCase {
         XCTAssertFalse(compact.isHidden)
         XCTAssertEqual(compact.frame, player.bounds)
         XCTAssertEqual(body.frame, oldFrame)
-        XCTAssertLessThan(try XCTUnwrap(coordinator.moduleView(for: .equalizer)).frame.minY, oldEQY)
+        XCTAssertGreaterThan(eqWindow.frame.maxY, oldEQTop, "The docked EQ follows the Player's bottom edge up")
+        XCTAssertEqual(eqWindow.frame.maxY, window.frame.minY)
         XCTAssertEqual(window.frame.minX, topLeft.x, accuracy: 0.5)
         XCTAssertEqual(window.frame.maxY, topLeft.y, accuracy: 0.5)
         XCTAssertEqual(player.frame.height, AmpXCompactMetrics.playerHeight, accuracy: 0.5)
@@ -185,7 +183,7 @@ final class AmpXCompactHostTests: XCTestCase {
     func testCollapseDoesNotStealFocusFromAnotherModule() throws {
         let coordinator = self.makeCoordinator()
         let eq = try XCTUnwrap(coordinator.moduleView(for: .equalizer))
-        let window = try XCTUnwrap(coordinator.stackWindow)
+        let window = try XCTUnwrap(coordinator.window(for: .equalizer))
         XCTAssertTrue(window.makeFirstResponder(eq.header))
         coordinator.setCollapsed(.player, true)
         XCTAssertIdentical(window.firstResponder, eq.header)
@@ -196,7 +194,7 @@ final class AmpXCompactHostTests: XCTestCase {
     func testFocusMovesBetweenRetainedExpandedAndCompactControls() throws {
         let coordinator = self.makeCoordinator()
         let player = try XCTUnwrap(coordinator.moduleView(for: .player))
-        let window = try XCTUnwrap(coordinator.stackWindow)
+        let window = try XCTUnwrap(coordinator.window(for: .player))
         let button = try XCTUnwrap(player.content.focusableControls().first)
         XCTAssertTrue(window.makeFirstResponder(button))
         coordinator.setCollapsed(.player, true)
@@ -208,9 +206,11 @@ final class AmpXCompactHostTests: XCTestCase {
         XCTAssertTrue(player.focusableViews().allSatisfy { !$0.isDescendant(of: compact) })
     }
 
+    private var quitRequested = false
+
     func makeCoordinator() -> AmpXHostCoordinator {
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(), skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore(),
+            state: AmpXModuleState(), skin: ClassicModernSkin(), layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: AudioPlayer(installRemoteCommands: false),
             playlistManager: PlaylistManager(
                 audioPlayer: MockAudioPlayer(),
@@ -218,15 +218,11 @@ final class AmpXCompactHostTests: XCTestCase {
                 restorePlaylist: false,
                 alertPresenter: SilentPlaylistAlertPresenter()
             ),
-            entheaEnabled: false
+            entheaEnabled: false,
+            terminate: { [weak self] in self?.quitRequested = true }
         )
-        self.addTeardownBlock { @MainActor in
-            for id in coordinator.state.detached {
-                coordinator.closeModule(id)
-            }
-            coordinator.closeStack()
-        }
-        coordinator.showStack()
+        self.addTeardownBlock { @MainActor in coordinator.hideAllWindowsForTesting() }
+        coordinator.showAll()
         return coordinator
     }
 }

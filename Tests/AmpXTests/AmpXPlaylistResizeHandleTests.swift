@@ -9,18 +9,13 @@ final class AmpXPlaylistResizeHandleTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard),
             screen: AmpXTestScreen.standard
         )
-        addTeardownBlock { @MainActor in
-            for id in coordinator.state.detached {
-                coordinator.closeModule(id)
-            }
-            coordinator.closeStack()
-        }
-        coordinator.showStack()
+        addTeardownBlock { @MainActor in coordinator.hideAllWindowsForTesting() }
+        coordinator.showAll()
         return coordinator
     }
 
@@ -55,7 +50,7 @@ final class AmpXPlaylistResizeHandleTests: XCTestCase {
         XCTAssertEqual(PlaylistResizeHandleView.resizeCursor, NSCursor.frameResize(position: .bottom, directions: .all))
     }
 
-    func testDraggingHandleResizesDockedPlaylistWithFixedTopEdge() throws {
+    func testDraggingHandleResizesPlaylistWindowWithFixedTopEdge() throws {
         let coordinator = self.makeCoordinator()
         let (module, content) = try self.playlist(coordinator)
         let window = try XCTUnwrap(module.window)
@@ -67,23 +62,7 @@ final class AmpXPlaylistResizeHandleTests: XCTestCase {
 
         XCTAssertEqual(module.frame.height, height - 40, accuracy: 0.5)
         XCTAssertEqual(window.frame.maxY, top, accuracy: 0.5)
-    }
-
-    func testDraggingHandleResizesDetachedPlaylistWithFixedTopEdge() throws {
-        let coordinator = self.makeCoordinator()
-        coordinator.detach(.playlist, at: CGPoint(x: 700, y: 600), inheritedWidth: 490)
-        let (module, content) = try self.playlist(coordinator)
-        let window = try XCTUnwrap(module.window)
-        XCTAssertTrue(window.windowController is AmpXDetachedModuleWindowController)
-        let handle = content.resizeHandle
-        let top = window.frame.maxY
-        let height = window.frame.height
-
-        try self.drag(handle, in: window, byScreenDeltaY: 40)
-
-        XCTAssertEqual(window.frame.height, height - 40, accuracy: 0.5)
-        XCTAssertEqual(window.frame.maxY, top, accuracy: 0.5)
-        XCTAssertEqual(module.frame.height, window.frame.height, accuracy: 0.5)
+        XCTAssertEqual(window.frame.height, module.frame.height, accuracy: 0.5)
     }
 
     func testCollapsedPlaylistExposesNoHandle() throws {

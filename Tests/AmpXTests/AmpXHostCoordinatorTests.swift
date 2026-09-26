@@ -1,18 +1,65 @@
 @testable import AmpX
 import XCTest
 
+/// One window per module with Winamp docking rules (spec 2026-09-26-winamp-docking-design.md).
 @MainActor
 final class AmpXHostCoordinatorTests: XCTestCase {
-    private func isolatedDefaults() -> (UserDefaults, String) {
-        let name = "AmpXHostCoordinatorTests.\(UUID().uuidString)"
-        return (UserDefaults(suiteName: name)!, name)
+    private var coordinators: [AmpXHostCoordinator] = []
+
+    override func tearDown() {
+        for coordinator in self.coordinators {
+            for id in AmpXModuleID.allCases {
+                coordinator.window(for: id)?.orderOut(nil)
+            }
+        }
+        self.coordinators = []
+        super.tearDown()
     }
 
-    private func cleanup(_ name: String) {
-        UserDefaults(suiteName: name)?.removePersistentDomain(forName: name)
+    private func makeCoordinator(
+        state: AmpXModuleState = AmpXModuleState(),
+        store: AmpXLayoutStore? = nil,
+        entheaEnabled: Bool = false,
+        terminate: @escaping () -> Void = {}
+    ) -> AmpXHostCoordinator {
+        let coordinator = AmpXHostCoordinator(
+            state: state,
+            skin: ClassicModernSkin(),
+            layoutStore: store ?? self.makeIsolatedLayoutStore(),
+            screen: AmpXTestScreen.standard,
+            entheaEnabled: entheaEnabled,
+            terminate: terminate
+        )
+        self.coordinators.append(coordinator)
+        return coordinator
     }
 
-    func testDefaultHostCreatesMainPlayerModulesWithoutEnthea() {
+    private func entheaOpenState() -> AmpXModuleState {
+        var state = AmpXModuleState()
+        state.reopen(.enthea)
+        return state
+    }
+
+    private func frame(_ coordinator: AmpXHostCoordinator, _ id: AmpXModuleID) throws -> CGRect {
+        try XCTUnwrap(coordinator.window(for: id)?.frame, "\(id) has no window")
+    }
+
+    // MARK: - Windows
+
+    func testDefaultLaunchShowsOneWindowPerOpenModule() throws {
+        let coordinator = self.makeCoordinator()
+        coordinator.showAll()
+
+        let expected = AmpXLayoutStore.defaultLayout(for: AmpXTestScreen.standard).frames
+        for id: AmpXModuleID in [.player, .equalizer, .playlist] {
+            XCTAssertEqual(coordinator.window(for: id)?.isVisible, true, "\(id)")
+            XCTAssertEqual(try self.frame(coordinator, id), expected[id], "\(id)")
+        }
+        XCTAssertNil(coordinator.window(for: .enthea))
+        XCTAssertFalse(coordinator.window(for: .player) === coordinator.window(for: .equalizer))
+    }
+
+    func testDefaultHostCreatesModuleViewsWithoutEnthea() {
         let coordinator = self.makeCoordinator()
         for moduleID: AmpXModuleID in [.player, .equalizer, .playlist] {
             XCTAssertNotNil(coordinator.moduleView(for: moduleID))
@@ -20,234 +67,193 @@ final class AmpXHostCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.moduleView(for: .enthea))
     }
 
-    func testDisabledEntheaCannotRestoreOrReopenItsHost() {
-        var state = AmpXModuleOrder()
-        state.reopen(.enthea)
-        state.detach(.enthea)
-        let coordinator = AmpXHostCoordinator(
-            state: state,
-            skin: ClassicModernSkin(),
-            layoutStore: makeIsolatedLayoutStore()
+    // MARK: - Close / reopen
+
+    func testCloseEqualizerLeavesGap() throws {
+        let coordinator = self.makeCoordinator()
+        coordinator.showAll()
+        let playlist = try self.frame(coordinator, .playlist)
+
+        coordinator.closeModule(.equalizer)
+
+        XCTAssertEqual(coordinator.window(for: .equalizer)?.isVisible, false)
+        XCTAssertTrue(coordinator.state.closed.contains(.equalizer))
+        XCTAssertEqual(try self.frame(coordinator, .playlist), playlist)
+    }
+
+    func testReopenRestoresLastFrame() throws {
+        let coordinator = self.makeCoordinator()
+        coordinator.showAll()
+        let moved = CGRect(x: 1200, y: 300, width: AmpXMetrics.compositionWidth, height: AmpXMetrics.equalizerHeight.rounded())
+        coordinator.applyFrames([.equalizer: moved])
+
+        coordinator.closeModule(.equalizer)
+        coordinator.reopenModule(.equalizer)
+
+        XCTAssertEqual(try self.frame(coordinator, .equalizer), moved)
+    }
+
+    func testCloseModulePersists() {
+        let store = self.makeIsolatedLayoutStore()
+        let coordinator = self.makeCoordinator(store: store)
+        coordinator.showAll()
+        coordinator.closeModule(.playlist)
+        XCTAssertTrue(store.load().state.closed.contains(.playlist))
+    }
+
+    func testClosingPlayerQuits() {
+        var quit = false
+        let coordinator = self.makeCoordinator(terminate: { quit = true })
+        coordinator.showAll()
+        coordinator.closeModule(.player)
+        XCTAssertTrue(quit)
+        XCTAssertFalse(coordinator.state.closed.contains(.player))
+    }
+
+    // MARK: - Windowshade and resize
+
+    func testCollapsePlayerPullsEqualizerButNotSideWindow() throws {
+        let coordinator = self.makeCoordinator(state: self.entheaOpenState(), entheaEnabled: true)
+        coordinator.showAll()
+        let enthea = try self.frame(coordinator, .enthea)
+        let playerTop = try self.frame(coordinator, .player).maxY
+
+        coordinator.setCollapsed(.player, true)
+
+        let player = try self.frame(coordinator, .player)
+        XCTAssertEqual(player.maxY, playerTop)
+        XCTAssertEqual(try self.frame(coordinator, .equalizer).maxY, player.minY)
+        XCTAssertEqual(try self.frame(coordinator, .playlist).maxY, try self.frame(coordinator, .equalizer).minY)
+        XCTAssertEqual(try self.frame(coordinator, .enthea), enthea)
+    }
+
+    func testExpandingAgainRestoresTheStack() {
+        let coordinator = self.makeCoordinator()
+        coordinator.showAll()
+        let before = coordinator.openFrames()
+
+        coordinator.setCollapsed(.player, true)
+        coordinator.setCollapsed(.player, false)
+
+        XCTAssertEqual(coordinator.openFrames(), before)
+    }
+
+    func testPlaylistResizeMovesWindowBelowOnly() throws {
+        let coordinator = self.makeCoordinator(state: self.entheaOpenState(), entheaEnabled: true)
+        coordinator.showAll()
+        let playlist = try self.frame(coordinator, .playlist)
+        let below = CGRect(
+            x: playlist.minX,
+            y: playlist.minY - AmpXMetrics.entheaHeight,
+            width: AmpXMetrics.compositionWidth,
+            height: AmpXMetrics.entheaHeight
         )
+        let beside = CGRect(
+            x: playlist.maxX,
+            y: playlist.maxY - AmpXMetrics.equalizerHeight.rounded(),
+            width: AmpXMetrics.compositionWidth,
+            height: AmpXMetrics.equalizerHeight.rounded()
+        )
+        coordinator.applyFrames([.enthea: below, .equalizer: beside])
+
+        coordinator.handlePlaylistResize(.began)
+        coordinator.handlePlaylistResize(.changed(CGSize(width: 0, height: 40)))
+        coordinator.handlePlaylistResize(.ended)
+
+        let resized = try self.frame(coordinator, .playlist)
+        XCTAssertEqual(resized.height, playlist.height + 40)
+        XCTAssertEqual(resized.maxY, playlist.maxY)
+        XCTAssertEqual(try self.frame(coordinator, .enthea).maxY, resized.minY)
+        XCTAssertEqual(try self.frame(coordinator, .equalizer), beside)
+    }
+
+    // MARK: - Minimize, theater, persistence
+
+    func testPlayerMiniaturizeHidesOthersAndRestores() {
+        let coordinator = self.makeCoordinator()
+        coordinator.showAll()
+
+        coordinator.moduleWindowDidMiniaturize(.player)
+        XCTAssertEqual(coordinator.window(for: .equalizer)?.isVisible, false)
+        XCTAssertEqual(coordinator.window(for: .playlist)?.isVisible, false)
+
+        coordinator.moduleWindowDidDeminiaturize(.player)
+        XCTAssertEqual(coordinator.window(for: .equalizer)?.isVisible, true)
+        XCTAssertEqual(coordinator.window(for: .playlist)?.isVisible, true)
+    }
+
+    func testFlushLayoutPersistenceWritesLiveFrames() {
+        let store = self.makeIsolatedLayoutStore()
+        let coordinator = self.makeCoordinator(store: store)
+        coordinator.showAll()
+        let moved = CGRect(x: 40, y: 60, width: AmpXMetrics.compositionWidth, height: AmpXMetrics.equalizerHeight.rounded())
+        coordinator.window(for: .equalizer)?.setFrame(moved, display: false)
+
+        coordinator.flushLayoutPersistence()
+
+        XCTAssertEqual(store.load().frames[.equalizer], moved)
+    }
+
+    func testRelaunchRestoresFrames() throws {
+        let store = self.makeIsolatedLayoutStore()
+        let first = self.makeCoordinator(store: store)
+        first.showAll()
+        let moved = CGRect(x: 900, y: 200, width: AmpXMetrics.compositionWidth, height: AmpXMetrics.equalizerHeight.rounded())
+        first.applyFrames([.equalizer: moved])
+
+        let second = self.makeCoordinator(store: store)
+        second.showAll()
+        XCTAssertEqual(try self.frame(second, .equalizer), moved)
+    }
+
+    // MARK: - ENTHEA availability
+
+    func testDisabledEntheaCannotReopenOrEnterTheater() {
+        let coordinator = self.makeCoordinator(state: self.entheaOpenState(), entheaEnabled: false)
         XCTAssertNil(coordinator.moduleView(for: .enthea))
-        XCTAssertNil(coordinator.detachedWindowFrame(for: .enthea))
         XCTAssertTrue(coordinator.state.closed.contains(.enthea))
 
         coordinator.reopenModule(.enthea)
         coordinator.toggleTheater()
         XCTAssertTrue(coordinator.state.closed.contains(.enthea))
         XCTAssertFalse(coordinator.isInTheater)
-        XCTAssertNil(coordinator.moduleView(for: .enthea))
     }
 
-    func testDisabledEntheaPreservesItsSavedLayoutWhenMainPlayerChanges() {
-        let store = makeIsolatedLayoutStore()
+    func testDisabledEntheaPreservesItsSavedOpenState() {
+        let store = self.makeIsolatedLayoutStore()
         var saved = store.load()
         saved.state.reopen(.enthea)
-        saved.state.detach(.enthea)
         saved.state.setCollapsed(.enthea, true)
-        let frame = CGRect(x: 100, y: 100, width: 490, height: 290)
-        saved.detachedFrames[.enthea] = frame
         store.save(saved)
 
-        let coordinator = AmpXHostCoordinator(state: saved.state, skin: ClassicModernSkin(), layoutStore: store)
-        XCTAssertTrue(coordinator.state.closed.contains(.enthea))
+        let coordinator = self.makeCoordinator(state: saved.state, store: store, entheaEnabled: false)
         coordinator.closeModule(.equalizer)
 
         let persisted = store.load()
         XCTAssertFalse(persisted.state.closed.contains(.enthea), "Temporary unavailability must not overwrite the saved open state")
-        XCTAssertTrue(persisted.state.detached.contains(.enthea))
         XCTAssertTrue(persisted.state.collapsed.contains(.enthea))
-        XCTAssertEqual(persisted.state.order, saved.state.order)
-        XCTAssertEqual(persisted.detachedFrames[.enthea], frame)
         XCTAssertTrue(persisted.state.closed.contains(.equalizer))
     }
 
-    func testCloseModuleUpdatesStateAndPersists() {
-        let (defaults, name) = self.isolatedDefaults()
-        defer { cleanup(name) }
-
-        let store = AmpXLayoutStore(defaults: defaults, screen: testScreen())
-        let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
-            skin: ClassicModernSkin(),
-            layoutStore: store,
-            screen: testScreen()
-        )
-
-        coordinator.closeModule(.equalizer)
-        XCTAssertTrue(coordinator.state.closed.contains(.equalizer))
-
-        let loaded = store.load()
-        XCTAssertTrue(loaded.state.closed.contains(.equalizer))
-    }
-
-    func testReopenModuleRestoresVisibilityState() {
-        let coordinator = self.makeCoordinator()
-        coordinator.closeModule(.playlist)
-        coordinator.reopenModule(.playlist)
-        XCTAssertFalse(coordinator.state.closed.contains(.playlist))
-    }
-
-    func testSetCollapsedUpdatesStateAndPersists() {
-        let (defaults, name) = self.isolatedDefaults()
-        defer { cleanup(name) }
-
-        let store = AmpXLayoutStore(defaults: defaults, screen: testScreen())
-        let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
-            skin: ClassicModernSkin(),
-            layoutStore: store,
-            screen: testScreen()
-        )
-
-        coordinator.setCollapsed(.equalizer, true)
-        XCTAssertTrue(coordinator.state.collapsed.contains(.equalizer))
-
-        let loaded = store.load()
-        XCTAssertTrue(loaded.state.collapsed.contains(.equalizer))
-    }
-
-    func testCloseStackHidesWindowButRetainsControllerAndState() {
-        let coordinator = self.makeCoordinator()
-        coordinator.showStack()
-        XCTAssertTrue(coordinator.isStackVisible)
-
-        coordinator.closeModule(.equalizer)
-        coordinator.closeStack()
-
-        XCTAssertFalse(coordinator.isStackVisible)
-        XCTAssertNotNil(coordinator.moduleView(for: .player))
-        XCTAssertTrue(coordinator.state.closed.contains(.equalizer))
-
-        coordinator.showStack()
-        XCTAssertTrue(coordinator.isStackVisible)
-    }
-
-    func testShowStackUsesSavedFrame() {
-        let (defaults, name) = self.isolatedDefaults()
-        defer { cleanup(name) }
-
-        let savedFrame = CGRect(x: 200, y: 300, width: 490, height: 600)
-        let store = AmpXLayoutStore(defaults: defaults, screen: testScreen())
-        store.save(
-            AmpXSavedLayout(
-                state: AmpXModuleOrder(),
-                stackFrame: savedFrame,
-                detachedFrames: [:],
-                playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight
-            )
-        )
-
-        let coordinator = AmpXHostCoordinator(
-            state: store.load().state,
-            skin: ClassicModernSkin(),
-            layoutStore: store,
-            screen: self.testScreen()
-        )
-        coordinator.showStack()
-
-        // Height follows the composition; the saved left edge, top edge and width are restored.
-        XCTAssertEqual(coordinator.stackWindowFrame?.minX, savedFrame.minX)
-        XCTAssertEqual(coordinator.stackWindowFrame?.maxY ?? 0, savedFrame.maxY, accuracy: 0.5)
-        XCTAssertEqual(coordinator.stackWindowFrame?.width, savedFrame.width)
-    }
-
-    func testFlushLayoutPersistenceWritesLiveStackFrameBeforeDebounce() throws {
-        let store = self.makeIsolatedLayoutStore()
-        let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
-            skin: ClassicModernSkin(),
-            layoutStore: store,
-            screen: self.testScreen()
-        )
-        coordinator.showStack()
-        let window = try XCTUnwrap(coordinator.stackWindow)
-        var frame = window.frame
-        frame.origin.x += 48
-        frame.origin.y -= 36
-        window.setFrame(frame, display: false)
-
-        coordinator.flushLayoutPersistence()
-
-        let loaded = store.load(screen: self.testScreen())
-        XCTAssertEqual(loaded.stackFrame.minX, window.frame.minX, accuracy: 0.5)
-        XCTAssertEqual(loaded.stackFrame.minY, window.frame.minY, accuracy: 0.5)
-        XCTAssertEqual(loaded.stackFrame.width, window.frame.width, accuracy: 0.5)
-    }
-
-    func testStackWindowFollowsCompositionHeightWithoutScrolling() throws {
-        let (defaults, name) = self.isolatedDefaults()
-        defer { cleanup(name) }
-        let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
-            skin: ClassicModernSkin(),
-            layoutStore: AmpXLayoutStore(defaults: defaults, screen: testScreen()),
-            screen: testScreen()
-        )
-        coordinator.showStack()
-        let window = try XCTUnwrap(coordinator.stackWindow)
-        let visible = try self.testScreen().visibleFrame
-        let stackModules = [AmpXModuleID.player, .equalizer, .playlist].compactMap { coordinator.moduleView(for: $0) }
-        let compositionBottom = try XCTUnwrap(stackModules.map(\.frame.maxY).max())
-
-        XCTAssertEqual(window.frame.height, compositionBottom, accuracy: 0.5, "Stack window must be as tall as its modules")
-        XCTAssertLessThanOrEqual(window.frame.height, visible.height + 0.5, "Stack must fit the screen's visible frame")
-        func subviews(of view: NSView) -> [NSView] {
-            view.subviews.flatMap { [$0] + subviews(of: $0) }
-        }
-        let stackScrollbars = try subviews(of: XCTUnwrap(window.contentView)).filter {
-            $0 is AmpXScrollbar && $0.superview is AmpXStackViewport && !$0.isHidden
-        }
-        XCTAssertTrue(stackScrollbars.isEmpty, "The module stack must not show a scrollbar")
-    }
-
-    func testDockReopenShowsStackWhenHidden() {
-        let coordinator = self.makeCoordinator()
-        coordinator.showStack()
-        coordinator.closeStack()
-        XCTAssertFalse(coordinator.isStackVisible)
-
-        coordinator.showStack()
-        XCTAssertTrue(coordinator.isStackVisible)
-    }
-
-    func testOpenEntheaStateMountsHostWhenFeatureIsReenabled() {
-        var state = AmpXModuleOrder()
-        state.reopen(.enthea)
-        let coordinator = AmpXHostCoordinator(
-            state: state,
-            skin: ClassicModernSkin(),
-            layoutStore: makeIsolatedLayoutStore(),
-            screen: testScreen(),
-            entheaEnabled: true
-        )
+    func testOpenEntheaStateMountsHostWhenFeatureIsEnabled() {
+        let coordinator = self.makeCoordinator(state: self.entheaOpenState(), entheaEnabled: true)
         let content = coordinator.moduleView(for: .enthea)?.content as? EntheaModuleContent
         XCTAssertNotNil(content?.hostViewForTesting)
     }
 
-    func testClosedEntheaStateDoesNotMountHostWhenFeatureIsReenabled() throws {
-        let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
-            skin: ClassicModernSkin(),
-            layoutStore: makeIsolatedLayoutStore(),
-            entheaEnabled: true
-        )
+    func testClosedEntheaStateDoesNotMountHost() throws {
+        let coordinator = self.makeCoordinator(entheaEnabled: true)
         let content = try XCTUnwrap(coordinator.moduleView(for: .enthea)?.content as? EntheaModuleContent)
         XCTAssertNil(content.hostViewForTesting)
     }
+}
 
-    private func makeCoordinator() -> AmpXHostCoordinator {
-        AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
-            skin: ClassicModernSkin(),
-            layoutStore: makeIsolatedLayoutStore(),
-            screen: self.testScreen()
-        )
-    }
-
-    private func testScreen() -> NSScreen {
-        AmpXTestScreen.standard
+extension AmpXHostCoordinator {
+    /// Test teardown: hides every module window without quitting (closing the Player quits).
+    func hideAllWindowsForTesting() {
+        for id in AmpXModuleID.allCases {
+            self.window(for: id)?.orderOut(nil)
+        }
     }
 }
 

@@ -27,7 +27,7 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
         let audioPlayer = AudioPlayer.shared
         let playlistManager = PlaylistManager.shared
         let layoutStore = AmpXLayoutStore(defaults: .standard)
-        let saved = layoutStore.loadForLaunch()
+        let saved = layoutStore.load()
         let hosts = AmpXHostCoordinator(
             state: saved.state,
             skin: ClassicModernSkin(),
@@ -49,7 +49,7 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if !hasVisibleWindows {
-            self.applicationController?.hosts.showStack()
+            self.applicationController?.hosts.showAll()
         }
         return true
     }

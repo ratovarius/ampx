@@ -10,52 +10,32 @@ final class AmpXPlaylistWidthTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard),
             screen: AmpXTestScreen.standard
         )
-        addTeardownBlock { @MainActor in
-            for id in coordinator.state.detached {
-                coordinator.closeModule(id)
-            }
-            coordinator.closeStack()
-        }
-        coordinator.showStack()
+        addTeardownBlock { @MainActor in coordinator.hideAllWindowsForTesting() }
+        coordinator.showAll()
         return coordinator
     }
 
     // MARK: - Layout
 
-    func testWidePlaylistWidensOnlyItselfAndShiftsVisualizerColumn() {
-        var state = AmpXModuleOrder()
+    func testWidePlaylistWidensOnlyItsOwnWindow() {
+        var state = AmpXModuleState()
         state.reopen(.enthea)
-        let layout = AmpXLayout.calculate(
-            state: state,
-            width: 490,
-            playlistViewportHeight: 180,
-            availableHeight: 10000,
-            playlistWidth: 700
-        )
+        let frames = AmpXLayout.defaultFrames(state: state, playlistViewportHeight: 180, playlistWidth: 700, anchorTopLeft: .zero)
 
-        XCTAssertEqual(layout.frames[.playlist]?.width, 700)
-        XCTAssertEqual(layout.frames[.player]?.width, 490)
-        XCTAssertEqual(layout.frames[.equalizer]?.width, 490)
-        XCTAssertEqual(layout.frames[.player]?.minX, 0)
-        XCTAssertEqual(layout.frames[.enthea], CGRect(x: 706, y: 0, width: 490, height: 290))
-        XCTAssertEqual(layout.contentWidth, 1196)
+        XCTAssertEqual(frames[.playlist]?.width, 700)
+        XCTAssertEqual(frames[.player]?.width, 490)
+        XCTAssertEqual(frames[.equalizer]?.width, 490)
+        XCTAssertEqual(frames[.enthea]?.minX, 490, "ENTHEA docks to the Player, not past the Playlist")
     }
 
     func testPlaylistWidthClampsToEqualizerWidth() {
-        let layout = AmpXLayout.calculate(
-            state: AmpXModuleOrder(),
-            width: 490,
-            playlistViewportHeight: 180,
-            availableHeight: 10000,
-            playlistWidth: 300
-        )
-        XCTAssertEqual(layout.frames[.playlist]?.width, AmpXMetrics.compositionWidth)
-        XCTAssertEqual(layout.contentWidth, AmpXMetrics.compositionWidth)
+        let size = AmpXLayout.moduleSize(.playlist, state: AmpXModuleState(), playlistViewportHeight: 180, playlistWidth: 300)
+        XCTAssertEqual(size.width, AmpXMetrics.compositionWidth)
     }
 
     // MARK: - Stretching, not scaling
@@ -144,7 +124,7 @@ final class AmpXPlaylistWidthTests: XCTestCase {
         )
     }
 
-    func testDraggingRightStripWidensDockedPlaylistKeepingLeftEdge() throws {
+    func testDraggingRightStripWidensPlaylistKeepingLeftEdge() throws {
         let coordinator = self.makeCoordinator()
         let module = try XCTUnwrap(coordinator.moduleView(for: .playlist))
         let content = try XCTUnwrap(module.content as? PlaylistModuleContent)
@@ -176,27 +156,12 @@ final class AmpXPlaylistWidthTests: XCTestCase {
         XCTAssertEqual(module.frame.width, AmpXMetrics.compositionWidth, accuracy: 0.5)
     }
 
-    func testDetachedPlaylistResizesHorizontally() throws {
-        let coordinator = self.makeCoordinator()
-        coordinator.detach(.playlist, at: CGPoint(x: 700, y: 600), inheritedWidth: 490)
-        let module = try XCTUnwrap(coordinator.moduleView(for: .playlist))
-        let content = try XCTUnwrap(module.content as? PlaylistModuleContent)
-        let window = try XCTUnwrap(module.window)
-        let left = window.frame.minX
-
-        try self.drag(content.resizeHandle, edge: .right, in: window, by: CGSize(width: 90, height: 0))
-
-        XCTAssertEqual(window.frame.width, 580, accuracy: 0.5)
-        XCTAssertEqual(window.frame.minX, left, accuracy: 0.5)
-        XCTAssertEqual(module.frame.width, window.frame.width, accuracy: 0.5)
-    }
-
-    func testPlaylistWidthSurvivesDetachAndRedock() {
+    func testPlaylistWidthSurvivesCloseAndReopen() {
         let coordinator = self.makeCoordinator()
         coordinator.setPlaylistWidth(640)
-        coordinator.detach(.playlist, at: CGPoint(x: 700, y: 600), inheritedWidth: 490)
-        XCTAssertEqual(coordinator.moduleView(for: .playlist)?.window?.frame.width, 640)
-        coordinator.redock(.playlist, at: 2)
+        coordinator.closeModule(.playlist)
+        coordinator.reopenModule(.playlist)
+        XCTAssertEqual(coordinator.window(for: .playlist)?.frame.width, 640)
         XCTAssertEqual(coordinator.moduleView(for: .playlist)?.frame.width, 640)
     }
 
