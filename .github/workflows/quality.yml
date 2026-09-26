@@ -1,6 +1,8 @@
 name: Code Quality
 
-# Merge gate for both directions: feature/* -> develop, develop -> main.
+# Merge gate for both directions, at two weights:
+#   feature/* -> develop: light — build and tests only.
+#   develop -> main (and manual runs): full — adds Swift lint and static analysis.
 # Deliberately no `push` trigger — that would double every PR run.
 #
 # This is where lint, static analysis, and the full test suite run. Locally, run only the
@@ -24,10 +26,13 @@ jobs:
   swift:
     name: Swift
     runs-on: macos-latest
+    env:
+      FULL_GATE: ${{ github.base_ref != 'develop' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install SwiftFormat and SwiftLint
+        if: env.FULL_GATE == 'true'
         run: |
           for tool in swiftformat swiftlint; do
             if ! command -v "$tool" >/dev/null 2>&1; then
@@ -44,6 +49,7 @@ jobs:
 
       # Errors fail the job; warnings become annotations on the PR diff.
       - name: Lint
+        if: env.FULL_GATE == 'true'
         run: ./scripts/lint-swift.sh --github
 
       # Generates fixtures, then runs the suite. Streams the full log here because a
@@ -74,6 +80,7 @@ jobs:
 
   static:
     name: Static analysis
+    if: github.base_ref != 'develop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
