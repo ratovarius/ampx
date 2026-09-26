@@ -11,8 +11,8 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
             var toggles = 0
             var gripEvents = 0
             header.onCollapse = { toggles += 1 }
-            header.onGripMouseDown = { _ in gripEvents += 1 }
-            header.onGripMouseUp = { _ in gripEvents += 1 }
+            header.onTitleDragBegan = { _ in gripEvents += 1 }
+            header.onTitleDragEnded = { _ in gripEvents += 1 }
             for point in [self.center(header.titleGroupFrame), self.center(header.gripFrame), CGPoint(x: 70, y: 10)] {
                 let before = toggles
                 self.doubleClick(header, at: point)
@@ -44,8 +44,8 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
             var expansions = 0
             var gripEvents = 0
             compact.onExpand = { expansions += 1 }
-            compact.onGripMouseDown = { _ in gripEvents += 1 }
-            compact.onGripMouseUp = { _ in gripEvents += 1 }
+            compact.onTitleDragBegan = { _ in gripEvents += 1 }
+            compact.onTitleDragEnded = { _ in gripEvents += 1 }
             self.doubleClick(compact, at: self.center(compact.chromeLayout.brand))
             self.doubleClick(compact, at: self.center(compact.chromeLayout.grip))
             XCTAssertEqual(expansions, 2)
@@ -58,7 +58,7 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
         }
     }
 
-    func testSingleGripClicksKeepDragBehavior() {
+    func testSingleTitleClicksKeepDragBehavior() {
         let header = AmpXModuleHeaderView(moduleID: .equalizer, skin: ClassicModernSkin())
         header.frame = CGRect(x: 0, y: 0, width: 490, height: AmpXMetrics.headerHeight)
         let compact = AmpXCompactModuleView(moduleID: .equalizer, skin: ClassicModernSkin())
@@ -67,10 +67,10 @@ final class AmpXModuleTitleDoubleClickTests: XCTestCase {
         var gripEvents = 0
         header.onCollapse = { toggles += 1 }
         compact.onExpand = { toggles += 1 }
-        header.onGripMouseDown = { _ in gripEvents += 1 }
-        header.onGripMouseUp = { _ in gripEvents += 1 }
-        compact.onGripMouseDown = { _ in gripEvents += 1 }
-        compact.onGripMouseUp = { _ in gripEvents += 1 }
+        header.onTitleDragBegan = { _ in gripEvents += 1 }
+        header.onTitleDragEnded = { _ in gripEvents += 1 }
+        compact.onTitleDragBegan = { _ in gripEvents += 1 }
+        compact.onTitleDragEnded = { _ in gripEvents += 1 }
         for (view, point) in [
             (header as NSView, self.center(header.gripFrame)),
             (compact as NSView, self.center(compact.chromeLayout.grip)),

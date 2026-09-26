@@ -32,6 +32,15 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     private var hiddenWithPlayer: [AmpXModuleID] = []
 
     private(set) var focusedModuleID: AmpXModuleID = .player
+    /// Title-bar drags; screen-edge magnetism uses the visible frame of the screen under the
+    /// cursor (or the pinned screen in tests).
+    private(set) lazy var dragSession = AmpXWindowDragSession(coordinator: self) { [weak self] point in
+        if let pinned = self?.pinnedScreen {
+            return pinned.visibleFrame
+        }
+        return NSScreen.screens.first { $0.frame.contains(point) }?.visibleFrame
+    }
+
     private(set) lazy var theaterController: AmpXTheaterController = .init(
         hosts: self,
         screenFrame: { [weak self] in self?.screen.frame ?? .zero },
@@ -127,6 +136,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             return
         }
         let nextFocus = self.nextOpenModule(after: id)
+        self.dragSession.cancel()
         if id == .enthea, self.theaterController.isActive {
             self.theaterController.exit()
         }
@@ -158,6 +168,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     /// Windowshade: the window keeps its top-left corner; windows attached below or to the right
     /// follow its edges.
     func setCollapsed(_ id: AmpXModuleID, _ value: Bool) {
+        self.dragSession.cancel()
         self.state.setCollapsed(id, value)
         self.moduleViews[id]?.setContentCollapsed(value)
         self.resizeKeepingAttachments([id])
@@ -533,9 +544,21 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             guard moduleID == .player else { return }
             self?.handlePlayerHeaderMinimize()
         }
+        view.header.onTitleDragBegan = { [weak self] point in
+            self?.dragSession.begin(moduleID, at: point)
+        }
+        view.header.onTitleDragChanged = { [weak self] point in
+            self?.dragSession.move(to: point)
+        }
+        view.header.onTitleDragEnded = { [weak self] point in
+            self?.dragSession.end(at: point)
+        }
         view.compactContent?.onExpand = view.header.onCollapse
         view.compactContent?.onClose = view.header.onClose
         view.compactContent?.onMinimize = view.header.onMinimize
+        view.compactContent?.onTitleDragBegan = view.header.onTitleDragBegan
+        view.compactContent?.onTitleDragChanged = view.header.onTitleDragChanged
+        view.compactContent?.onTitleDragEnded = view.header.onTitleDragEnded
     }
 
     private func persistLayout() {
