@@ -13,7 +13,7 @@ final class AmpXMenuBuilderTests: XCTestCase {
         )
         manager.tracks = tracks
         let hosts = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: player,
@@ -109,10 +109,12 @@ final class AmpXMenuBuilderTests: XCTestCase {
         let window = try XCTUnwrap(menu.item(withTitle: "Window")?.submenu)
         let titles = window.items.filter { !$0.isSeparatorItem }.map(\.title)
         XCTAssertTrue(titles.contains("AmpX"))
-        XCTAssertTrue(titles.contains("Move Module Up"))
-        XCTAssertTrue(titles.contains("Move Module Down"))
-        XCTAssertTrue(titles.contains("Detach/Re-dock Module"))
+        XCTAssertFalse(titles.contains("Move Module Up"))
+        XCTAssertFalse(titles.contains("Move Module Down"))
+        XCTAssertFalse(titles.contains("Detach/Re-dock Module"))
         XCTAssertTrue(titles.contains("Collapse/Expand Module"))
+        XCTAssertTrue(titles.contains("Close"))
+        XCTAssertFalse(titles.contains("Close Stack"))
         XCTAssertTrue(titles.contains("Bring All to Front"))
     }
 

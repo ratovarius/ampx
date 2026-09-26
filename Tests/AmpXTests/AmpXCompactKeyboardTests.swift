@@ -13,15 +13,15 @@ final class AmpXCompactKeyboardTests: XCTestCase {
             alertPresenter: SilentPlaylistAlertPresenter()
         )
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
             layoutStore: makeIsolatedLayoutStore(),
             audioPlayer: audio,
             playlistManager: manager,
             entheaEnabled: false
         )
-        coordinator.showStack()
-        defer { coordinator.closeStack() }
+        coordinator.showAll()
+        defer { coordinator.hideAllWindowsForTesting() }
         let module = try XCTUnwrap(coordinator.moduleView(for: .playlist))
         let rows = try XCTUnwrap(module.content.subviews.compactMap { $0 as? PlaylistRowsView }.first)
         let adapter = try XCTUnwrap(rows.keyboardAdapter)

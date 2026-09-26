@@ -7,6 +7,27 @@ final class ReferenceStackView: NSView {
     override var isFlipped: Bool {
         true
     }
+
+    /// The Winamp default arrangement of the open modules, in this view's top-down coordinates,
+    /// for composite reference captures of separate module windows.
+    static func defaultComposition(
+        state: AmpXModuleState,
+        playlistViewportHeight: CGFloat,
+        playlistWidth: CGFloat
+    ) -> (frames: [AmpXModuleID: CGRect], size: CGSize) {
+        let screenFrames = AmpXLayout.defaultFrames(
+            state: state,
+            playlistViewportHeight: playlistViewportHeight,
+            playlistWidth: playlistWidth,
+            anchorTopLeft: .zero
+        ).filter { !state.closed.contains($0.key) }
+        let frames = screenFrames.mapValues { CGRect(x: $0.minX, y: -$0.maxY, width: $0.width, height: $0.height) }
+        let size = CGSize(
+            width: frames.values.map(\.maxX).max() ?? 0,
+            height: frames.values.map(\.maxY).max() ?? 0
+        )
+        return (frames, size)
+    }
 }
 
 @MainActor
@@ -313,13 +334,12 @@ final class AmpXReferenceRenderingTests: XCTestCase {
         playlist.setRowViewportHeight(AmpXMetrics.defaultPlaylistViewportHeight)
         try self.export(self.deterministicPNG(of: single), named: "playlist-static.png", backingScale: singleWindow.backingScaleFactor)
 
-        let layout = AmpXLayout.calculate(
-            state: AmpXModuleOrder(),
-            width: AmpXMetrics.compositionWidth,
+        let layout = ReferenceStackView.defaultComposition(
+            state: AmpXModuleState(),
             playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
-            availableHeight: 10000
+            playlistWidth: AmpXMetrics.defaultPlaylistWidth
         )
-        let stack = ReferenceStackView(frame: CGRect(x: 0, y: 0, width: AmpXMetrics.compositionWidth, height: layout.contentHeight))
+        let stack = ReferenceStackView(frame: CGRect(origin: .zero, size: layout.size))
         let window = NSWindow(contentRect: stack.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.contentView?.addSubview(stack)
 
@@ -335,8 +355,9 @@ final class AmpXReferenceRenderingTests: XCTestCase {
             stack.addSubview(module)
             try module.applyLayout(frame: XCTUnwrap(layout.frames[id]))
         }
-        stackPlaylist.setRowViewportHeight(layout.playlistViewportHeight)
-        XCTAssertEqual(layout.contentHeight, 754, accuracy: 0.01)
+        stackPlaylist.setRowViewportHeight(AmpXMetrics.defaultPlaylistViewportHeight)
+        // Player, Equalizer and Playlist windows stacked flush, each rounded to whole points.
+        XCTAssertEqual(layout.size.height, 755, accuracy: 0.01)
         try self.export(self.deterministicPNG(of: stack), named: "stack-static.png", backingScale: window.backingScaleFactor)
         withExtendedLifetime([singleWindow, window]) {}
     }

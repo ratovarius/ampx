@@ -9,10 +9,11 @@ class AmpXCompactModuleView: AmpXModuleContent {
     var onExpand: (() -> Void)?
     var onClose: (() -> Void)?
     var onMinimize: (() -> Void)?
-    var onGripMouseDown: ((NSEvent) -> Void)?
-    var onGripMouseDragged: ((NSEvent) -> Void)?
-    var onGripMouseUp: ((NSEvent) -> Void)?
-    private var gripTracking = false
+    /// Winamp title-bar drag in screen coordinates, as on the expanded header.
+    var onTitleDragBegan: ((CGPoint) -> Void)?
+    var onTitleDragChanged: ((CGPoint) -> Void)?
+    var onTitleDragEnded: ((CGPoint) -> Void)?
+    private var titleTracking = false
 
     var chromeLayout: AmpXCompactMetrics.Chrome {
         AmpXCompactMetrics.chrome(moduleID: self.moduleID, width: self.bounds.width)
@@ -55,7 +56,7 @@ class AmpXCompactModuleView: AmpXModuleContent {
     }
 
     func cancelInteraction() {
-        self.gripTracking = false
+        self.titleTracking = false
     }
 
     override func cancelInteractions() {
@@ -150,22 +151,22 @@ class AmpXCompactModuleView: AmpXModuleContent {
             self.onExpand?()
             return
         }
-        if self.chromeLayout.grip.contains(point) {
-            self.gripTracking = true
-            self.onGripMouseDown?(event)
-        } else {
-            self.window?.performDrag(with: event)
-        }
+        self.titleTracking = true
+        self.onTitleDragBegan?(self.screenPoint(of: event))
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard self.gripTracking else { return }
-        self.onGripMouseDragged?(event)
+        guard self.titleTracking else { return }
+        self.onTitleDragChanged?(self.screenPoint(of: event))
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard self.gripTracking else { return }
-        self.gripTracking = false
-        self.onGripMouseUp?(event)
+        guard self.titleTracking else { return }
+        self.titleTracking = false
+        self.onTitleDragEnded?(self.screenPoint(of: event))
+    }
+
+    private func screenPoint(of event: NSEvent) -> CGPoint {
+        self.window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
     }
 }

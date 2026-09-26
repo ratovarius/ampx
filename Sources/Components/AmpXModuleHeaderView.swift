@@ -9,12 +9,12 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
     var onCollapse: (() -> Void)?
     var onClose: (() -> Void)?
     var onMinimize: (() -> Void)?
-    var onDetach: (() -> Void)?
-    var onGripMouseDown: ((NSEvent) -> Void)?
-    var onGripMouseDragged: ((NSEvent) -> Void)?
-    var onGripMouseUp: ((NSEvent) -> Void)?
+    /// Winamp title-bar drag, in screen coordinates: anywhere on the title bar outside the buttons.
+    var onTitleDragBegan: ((CGPoint) -> Void)?
+    var onTitleDragChanged: ((CGPoint) -> Void)?
+    var onTitleDragEnded: ((CGPoint) -> Void)?
 
-    private var gripTracking = false
+    private var titleTracking = false
     private var suppressMouseUp = false
     /// Header key held down by the current click; it paints pressed until mouse-up.
     private var pressedButton: HeaderButton? {
@@ -48,13 +48,7 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
 
     private func findCoordinator(in window: NSWindow?) -> AmpXHostCoordinator? {
         guard let window else { return nil }
-        if let stack = window.windowController as? AmpXStackWindowController {
-            return stack.coordinator
-        }
-        if let detached = window.windowController as? AmpXDetachedModuleWindowController {
-            return detached.coordinator
-        }
-        return nil
+        return (window.windowController as? AmpXModuleWindowController)?.coordinator
     }
 
     // MARK: - Geometry (reference coordinates scaled with the module width)
@@ -305,24 +299,23 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
         }
 
         if event.clickCount == 2 {
-            self.gripTracking = false
+            self.titleTracking = false
             self.suppressMouseUp = true
             self.onCollapse?()
             return
         }
 
-        if self.gripFrame.contains(point) {
-            self.gripTracking = true
-            self.onGripMouseDown?(event)
-            return
-        }
-
-        window?.performDrag(with: event)
+        self.titleTracking = true
+        self.onTitleDragBegan?(self.screenPoint(of: event))
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard self.gripTracking else { return }
-        self.onGripMouseDragged?(event)
+        guard self.titleTracking else { return }
+        self.onTitleDragChanged?(self.screenPoint(of: event))
+    }
+
+    private func screenPoint(of event: NSEvent) -> CGPoint {
+        self.window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -332,9 +325,9 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
             self.suppressMouseUp = false
             return
         }
-        if self.gripTracking {
-            self.gripTracking = false
-            self.onGripMouseUp?(event)
+        if self.titleTracking {
+            self.titleTracking = false
+            self.onTitleDragEnded?(self.screenPoint(of: event))
             return
         }
 
@@ -355,9 +348,7 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
         var actions: [NSAccessibilityCustomAction] = []
 
-        if self.moduleID != .player {
-            actions.append(NSAccessibilityCustomAction(name: "Detach", target: self, selector: #selector(self.accessibilityDetach)))
-        } else if self.onMinimize != nil {
+        if self.moduleID == .player, self.onMinimize != nil {
             actions.append(NSAccessibilityCustomAction(name: "Minimize", target: self, selector: #selector(self.accessibilityMinimize)))
         }
 
@@ -379,11 +370,6 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
 
     @objc func accessibilityMinimize() -> Bool {
         self.onMinimize?()
-        return true
-    }
-
-    @objc func accessibilityDetach() -> Bool {
-        self.onDetach?()
         return true
     }
 }

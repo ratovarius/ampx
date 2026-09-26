@@ -2,183 +2,80 @@
 import XCTest
 
 final class AmpXLayoutTests: XCTestCase {
-    func testScaleClampsToReferenceBounds() {
-        XCTAssertEqual(AmpXLayout.scale(width: 490), 1)
-        XCTAssertEqual(AmpXLayout.scale(width: 416.5), 0.85)
-        XCTAssertEqual(AmpXLayout.scale(width: 980), 1.35)
+    private let viewport: CGFloat = 180
+
+    private func size(_ id: AmpXModuleID, state: AmpXModuleState = AmpXModuleState(), playlistWidth: CGFloat = 490) -> CGSize {
+        AmpXLayout.moduleSize(id, state: state, playlistViewportHeight: self.viewport, playlistWidth: playlistWidth)
     }
 
-    func testPlayerOnlyLayoutAtUnitScale() {
-        var state = AmpXModuleOrder()
-        state.close(.equalizer)
-        state.close(.playlist)
-        let layout = AmpXLayout.calculate(
-            state: state,
-            width: 490,
-            playlistViewportHeight: 180,
-            availableHeight: 1000
+    func testModuleSizeUsesFullHeights() {
+        XCTAssertEqual(self.size(.player), CGSize(width: AmpXMetrics.compositionWidth, height: AmpXMetrics.playerHeight.rounded()))
+        XCTAssertEqual(self.size(.equalizer).height, AmpXMetrics.equalizerHeight.rounded())
+        XCTAssertEqual(
+            self.size(.playlist).height,
+            (AmpXMetrics.headerHeight + AmpXMetrics.playlistNonRowChrome + self.viewport).rounded()
         )
-        XCTAssertEqual(layout.scale, 1)
-        XCTAssertEqual(layout.contentHeight, 223.5)
-        XCTAssertEqual(layout.frames.count, 1)
-        XCTAssertEqual(layout.frames[.player]?.minX, 0)
-        XCTAssertEqual(layout.frames[.player]?.width, 490)
-        XCTAssertEqual(layout.frames[.player]?.height, 223.5)
+        XCTAssertEqual(self.size(.enthea).height, AmpXMetrics.entheaHeight.rounded())
     }
 
-    func testWideLayoutKeepsReferenceCompositionAtLeft() throws {
-        var state = AmpXModuleOrder()
-        state.close(.equalizer)
-        state.close(.playlist)
-        let wide = AmpXLayout.calculate(
-            state: state,
-            width: 800,
-            playlistViewportHeight: 180,
-            availableHeight: 1000
-        )
-        XCTAssertEqual(wide.scale, 1)
-        XCTAssertEqual(try XCTUnwrap(wide.frames[.player]?.minX), 0, accuracy: 0.0001)
-        XCTAssertEqual(try XCTUnwrap(wide.frames[.player]?.width), 490, accuracy: 0.0001)
-    }
-
-    private struct LayoutCase {
-        let name: String
-        let state: AmpXModuleOrder
-        let expectedHeight: CGFloat
-        let moduleCount: Int
-    }
-
-    func testTableDrivenLayouts() {
-        let cases: [LayoutCase] = [
-            LayoutCase(
-                name: "full default stack",
-                state: AmpXModuleOrder(),
-                expectedHeight: 223.5 + 225.5 + 305,
-                moduleCount: 3
-            ),
-            LayoutCase(
-                name: "collapsed equalizer",
-                state: {
-                    var state = AmpXModuleOrder()
-                    state.setCollapsed(.equalizer, true)
-                    return state
-                }(),
-                expectedHeight: 223.5 + AmpXCompactMetrics.equalizerHeight + 305,
-                moduleCount: 3
-            ),
-            LayoutCase(
-                name: "player only",
-                state: {
-                    var state = AmpXModuleOrder()
-                    state.close(.equalizer)
-                    state.close(.playlist)
-                    return state
-                }(),
-                expectedHeight: 223.5,
-                moduleCount: 1
-            ),
-        ]
-
-        for testCase in cases {
-            let layout = AmpXLayout.calculate(
-                state: testCase.state,
-                width: 490,
-                playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
-                availableHeight: 10000
-            )
-            XCTAssertEqual(
-                layout.contentHeight,
-                testCase.expectedHeight,
-                accuracy: 0.0001,
-                "Unexpected content height for \(testCase.name)"
-            )
-            XCTAssertEqual(
-                layout.frames.count,
-                testCase.moduleCount,
-                "Unexpected module count for \(testCase.name)"
-            )
+    func testModuleSizesAreWholePoints() {
+        var state = AmpXModuleState()
+        for id in AmpXModuleID.allCases {
+            for collapsed in [false, true] {
+                state.setCollapsed(id, collapsed)
+                let size = self.size(id, state: state, playlistWidth: 511.3)
+                XCTAssertEqual(size.width, size.width.rounded(), "\(id)")
+                XCTAssertEqual(size.height, size.height.rounded(), "\(id)")
+            }
         }
     }
 
-    func testIgnoresDetachedAndClosedModulesInStackLayout() {
-        var state = AmpXModuleOrder()
-        state.detach(.playlist)
-        state.close(.equalizer)
-        let layout = AmpXLayout.calculate(
-            state: state,
-            width: 490,
-            playlistViewportHeight: 180,
-            availableHeight: 1000
-        )
-        XCTAssertEqual(layout.frames.count, 1)
-        XCTAssertNotNil(layout.frames[.player])
-        XCTAssertNil(layout.frames[.playlist])
-        XCTAssertNil(layout.frames[.equalizer])
-    }
-
-    func testShortScreenShrinksOnlyThePlaylistViewportByTheExcess() throws {
-        var state = AmpXModuleOrder()
-        state.reopen(.enthea)
-        let tall = AmpXLayout.calculate(
-            state: state,
-            width: 661.5,
-            playlistViewportHeight: 180,
-            availableHeight: 10000
-        )
-        let available = tall.contentHeight - 50
-        let fitted = AmpXLayout.calculate(
-            state: state,
-            width: 661.5,
-            playlistViewportHeight: 180,
-            availableHeight: available
-        )
-
-        XCTAssertEqual(fitted.scale, 1)
-        XCTAssertEqual(fitted.contentHeight, available, accuracy: 0.001, "Stack exactly fills the available height")
-        XCTAssertEqual(fitted.playlistViewportHeight, 130, accuracy: 0.001)
-        for id: AmpXModuleID in [.player, .equalizer, .enthea] {
-            XCTAssertEqual(
-                try XCTUnwrap(fitted.frames[id]).height,
-                try XCTUnwrap(tall.frames[id]).height,
-                accuracy: 0.001,
-                "\(id) must keep its height"
-            )
-        }
-
-        let tooShort = AmpXLayout.calculate(
-            state: state,
-            width: 661.5,
-            playlistViewportHeight: 180,
-            availableHeight: 500
-        )
-        XCTAssertEqual(tooShort.playlistViewportHeight, AmpXMetrics.minimumPlaylistViewportHeight)
-    }
-
-    func testCollapsedPlaylistIsNotResizedToFit() {
-        var state = AmpXModuleOrder()
+    func testModuleSizeCollapsedUsesCompactHeights() {
+        var state = AmpXModuleState()
+        state.setCollapsed(.player, true)
         state.setCollapsed(.playlist, true)
-        let result = AmpXLayout.calculate(
-            state: state,
-            width: 490,
-            playlistViewportHeight: 180,
-            availableHeight: 300
-        )
-        XCTAssertEqual(result.playlistViewportHeight, 180)
-        XCTAssertEqual(result.frames[.playlist]?.height, AmpXCompactMetrics.playlistHeight)
+        XCTAssertEqual(self.size(.player, state: state).height, AmpXCompactMetrics.playerHeight.rounded())
+        XCTAssertEqual(self.size(.playlist, state: state).height, AmpXCompactMetrics.playlistHeight.rounded())
     }
 
-    func testCustomPlaylistViewportAdjustsPlaylistModuleHeight() {
-        let state = AmpXModuleOrder()
-        let layout = AmpXLayout.calculate(
-            state: state,
-            width: 490,
-            playlistViewportHeight: 120,
-            availableHeight: 10000
+    func testPlaylistWidthNeverBelowMinimum() {
+        XCTAssertEqual(self.size(.playlist, playlistWidth: 10).width, AmpXMetrics.minimumPlaylistWidth)
+        XCTAssertEqual(self.size(.playlist, playlistWidth: 700).width, 700)
+        XCTAssertEqual(self.size(.equalizer, playlistWidth: 700).width, AmpXMetrics.compositionWidth)
+    }
+
+    func testDefaultFramesStackFlushWithEntheaRight() throws {
+        let frames = AmpXLayout.defaultFrames(
+            state: AmpXModuleState(),
+            playlistViewportHeight: self.viewport,
+            playlistWidth: AmpXMetrics.defaultPlaylistWidth,
+            anchorTopLeft: CGPoint(x: 100, y: 1000)
         )
-        let expectedPlaylistHeight = AmpXMetrics.headerHeight
-            + AmpXMetrics.playlistNonRowChrome
-            + 120
-        XCTAssertEqual(layout.frames[.playlist]?.height, expectedPlaylistHeight)
-        XCTAssertEqual(layout.playlistViewportHeight, 120)
+        let player = try XCTUnwrap(frames[.player])
+        let equalizer = try XCTUnwrap(frames[.equalizer])
+        let playlist = try XCTUnwrap(frames[.playlist])
+        let enthea = try XCTUnwrap(frames[.enthea])
+
+        XCTAssertEqual(player.minX, 100)
+        XCTAssertEqual(player.maxY, 1000)
+        XCTAssertEqual(equalizer.maxY, player.minY)
+        XCTAssertEqual(equalizer.minX, player.minX)
+        XCTAssertEqual(playlist.maxY, equalizer.minY)
+        XCTAssertEqual(playlist.minX, player.minX)
+        XCTAssertEqual(enthea.minX, player.maxX)
+        XCTAssertEqual(enthea.maxY, player.maxY)
+    }
+
+    func testDefaultAnchorCentresBelowTop() {
+        let anchor = AmpXLayout.defaultAnchor(visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1055))
+        XCTAssertEqual(anchor, CGPoint(x: 960 - AmpXMetrics.compositionWidth / 2, y: 1035))
+    }
+
+    func testAdjustedPlaylistViewportHeightNeverBelowMinimum() {
+        XCTAssertEqual(AmpXLayout.adjustedPlaylistViewportHeight(preferred: 180, heightDelta: 40), 220)
+        XCTAssertEqual(
+            AmpXLayout.adjustedPlaylistViewportHeight(preferred: 180, heightDelta: -1000),
+            AmpXMetrics.minimumPlaylistViewportHeight
+        )
     }
 }

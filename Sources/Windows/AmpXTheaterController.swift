@@ -2,9 +2,7 @@ import AppKit
 
 struct AmpXTheaterSnapshot {
     let originalHostID: AmpXModuleID?
-    let modulePosition: Int
     let frame: CGRect
-    let scale: CGFloat
     let presentationOptions: NSApplication.PresentationOptions
 }
 
@@ -56,9 +54,7 @@ final class AmpXTheaterController: NSObject, NSWindowDelegate {
         let geometry = hosts.captureTheaterSnapshot(for: .enthea)
         self.snapshot = AmpXTheaterSnapshot(
             originalHostID: geometry.originalHostID,
-            modulePosition: geometry.modulePosition,
             frame: geometry.frame,
-            scale: geometry.scale,
             presentationOptions: self.getPresentation()
         )
         self.isActive = true

@@ -1,7 +1,7 @@
 # Docking & Magnetism — Options for a Future Feature
 
 **Date:** 2026-09-11
-**Status:** Options paper. Nothing here is scheduled or approved.
+**Status:** Superseded 2026-09-26 — **Option 4 (Winamp parity) implemented.** Every module is its own window; edges snap within 10 pt to other windows and the screen; dragging the Player moves its docked cluster (native child windows for the drag), any other window moves alone; windowshade and Playlist resize keep attached windows attached; closing a module leaves its gap; closing the Player quits. Docking is derived from persisted frames only. Code: `AmpXSnapGeometry` (pure core), `AmpXWindowDragSession`, `AmpXHostCoordinator`. The text below is kept as the historical options analysis.
 **Context:** [`superpowers/specs/2026-09-11-ampx-ui-design.md`](superpowers/specs/2026-09-11-ampx-ui-design.md) deliberately ships **no** window magnetism. This document records what that costs, why the old system was retired rather than repaired, and the routes back if AmpX later wants it.
 **Companion:** [`WINDOWING_REVIEW.md`](WINDOWING_REVIEW.md) — the 2026-08 review of the retired system.
 
