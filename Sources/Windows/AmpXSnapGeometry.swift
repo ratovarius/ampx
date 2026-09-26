@@ -58,7 +58,9 @@ enum AmpXSnapGeometry {
                 if dy == nil || dy == 0, self.overlapX(box, other), let snapped = self.snappedY(box, other) {
                     dy = snapped - box.minY
                 }
-                if let dx, let dy, dx != 0, dy != 0 { return CGVector(dx: dx, dy: dy) }
+                if let dx, let dy, dx != 0, dy != 0 {
+                    return CGVector(dx: dx, dy: dy)
+                }
             }
         }
         return CGVector(dx: dx ?? 0, dy: dy ?? 0)
@@ -128,7 +130,9 @@ enum AmpXSnapGeometry {
             ordered.append(node)
             for child in outgoing[node] ?? [] {
                 pending[child]! -= 1
-                if pending[child] == 0 { queue.append(child) }
+                if pending[child] == 0 {
+                    queue.append(child)
+                }
             }
         }
         let placed = Set(ordered)
@@ -181,19 +185,35 @@ enum AmpXSnapGeometry {
 
     /// New `minX` for `box` against `other`: touching edges first, then aligned edges.
     private static func snappedX(_ box: CGRect, _ other: CGRect) -> CGFloat? {
-        if self.near(box.minX, other.maxX) { return other.maxX }
-        if self.near(box.maxX, other.minX) { return other.minX - box.width }
-        if self.near(box.minX, other.minX) { return other.minX }
-        if self.near(box.maxX, other.maxX) { return other.maxX - box.width }
+        if self.near(box.minX, other.maxX) {
+            return other.maxX
+        }
+        if self.near(box.maxX, other.minX) {
+            return other.minX - box.width
+        }
+        if self.near(box.minX, other.minX) {
+            return other.minX
+        }
+        if self.near(box.maxX, other.maxX) {
+            return other.maxX - box.width
+        }
         return nil
     }
 
     /// New `minY` for `box` against `other`: touching edges first, then aligned edges.
     private static func snappedY(_ box: CGRect, _ other: CGRect) -> CGFloat? {
-        if self.near(box.maxY, other.minY) { return other.minY - box.height }
-        if self.near(box.minY, other.maxY) { return other.maxY }
-        if self.near(box.maxY, other.maxY) { return other.maxY - box.height }
-        if self.near(box.minY, other.minY) { return other.minY }
+        if self.near(box.maxY, other.minY) {
+            return other.minY - box.height
+        }
+        if self.near(box.minY, other.maxY) {
+            return other.maxY
+        }
+        if self.near(box.maxY, other.maxY) {
+            return other.maxY - box.height
+        }
+        if self.near(box.minY, other.minY) {
+            return other.minY
+        }
         return nil
     }
 }
