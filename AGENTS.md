@@ -12,16 +12,16 @@ Branch flow: `feature/*` → `develop` → `main`.
 
 ---
 
-## Quality checks run in CI, not locally
+## Quality checks: targeted locally, full in CI
 
-`.github/workflows/quality.yml` gates PRs into `develop` and `main` with SwiftFormat,
-SwiftLint, ShellCheck, Ruff, actionlint, and the test suite. Only error-severity findings
-fail; warnings become PR annotations.
+`.github/workflows/quality.yml` gates PRs at two weights. Into `develop`: build and the test
+suite only. Into `main`: adds SwiftFormat, SwiftLint, ShellCheck, Ruff and actionlint. Only
+error-severity findings fail; warnings become PR annotations.
 
-**Do not run `./build.sh`, `./scripts/run-tests.sh`, `./scripts/lint-swift.sh`, or
-`xcodebuild` to verify your own work** — that output is the largest avoidable context cost
-in this repo and CI reads it for free. Hand work over unverified and let CI report; run them
-locally only to debug a specific failure you cannot read from CI.
+Locally, run only the suites for the code you changed, filtered to failures:
+`xcodebuild test -project AmpX.xcodeproj -scheme AmpX -destination "platform=macOS,arch=$(uname -m)"
+-only-testing:AmpXTests/<Suite> 2>&1 | grep -E 'error: |failed \(|TEST (SUCCEEDED|FAILED)'`
+(run `./scripts/generate-fixtures.sh` once first). Leave the full suite to CI.
 
 Swift formatting is automatic via a `PostToolUse` hook
 (`scripts/hooks/format-edited-swift.sh`). Never run `swiftformat` or fix formatting by hand.

@@ -19,6 +19,11 @@ final class PlaylistResizeHandleView: NSView {
         case ended
     }
 
+    /// Resize on the activating click, like the rest of the chrome.
+    override nonisolated func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
+
     static func cursor(for edge: Edge) -> NSCursor {
         switch edge {
         case .bottom: NSCursor.frameResize(position: .bottom, directions: .all)

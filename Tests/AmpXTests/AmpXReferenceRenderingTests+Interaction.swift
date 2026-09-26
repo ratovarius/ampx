@@ -174,51 +174,31 @@ extension AmpXReferenceRenderingTests {
         try volume.mouseUp(with: mouse(.leftMouseUp, at: end))
     }
 
-    func testScaleAndHostStateCaptures() throws {
-        let width = AmpXMetrics.compositionWidth
-        try self.exportStack(named: "stack-scale-0.85.png", width: width * 0.85, state: AmpXModuleOrder(), availableHeight: 10000)
-        try self.exportStack(named: "stack-scale-1.35.png", width: width * 1.35, state: AmpXModuleOrder(), availableHeight: 10000)
-        var collapsed = AmpXModuleOrder()
+    func testHostStateCaptures() throws {
+        try self.exportComposition(named: "stack-default.png", state: AmpXModuleState())
+        var collapsed = AmpXModuleState()
         collapsed.setCollapsed(.equalizer, true)
-        try self.exportStack(named: "stack-collapsed-eq.png", width: width, state: collapsed, availableHeight: 10000)
-        // Short screen: the Playlist shrinks to fit and nothing scrolls.
-        try self.exportStack(named: "stack-short-screen-1.35.png", width: width * 1.35, state: AmpXModuleOrder(), availableHeight: 900)
-
-        // Detached hosts lay the module out at the origin with the stack layout's scaled height.
-        let detachedWidth = width * 1.35
-        let layout = AmpXLayout.calculate(
-            state: AmpXModuleOrder(),
-            width: detachedWidth,
-            playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
-            availableHeight: 10000
-        )
-        let module = try XCTUnwrap(self.referenceModules()[.equalizer])
-        let frame = try CGRect(x: 0, y: 0, width: detachedWidth, height: XCTUnwrap(layout.frames[.equalizer]).height)
-        let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
-        window.contentView?.addSubview(module)
-        module.applyLayout(frame: frame)
-        try self.export(self.deterministicPNG(of: module), named: "detached-eq-1.35.png", backingScale: window.backingScaleFactor)
-        withExtendedLifetime(window) {}
+        try self.exportComposition(named: "stack-collapsed-eq.png", state: collapsed)
     }
 
-    private func exportStack(named name: String, width: CGFloat, state: AmpXModuleOrder, availableHeight: CGFloat) throws {
-        let layout = AmpXLayout.calculate(
+    /// The default Winamp arrangement of separate module windows, captured as one image.
+    private func exportComposition(named name: String, state: AmpXModuleState) throws {
+        let layout = ReferenceStackView.defaultComposition(
             state: state,
-            width: width,
             playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
-            availableHeight: availableHeight
+            playlistWidth: AmpXMetrics.defaultPlaylistWidth
         )
-        let viewport = AmpXStackViewport()
-        viewport.frame = CGRect(x: 0, y: 0, width: width, height: layout.contentHeight)
-        let window = NSWindow(contentRect: viewport.frame, styleMask: .borderless, backing: .buffered, defer: false)
-        window.contentView?.addSubview(viewport)
+        let container = ReferenceStackView(frame: CGRect(origin: .zero, size: layout.size))
+        let window = NSWindow(contentRect: container.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView?.addSubview(container)
         let modules = self.referenceModules()
-        viewport.stackView.setModuleViews(modules)
-        for id in state.collapsed {
-            modules[id]?.setContentCollapsed(true)
+        for (id, module) in modules {
+            guard let frame = layout.frames[id] else { continue }
+            module.setContentCollapsed(state.collapsed.contains(id))
+            container.addSubview(module)
+            module.applyLayout(frame: frame)
         }
-        viewport.applyLayout(layout, state: state)
-        try self.export(self.deterministicPNG(of: viewport), named: name, backingScale: window.backingScaleFactor)
+        try self.export(self.deterministicPNG(of: container), named: name, backingScale: window.backingScaleFactor)
         withExtendedLifetime(window) {}
     }
 

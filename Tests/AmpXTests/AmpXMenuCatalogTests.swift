@@ -36,14 +36,6 @@ final class AmpXMenuCatalogTests: XCTestCase {
         )
     }
 
-    func testUIScaleLivesUnderViewNotTopLevelZoom() {
-        XCTAssertEqual(AmpXMenuCatalog.uiScaleMenuTitle, "UI Scale")
-        XCTAssertFalse(
-            AmpXMenuCatalog.uiScaleMenuTitle.localizedCaseInsensitiveContains("Zoom"),
-            "UI scale must not reuse the Window → Zoom name"
-        )
-    }
-
     func testFileShortcutsMatchClassicHotkeysWithoutCommand() {
         XCTAssertEqual(AmpXMenuCatalog.FileShortcut.addFilesKey, "l")
         XCTAssertFalse(AmpXMenuCatalog.FileShortcut.addFilesUsesCommand)

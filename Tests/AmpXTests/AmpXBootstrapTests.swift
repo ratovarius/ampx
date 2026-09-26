@@ -8,33 +8,36 @@ final class AmpXBootstrapTests: XCTestCase {
     }
 
     @MainActor
-    func testStackWindowSetsMinimumContentWidth() {
+    func testFixedSizeModuleWindowsRejectResize() throws {
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
-            layoutStore: makeIsolatedLayoutStore()
+            layoutStore: makeIsolatedLayoutStore(),
+            screen: AmpXTestScreen.standard
         )
-        coordinator.showStack()
-        XCTAssertEqual(coordinator.stackWindow?.contentMinSize.width, 490)
+        coordinator.showAll()
+        defer { coordinator.hideAllWindowsForTesting() }
+        let window = try XCTUnwrap(coordinator.window(for: .equalizer))
+        let controller = try XCTUnwrap(window.windowController as? AmpXModuleWindowController)
+
+        let proposed = controller.windowWillResize(window, to: NSSize(width: 300, height: 80))
+        XCTAssertEqual(proposed, window.frame.size)
     }
 
     @MainActor
-    func testStackWindowRejectsResizeBelowMinimumWidth() throws {
+    func testPlaylistWindowRejectsResizeBelowMinimumWidth() throws {
         let coordinator = AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
-            layoutStore: makeIsolatedLayoutStore()
+            layoutStore: makeIsolatedLayoutStore(),
+            screen: AmpXTestScreen.standard
         )
-        coordinator.showStack()
-        guard let window = coordinator.stackWindow else {
-            return XCTFail("Expected stack window")
-        }
+        coordinator.showAll()
+        defer { coordinator.hideAllWindowsForTesting() }
+        let window = try XCTUnwrap(coordinator.window(for: .playlist))
+        let controller = try XCTUnwrap(window.windowController as? AmpXModuleWindowController)
 
-        let controller = try XCTUnwrap(window.windowController as? AmpXStackWindowController)
-        let proposed = controller.clampedFrameSize(
-            for: window,
-            to: NSSize(width: 300, height: window.frame.height)
-        )
-        XCTAssertEqual(proposed.width, 490)
+        let proposed = controller.windowWillResize(window, to: NSSize(width: 300, height: window.frame.height))
+        XCTAssertEqual(proposed.width, AmpXMetrics.minimumPlaylistWidth)
     }
 }

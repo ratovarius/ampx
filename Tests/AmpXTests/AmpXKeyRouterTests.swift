@@ -125,18 +125,10 @@ final class AmpXKeyRouterTests: XCTestCase {
     }
 
     func testModuleCommandKeysAreRecognized() {
-        XCTAssertEqual(
-            AmpXKeyRouter.moduleCommand(for: self.keyDown(keyCode: 126, modifierFlags: [.command, .option])),
-            .moveUp
-        )
-        XCTAssertEqual(
-            AmpXKeyRouter.moduleCommand(for: self.keyDown(keyCode: 125, modifierFlags: [.command, .option])),
-            .moveDown
-        )
-        XCTAssertEqual(
-            AmpXKeyRouter.moduleCommand(for: self.keyDown(keyCode: 2, modifierFlags: [.command, .option])),
-            .toggleDetach
-        )
+        // Stack reorder and detach shortcuts are gone with the stack (Winamp docking).
+        for code: UInt16 in [126, 125, 2] {
+            XCTAssertNil(AmpXKeyRouter.moduleCommand(for: self.keyDown(keyCode: code, modifierFlags: [.command, .option])))
+        }
         XCTAssertEqual(
             AmpXKeyRouter.moduleCommand(for: self.keyDown(keyCode: 8, modifierFlags: [.command, .option])),
             .toggleCollapse

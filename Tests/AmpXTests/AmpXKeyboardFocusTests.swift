@@ -3,22 +3,23 @@ import XCTest
 
 @MainActor
 final class AmpXKeyboardFocusTests: XCTestCase {
-    func testStackWindowCanBecomeKey() throws {
+    func testPlayerWindowCanBecomeKey() throws {
         let hosts = self.makeHosts()
-        hosts.showStack()
+        hosts.showAll()
+        defer { hosts.hideAllWindowsForTesting() }
 
-        let window = try XCTUnwrap(hosts.stackWindow)
+        let window = try XCTUnwrap(hosts.window(for: .player))
         XCTAssertTrue(window.canBecomeKey)
         XCTAssertTrue(window.canBecomeMain)
     }
 
-    func testDetachedModuleWindowCanBecomeKey() throws {
+    func testEachModuleWindowCanBecomeKey() throws {
         let hosts = self.makeHosts()
-        hosts.showStack()
-        hosts.detach(.equalizer, at: CGPoint(x: 400, y: 500), inheritedWidth: 490)
+        hosts.showAll()
+        defer { hosts.hideAllWindowsForTesting() }
 
         let window = try XCTUnwrap(hosts.moduleView(for: .equalizer)?.window)
-        XCTAssertFalse(window === hosts.stackWindow)
+        XCTAssertFalse(window === hosts.window(for: .player))
         XCTAssertTrue(window.canBecomeKey)
     }
 
@@ -40,10 +41,11 @@ final class AmpXKeyboardFocusTests: XCTestCase {
         XCTAssertTrue(window.canBecomeKey)
     }
 
-    func testMakingStackKeyDoesNotFocusAControl() throws {
+    func testMakingPlayerKeyDoesNotFocusAControl() throws {
         let hosts = self.makeHosts()
-        hosts.showStack()
-        let window = try XCTUnwrap(hosts.stackWindow)
+        hosts.showAll()
+        defer { hosts.hideAllWindowsForTesting() }
+        let window = try XCTUnwrap(hosts.window(for: .player))
 
         window.makeKeyAndOrderFront(nil)
         defer { window.orderOut(nil) }
@@ -105,9 +107,10 @@ final class AmpXKeyboardFocusTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         self.addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         return AmpXHostCoordinator(
-            state: AmpXModuleOrder(),
+            state: AmpXModuleState(),
             skin: ClassicModernSkin(),
-            layoutStore: AmpXLayoutStore(defaults: defaults),
+            layoutStore: AmpXLayoutStore(defaults: defaults, screen: AmpXTestScreen.standard),
+            screen: AmpXTestScreen.standard,
             entheaEnabled: entheaEnabled
         )
     }

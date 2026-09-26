@@ -23,6 +23,11 @@ class AmpXDrawingView: NSView {
         true
     }
 
+    /// Winamp chrome acts on the click that activates the app/window, not a second one.
+    override nonisolated func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
+
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         needsDisplay = true

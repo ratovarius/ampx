@@ -11,14 +11,13 @@ struct AmpXVisibilityInputs {
     var windowVisible: Bool
     var miniaturized: Bool
     var occluded: Bool
-    var intersectsViewport: Bool
 
     func presentationVisibility(hasCompactPresentation: Bool) -> AmpXPresentationVisibility {
         AmpXPresentationVisibility(expanded: self.isVisible, compact: self.hostVisible && self.collapsed && hasCompactPresentation)
     }
 
     var hostVisible: Bool {
-        !self.closed && self.windowVisible && !self.miniaturized && !self.occluded && self.intersectsViewport
+        !self.closed && self.windowVisible && !self.miniaturized && !self.occluded
     }
 
     var isVisible: Bool {
@@ -27,25 +26,7 @@ struct AmpXVisibilityInputs {
 }
 
 enum AmpXEffectiveVisibility {
-    static func stackInputs(
-        collapsed: Bool,
-        closed: Bool,
-        window: NSWindow?,
-        moduleFrame: CGRect,
-        visibleContentRect: CGRect
-    ) -> AmpXVisibilityInputs {
-        let windowInputs = self.windowState(from: window)
-        return AmpXVisibilityInputs(
-            collapsed: collapsed,
-            closed: closed,
-            windowVisible: windowInputs.isVisible,
-            miniaturized: windowInputs.isMiniaturized,
-            occluded: windowInputs.isOccluded,
-            intersectsViewport: moduleFrame.intersects(visibleContentRect)
-        )
-    }
-
-    static func detachedInputs(
+    static func windowInputs(
         collapsed: Bool,
         closed: Bool,
         window: NSWindow?
@@ -56,8 +37,7 @@ enum AmpXEffectiveVisibility {
             closed: closed,
             windowVisible: windowInputs.isVisible,
             miniaturized: windowInputs.isMiniaturized,
-            occluded: windowInputs.isOccluded,
-            intersectsViewport: true
+            occluded: windowInputs.isOccluded
         )
     }
 
@@ -66,7 +46,7 @@ enum AmpXEffectiveVisibility {
         closed: Bool,
         window: NSWindow?
     ) -> AmpXVisibilityInputs {
-        self.detachedInputs(collapsed: collapsed, closed: closed, window: window)
+        self.windowInputs(collapsed: collapsed, closed: closed, window: window)
     }
 
     private static func windowState(from window: NSWindow?) -> (isVisible: Bool, isMiniaturized: Bool, isOccluded: Bool) {

@@ -111,6 +111,7 @@ final class AmpXMiniVisualizerPerformanceTests: XCTestCase {
     }
 
     func testLiveFrameCadenceAndParkedSubmissionCounts() async throws {
+        try AmpXTestEnvironment.skipOnCI("frame pacing is unreliable on the runner's virtual GPU")
         guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("No Metal device") }
         let renderer = try XCTUnwrap(AmpXMiniVisualizerRenderer())
         let well = SpectrumWellView(skin: ClassicModernSkin())

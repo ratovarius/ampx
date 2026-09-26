@@ -22,9 +22,6 @@ enum AmpXKeyRoute: Equatable {
 }
 
 enum AmpXModuleCommand: Equatable {
-    case moveUp
-    case moveDown
-    case toggleDetach
     case toggleCollapse
 }
 
@@ -74,12 +71,6 @@ enum AmpXKeyRouter {
         guard flags == [.command, .option] else { return nil }
 
         switch event.keyCode {
-        case 126:
-            return .moveUp
-        case 125:
-            return .moveDown
-        case 2:
-            return .toggleDetach
         case 8:
             return .toggleCollapse
         default:

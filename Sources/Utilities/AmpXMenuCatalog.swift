@@ -27,9 +27,6 @@ enum AmpXMenuCatalog {
         case visualizer = "Visualizer"
     }
 
-    /// Submenu under View — not a top-level "Zoom" (that collides with Window → Zoom).
-    static let uiScaleMenuTitle = "UI Scale"
-
     /// File hotkeys: bare `L` / `⇧L` (no Command), matching `AmpXKeyRouter`.
     enum FileShortcut {
         static let addFilesKey = "l"
