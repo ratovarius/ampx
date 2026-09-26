@@ -3,6 +3,8 @@ import XCTest
 
 @MainActor
 final class AmpXLayoutStoreTests: XCTestCase {
+    private let screen = AmpXTestScreen.standard
+
     private func isolatedDefaults() -> (UserDefaults, String) {
         let name = "AmpXLayoutStoreTests.\(UUID().uuidString)"
         return (UserDefaults(suiteName: name)!, name)
@@ -12,177 +14,133 @@ final class AmpXLayoutStoreTests: XCTestCase {
         UserDefaults(suiteName: name)?.removePersistentDomain(forName: name)
     }
 
-    func testCorruptJSONFallsBackToDefaults() {
+    private func store(_ defaults: UserDefaults) -> AmpXLayoutStore {
+        AmpXLayoutStore(defaults: defaults, screen: self.screen)
+    }
+
+    func testRoundTripPersistsAllFrames() {
         let (defaults, name) = self.isolatedDefaults()
         defer { cleanup(name) }
 
-        defaults.set(Data("not-json".utf8), forKey: "AmpXModuleLayoutV1")
-        let loaded = AmpXLayoutStore(defaults: defaults).load()
-        XCTAssertEqual(loaded.state.order.first, .player)
-        XCTAssertFalse(loaded.state.closed.contains(.player))
+        var layout = AmpXLayoutStore.defaultLayout(for: self.screen)
+        layout.frames[.equalizer] = CGRect(x: 900, y: 300, width: 490, height: 200)
+        layout.state.setCollapsed(.playlist, true)
+        layout.state.reopen(.enthea)
+        layout.playlistWidth = 600
+        self.store(defaults).save(layout)
+
+        XCTAssertEqual(self.store(defaults).load(), layout)
     }
 
-    func testUnknownModuleIDIsIgnoredWhileRetainingKnownEntries() {
+    func testDefaultLayoutUsesDefaultFramesAtDefaultAnchor() {
+        let layout = AmpXLayoutStore.defaultLayout(for: self.screen)
+        let expected = AmpXLayout.defaultFrames(
+            state: layout.state,
+            playlistViewportHeight: layout.playlistViewportHeight,
+            playlistWidth: layout.playlistWidth,
+            anchorTopLeft: AmpXLayout.defaultAnchor(visibleFrame: self.screen.visibleFrame)
+        )
+        XCTAssertEqual(layout.frames, expected)
+        XCTAssertEqual(layout.state, AmpXModuleState())
+    }
+
+    func testMissingFramesFallBackToDefaults() {
         let (defaults, name) = self.isolatedDefaults()
         defer { cleanup(name) }
 
         let json = """
-        {
-          "version": 1,
-          "order": ["player", "unknown-module", "playlist", "equalizer"],
-          "collapsed": [],
-          "detached": [],
-          "closed": ["enthea"]
-        }
+        {"version": 2, "collapsed": [], "closed": ["enthea"],
+         "frames": {"player": {"x": 300, "y": 800, "width": 490, "height": 223.5}},
+         "playlistViewportHeight": 180, "playlistWidth": 490}
         """
-        defaults.set(Data(json.utf8), forKey: "AmpXModuleLayoutV1")
+        defaults.set(Data(json.utf8), forKey: AmpXLayoutStore.storageKey)
 
-        let loaded = AmpXLayoutStore(defaults: defaults).load()
-        XCTAssertEqual(loaded.state.order, [.player, .playlist, .equalizer, .enthea])
+        let loaded = self.store(defaults).load()
+        let expected = AmpXLayout.defaultFrames(
+            state: loaded.state,
+            playlistViewportHeight: 180,
+            playlistWidth: 490,
+            anchorTopLeft: CGPoint(x: 300, y: 1023.5)
+        )
+        XCTAssertEqual(loaded.frames[.player], CGRect(x: 300, y: 800, width: 490, height: 223.5))
+        XCTAssertEqual(loaded.frames[.equalizer], expected[.equalizer])
+        XCTAssertEqual(loaded.frames[.playlist], expected[.playlist])
+        XCTAssertEqual(loaded.frames[.enthea], expected[.enthea])
     }
 
-    func testDuplicateIDsAreNormalized() {
+    func testOffscreenFramesAreClampedOnLoad() throws {
+        let (defaults, name) = self.isolatedDefaults()
+        defer { cleanup(name) }
+
+        var layout = AmpXLayoutStore.defaultLayout(for: self.screen)
+        layout.frames[.equalizer] = CGRect(x: 5000, y: -900, width: 490, height: 200)
+        self.store(defaults).save(layout)
+
+        let frame = try XCTUnwrap(self.store(defaults).load().frames[.equalizer])
+        XCTAssertTrue(self.screen.visibleFrame.contains(frame), "\(frame)")
+    }
+
+    func testV1MigrationKeepsStateAndAnchorsAtStackTopLeft() throws {
         let (defaults, name) = self.isolatedDefaults()
         defer { cleanup(name) }
 
         let json = """
-        {
-          "version": 1,
-          "order": ["player", "equalizer", "equalizer", "playlist"],
-          "collapsed": ["equalizer", "equalizer"],
-          "detached": [],
-          "closed": ["enthea", "enthea"]
-        }
+        {"version": 1, "order": ["player", "equalizer", "playlist", "enthea"],
+         "collapsed": ["equalizer"], "detached": ["playlist"], "closed": [],
+         "stackFrame": {"x": 200, "y": 400, "width": 490, "height": 500},
+         "playlistViewportHeight": 240, "playlistWidth": 600}
         """
-        defaults.set(Data(json.utf8), forKey: "AmpXModuleLayoutV1")
+        defaults.set(Data(json.utf8), forKey: AmpXLayoutStore.legacyStorageKey)
 
-        let loaded = AmpXLayoutStore(defaults: defaults).load()
-        XCTAssertEqual(loaded.state.order, [.player, .equalizer, .playlist, .enthea])
+        let loaded = self.store(defaults).load()
+        let player = try XCTUnwrap(loaded.frames[.player])
+        XCTAssertEqual(player.minX, 200)
+        XCTAssertEqual(player.maxY, 900)
         XCTAssertEqual(loaded.state.collapsed, [.equalizer])
-        XCTAssertEqual(loaded.state.closed, [.enthea])
+        XCTAssertEqual(loaded.state.closed, [])
+        XCTAssertEqual(loaded.playlistViewportHeight, 240)
+        XCTAssertEqual(loaded.playlistWidth, 600)
+        XCTAssertEqual(loaded.frames[.equalizer]?.maxY, player.minY)
     }
 
-    func testMissingPlayerIsRestoredAndProtected() {
+    func testCorruptDataReturnsDefault() {
+        let (defaults, name) = self.isolatedDefaults()
+        defer { cleanup(name) }
+
+        defaults.set(Data("not-json".utf8), forKey: AmpXLayoutStore.storageKey)
+        XCTAssertEqual(self.store(defaults).load(), AmpXLayoutStore.defaultLayout(for: self.screen))
+    }
+
+    func testPlayerIsNeverClosedAndUnknownIDsAreIgnored() {
         let (defaults, name) = self.isolatedDefaults()
         defer { cleanup(name) }
 
         let json = """
-        {
-          "version": 1,
-          "order": ["equalizer", "playlist"],
-          "collapsed": [],
-          "detached": [],
-          "closed": ["player"]
-        }
+        {"version": 2, "collapsed": ["nope"], "closed": ["player", "equalizer", "mystery"],
+         "frames": {}, "playlistViewportHeight": 180, "playlistWidth": 490}
         """
-        defaults.set(Data(json.utf8), forKey: "AmpXModuleLayoutV1")
+        defaults.set(Data(json.utf8), forKey: AmpXLayoutStore.storageKey)
 
-        let loaded = AmpXLayoutStore(defaults: defaults).load()
-        XCTAssertEqual(loaded.state.order.first, .player)
-        XCTAssertFalse(loaded.state.closed.contains(.player))
-        XCTAssertFalse(loaded.state.detached.contains(.player))
+        let loaded = self.store(defaults).load()
+        XCTAssertEqual(loaded.state.closed, [.equalizer])
+        XCTAssertTrue(loaded.state.collapsed.isEmpty)
+        XCTAssertEqual(Set(loaded.frames.keys), Set(AmpXModuleID.allCases))
     }
 
-    func testNonFiniteGeometryFallsBackToScreenDefaults() {
+    func testNonFiniteGeometryFallsBackToDefaults() {
         let (defaults, name) = self.isolatedDefaults()
         defer { cleanup(name) }
 
         let json = """
-        {
-          "version": 1,
-          "order": ["player", "equalizer", "playlist", "enthea"],
-          "collapsed": [],
-          "detached": [],
-          "closed": ["enthea"],
-          "stackFrame": { "x": "NaN", "y": 0, "width": -10, "height": 0 },
-          "detachedFrames": {
-            "playlist": { "x": 0, "y": 0, "width": "Infinity", "height": 200 }
-          },
-          "playlistViewportHeight": "NaN"
-        }
+        {"version": 2, "collapsed": [], "closed": [],
+         "frames": {"equalizer": {"x": 10, "y": 10, "width": 0, "height": 100}},
+         "playlistViewportHeight": -4, "playlistWidth": 1}
         """
-        defaults.set(Data(json.utf8), forKey: "AmpXModuleLayoutV1")
+        defaults.set(Data(json.utf8), forKey: AmpXLayoutStore.storageKey)
 
-        let loaded = AmpXLayoutStore(defaults: defaults, screen: testScreen()).load()
-        XCTAssertTrue(loaded.stackFrame.width.isFinite)
-        XCTAssertTrue(loaded.stackFrame.height.isFinite)
-        XCTAssertGreaterThan(loaded.stackFrame.width, 0)
-        XCTAssertGreaterThan(loaded.stackFrame.height, 0)
-        XCTAssertTrue(loaded.detachedFrames.isEmpty)
+        let loaded = self.store(defaults).load()
         XCTAssertEqual(loaded.playlistViewportHeight, AmpXMetrics.defaultPlaylistViewportHeight)
-    }
-
-    func testDetachedStateRoundTrips() {
-        let (defaults, name) = self.isolatedDefaults()
-        defer { cleanup(name) }
-
-        var state = AmpXModuleOrder()
-        state.detach(.playlist)
-        state.setCollapsed(.equalizer, true)
-
-        let layout = AmpXSavedLayout(
-            state: state,
-            stackFrame: CGRect(x: 100, y: 200, width: 490, height: 600),
-            detachedFrames: [.playlist: CGRect(x: 50, y: 80, width: 490, height: 400)],
-            playlistViewportHeight: 180
-        )
-
-        let store = AmpXLayoutStore(defaults: defaults, screen: testScreen())
-        store.save(layout)
-        let loaded = store.load()
-
-        XCTAssertTrue(loaded.state.detached.contains(.playlist))
-        XCTAssertTrue(loaded.state.collapsed.contains(.equalizer))
-        XCTAssertEqual(loaded.detachedFrames[.playlist], CGRect(x: 50, y: 80, width: 490, height: 400))
-        XCTAssertEqual(loaded.playlistViewportHeight, 180)
-    }
-
-    func testLaunchLayoutStartsEveryModuleDocked() {
-        let (defaults, name) = self.isolatedDefaults()
-        defer { cleanup(name) }
-
-        var state = AmpXModuleOrder()
-        state.detach(.playlist)
-        state.detach(.equalizer)
-
-        let layout = AmpXSavedLayout(
-            state: state,
-            stackFrame: CGRect(x: 100, y: 200, width: 490, height: 600),
-            detachedFrames: [.playlist: CGRect(x: 50, y: 80, width: 490, height: 400)],
-            playlistViewportHeight: 180
-        )
-
-        let store = AmpXLayoutStore(defaults: defaults, screen: testScreen())
-        store.save(layout)
-        let loaded = store.loadForLaunch()
-
-        XCTAssertTrue(loaded.state.detached.isEmpty)
-        XCTAssertEqual(loaded.detachedFrames[.playlist], CGRect(x: 50, y: 80, width: 490, height: 400))
-    }
-
-    func testSaveAndLoadRoundTrip() {
-        let (defaults, name) = self.isolatedDefaults()
-        defer { cleanup(name) }
-
-        var state = AmpXModuleOrder()
-        state.close(.equalizer)
-        state.setCollapsed(.playlist, true)
-
-        let layout = AmpXSavedLayout(
-            state: state,
-            stackFrame: CGRect(x: 120, y: 240, width: 500, height: 620),
-            detachedFrames: [:],
-            playlistViewportHeight: 150
-        )
-
-        let store = AmpXLayoutStore(defaults: defaults, screen: testScreen())
-        store.save(layout)
-        let loaded = store.load()
-
-        XCTAssertEqual(loaded, layout)
-    }
-
-    private func testScreen() -> NSScreen {
-        AmpXTestScreen.standard
+        XCTAssertEqual(loaded.playlistWidth, AmpXMetrics.minimumPlaylistWidth)
+        XCTAssertGreaterThan(loaded.frames[.equalizer]?.width ?? 0, 0)
     }
 }

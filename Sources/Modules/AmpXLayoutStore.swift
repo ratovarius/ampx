@@ -3,16 +3,18 @@ import CoreGraphics
 import Foundation
 
 struct AmpXSavedLayout: Equatable {
-    var state: AmpXModuleOrder
-    var stackFrame: CGRect
-    var detachedFrames: [AmpXModuleID: CGRect]
+    var state: AmpXModuleState
+    /// Window frame of every module, closed ones included, so reopening restores its spot.
+    var frames: [AmpXModuleID: CGRect]
     var playlistViewportHeight: CGFloat
     var playlistWidth: CGFloat = AmpXMetrics.defaultPlaylistWidth
 }
 
 @MainActor
 final class AmpXLayoutStore {
-    static let storageKey = "AmpXModuleLayoutV1"
+    static let storageKey = "AmpXModuleLayoutV2"
+    /// The single-window stack layout; read once to migrate collapsed/closed state and sizes.
+    static let legacyStorageKey = "AmpXModuleLayoutV1"
 
     private let defaults: UserDefaults
     private let screen: NSScreen
@@ -27,144 +29,93 @@ final class AmpXLayoutStore {
     }
 
     func load(screen: NSScreen) -> AmpXSavedLayout {
-        guard let data = defaults.data(forKey: Self.storageKey),
-              let dto = try? JSONDecoder().decode(AmpXLayoutV1DTO.self, from: data)
-        else {
-            return Self.defaultLayout(for: screen)
+        if let data = defaults.data(forKey: Self.storageKey) {
+            guard let dto = try? JSONDecoder().decode(AmpXLayoutV2DTO.self, from: data), dto.version == 2 else {
+                return Self.defaultLayout(for: screen)
+            }
+            return Self.normalizedLayout(from: dto, screen: screen)
         }
-
-        guard dto.version == 1 else {
-            return Self.defaultLayout(for: screen)
+        if let data = defaults.data(forKey: Self.legacyStorageKey),
+           let legacy = try? JSONDecoder().decode(AmpXLayoutV1DTO.self, from: data),
+           legacy.version == 1
+        {
+            return Self.migratedLayout(from: legacy, screen: screen)
         }
-
-        return Self.normalizedLayout(from: dto, screen: screen)
-    }
-
-    /// Launch intentionally docks every module (product choice: cold start always stacked).
-    /// Detached *frames* are preserved so a later re-detach can reuse them; only the
-    /// detached membership set is cleared. In-session detach/redock still restores layout.
-    func loadForLaunch() -> AmpXSavedLayout {
-        var layout = self.load()
-        layout.state.detached.removeAll()
-        return layout
+        return Self.defaultLayout(for: screen)
     }
 
     func save(_ layout: AmpXSavedLayout) {
-        let dto = AmpXLayoutV1DTO(layout: layout)
-        guard let data = try? JSONEncoder().encode(dto) else { return }
+        guard let data = try? JSONEncoder().encode(AmpXLayoutV2DTO(layout: layout)) else { return }
         self.defaults.set(data, forKey: Self.storageKey)
     }
 
     static func defaultLayout(for screen: NSScreen) -> AmpXSavedLayout {
-        AmpXSavedLayout(
-            state: AmpXModuleOrder(),
-            stackFrame: self.defaultStackFrame(for: screen),
-            detachedFrames: [:],
+        let state = AmpXModuleState()
+        return AmpXSavedLayout(
+            state: state,
+            frames: AmpXLayout.defaultFrames(
+                state: state,
+                playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
+                playlistWidth: AmpXMetrics.defaultPlaylistWidth,
+                anchorTopLeft: AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame)
+            ),
             playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
             playlistWidth: AmpXMetrics.defaultPlaylistWidth
         )
     }
 
-    static func defaultStackFrame(for screen: NSScreen) -> CGRect {
-        let visible = screen.visibleFrame
-        let width = AmpXMetrics.compositionWidth
-        // The window height always follows the composition; start with the default stack's height.
-        let height = AmpXLayout.calculate(
-            state: AmpXModuleOrder(),
-            width: width,
-            playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
-            availableHeight: max(visible.height - 20, 1)
-        ).contentHeight
-        return CGRect(
-            x: visible.midX - width / 2,
-            y: visible.maxY - height - 20,
-            width: width,
-            height: height
-        )
-    }
+    fileprivate static func normalizedLayout(from dto: AmpXLayoutV2DTO, screen: NSScreen) -> AmpXSavedLayout {
+        let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed)
+        let viewport = self.validatedPlaylistViewportHeight(dto.playlistViewportHeight)
+        let width = self.validatedPlaylistWidth(dto.playlistWidth)
 
-    fileprivate static func normalizedLayout(from dto: AmpXLayoutV1DTO, screen: NSScreen) -> AmpXSavedLayout {
-        var state = AmpXModuleOrder()
-        state.order = self.normalizedOrder(dto.order)
-        state.collapsed = self.normalizedIDSet(dto.collapsed)
-        state.detached = self.normalizedIDSet(dto.detached)
-        state.closed = self.normalizedIDSet(dto.closed)
-
-        self.enforcePlayerRules(on: &state)
-
-        let stackFrame = self.validatedFrame(dto.stackFrame?.cgRect, fallback: self.defaultStackFrame(for: screen), screen: screen)
-        let detachedFrames = self.normalizedDetachedFrames(dto.detachedFrames, screen: screen)
-        let playlistViewportHeight = self.validatedPlaylistViewportHeight(dto.playlistViewportHeight)
-
-        return AmpXSavedLayout(
+        var saved: [AmpXModuleID: CGRect] = [:]
+        for (rawID, frameDTO) in dto.frames ?? [:] {
+            guard let id = AmpXModuleID(rawValue: rawID), let frame = frameDTO.cgRect, self.isValidFrame(frame) else { continue }
+            saved[id] = frame
+        }
+        // Modules without a saved frame fall back to the default arrangement around the Player.
+        let anchor = saved[.player].map { CGPoint(x: $0.minX, y: $0.maxY) }
+            ?? AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame)
+        let fallback = AmpXLayout.defaultFrames(
             state: state,
-            stackFrame: stackFrame,
-            detachedFrames: detachedFrames,
-            playlistViewportHeight: playlistViewportHeight,
-            playlistWidth: self.validatedPlaylistWidth(dto.playlistWidth)
+            playlistViewportHeight: viewport,
+            playlistWidth: width,
+            anchorTopLeft: anchor
         )
+        let frames = fallback.merging(saved) { _, stored in stored }
+            .mapValues { self.clampedToVisibleFrame($0, screen: screen) }
+
+        return AmpXSavedLayout(state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width)
     }
 
-    private static func normalizedOrder(_ rawIDs: [String]) -> [AmpXModuleID] {
-        var seen = Set<AmpXModuleID>()
-        var order: [AmpXModuleID] = []
+    /// V1 kept one stack window; its frames can't map onto separate windows, so the default
+    /// arrangement is anchored at the old stack's top-left instead.
+    fileprivate static func migratedLayout(from dto: AmpXLayoutV1DTO, screen: NSScreen) -> AmpXSavedLayout {
+        let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed)
+        let viewport = self.validatedPlaylistViewportHeight(dto.playlistViewportHeight)
+        let width = self.validatedPlaylistWidth(dto.playlistWidth)
+        let anchor = dto.stackFrame?.cgRect.flatMap { self.isValidFrame($0) ? CGPoint(x: $0.minX, y: $0.maxY) : nil }
+            ?? AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame)
+        let frames = AmpXLayout.defaultFrames(
+            state: state,
+            playlistViewportHeight: viewport,
+            playlistWidth: width,
+            anchorTopLeft: anchor
+        ).mapValues { self.clampedToVisibleFrame($0, screen: screen) }
+        return AmpXSavedLayout(state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width)
+    }
 
-        for rawID in rawIDs {
-            guard let id = AmpXModuleID(rawValue: rawID), !seen.contains(id) else { continue }
-            seen.insert(id)
-            order.append(id)
-        }
-
-        if !order.contains(.player) {
-            order.insert(.player, at: 0)
-        }
-
-        for id in AmpXModuleID.allCases where !seen.contains(id) {
-            order.append(id)
-            seen.insert(id)
-        }
-
-        return order
+    private static func normalizedState(collapsed: [String], closed: [String]) -> AmpXModuleState {
+        var state = AmpXModuleState()
+        state.collapsed = self.normalizedIDSet(collapsed)
+        state.closed = self.normalizedIDSet(closed)
+        state.closed.remove(.player)
+        return state
     }
 
     private static func normalizedIDSet(_ rawIDs: [String]) -> Set<AmpXModuleID> {
-        var result = Set<AmpXModuleID>()
-        for rawID in rawIDs {
-            guard let id = AmpXModuleID(rawValue: rawID) else { continue }
-            result.insert(id)
-        }
-        return result
-    }
-
-    private static func enforcePlayerRules(on state: inout AmpXModuleOrder) {
-        state.closed.remove(.player)
-        state.detached.remove(.player)
-
-        if !state.order.contains(.player) {
-            state.order.insert(.player, at: 0)
-        }
-    }
-
-    private static func validatedFrame(_ frame: CGRect?, fallback: CGRect, screen: NSScreen) -> CGRect {
-        guard let frame, isValidFrame(frame) else { return fallback }
-        return self.clampedToVisibleFrame(frame, screen: screen)
-    }
-
-    private static func normalizedDetachedFrames(
-        _ rawFrames: [String: AmpXFrameDTO]?,
-        screen: NSScreen
-    ) -> [AmpXModuleID: CGRect] {
-        guard let rawFrames else { return [:] }
-
-        var frames: [AmpXModuleID: CGRect] = [:]
-        for (rawID, dto) in rawFrames {
-            guard let id = AmpXModuleID(rawValue: rawID),
-                  let frame = dto.cgRect,
-                  isValidFrame(frame)
-            else { continue }
-            frames[id] = self.clampedToVisibleFrame(frame, screen: screen)
-        }
-        return frames
+        Set(rawIDs.compactMap(AmpXModuleID.init(rawValue:)))
     }
 
     private static func validatedPlaylistViewportHeight(_ rawValue: Double?) -> CGFloat {
@@ -219,30 +170,32 @@ final class AmpXLayoutStore {
     }
 }
 
-private struct AmpXLayoutV1DTO: Codable {
+private struct AmpXLayoutV2DTO: Codable {
     let version: Int
-    let order: [String]
     let collapsed: [String]
-    let detached: [String]
     let closed: [String]
-    let stackFrame: AmpXFrameDTO?
-    let detachedFrames: [String: AmpXFrameDTO]?
+    let frames: [String: AmpXFrameDTO]?
     let playlistViewportHeight: Double?
     let playlistWidth: Double?
 
     init(layout: AmpXSavedLayout) {
-        self.version = 1
-        self.order = layout.state.order.map(\.rawValue)
+        self.version = 2
         self.collapsed = layout.state.collapsed.map(\.rawValue).sorted()
-        self.detached = layout.state.detached.map(\.rawValue).sorted()
         self.closed = layout.state.closed.map(\.rawValue).sorted()
-        self.stackFrame = AmpXFrameDTO(layout.stackFrame)
-        self.detachedFrames = Dictionary(
-            uniqueKeysWithValues: layout.detachedFrames.map { ($0.key.rawValue, AmpXFrameDTO($0.value)) }
-        )
+        self.frames = Dictionary(uniqueKeysWithValues: layout.frames.map { ($0.key.rawValue, AmpXFrameDTO($0.value)) })
         self.playlistViewportHeight = Double(layout.playlistViewportHeight)
         self.playlistWidth = Double(layout.playlistWidth)
     }
+}
+
+/// Decode-only view of the retired single-stack layout, kept for migration.
+private struct AmpXLayoutV1DTO: Decodable {
+    let version: Int
+    let collapsed: [String]
+    let closed: [String]
+    let stackFrame: AmpXFrameDTO?
+    let playlistViewportHeight: Double?
+    let playlistWidth: Double?
 }
 
 private struct AmpXFrameDTO: Codable {
