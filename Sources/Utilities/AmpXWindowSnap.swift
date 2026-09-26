@@ -157,4 +157,32 @@ enum AmpXWindowSnap {
         }
         return CGSize(width: dx, height: dy)
     }
+
+    /// The correction that makes the moving group's bounding box stick to an edge of `bounds`
+    /// (Webamp's `snapWithinDiff`) — e.g. the screen's visible frame. Zero on an axis when no edge
+    /// is within `snapDistance`.
+    static func snapWithinDelta(moving: [Box], bounds: CGRect) -> CGSize {
+        guard let first = moving.first else { return .zero }
+        var minX = first.minX, minY = first.minY, maxX = first.maxX, maxY = first.maxY
+        for box in moving.dropFirst() {
+            minX = min(minX, box.minX)
+            minY = min(minY, box.minY)
+            maxX = max(maxX, box.maxX)
+            maxY = max(maxY, box.maxY)
+        }
+
+        var dx: CGFloat = 0
+        if self.near(minX, bounds.minX) {
+            dx = bounds.minX - minX
+        } else if self.near(maxX, bounds.maxX) {
+            dx = bounds.maxX - maxX
+        }
+        var dy: CGFloat = 0
+        if self.near(maxY, bounds.maxY) {
+            dy = bounds.maxY - maxY
+        } else if self.near(minY, bounds.minY) {
+            dy = bounds.minY - minY
+        }
+        return CGSize(width: dx, height: dy)
+    }
 }

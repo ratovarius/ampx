@@ -13,6 +13,20 @@ final class AmpXWindowSnapTests: XCTestCase {
         super.tearDown()
     }
 
+    func testSnapWithinDeltaSticksToScreenEdges() {
+        let bounds = CGRect(x: 0, y: 0, width: 1440, height: 875)
+        let box = AmpXWindowSnap.Box(frame: CGRect(x: 8, y: 870 - 116 + 1, width: 275, height: 116))
+        let delta = AmpXWindowSnap.snapWithinDelta(moving: [box], bounds: bounds)
+        XCTAssertEqual(delta.width, -8)
+        XCTAssertEqual(delta.height, 875 - box.maxY)
+    }
+
+    func testSnapWithinDeltaIgnoresFarEdges() {
+        let bounds = CGRect(x: 0, y: 0, width: 1440, height: 875)
+        let box = AmpXWindowSnap.Box(frame: CGRect(x: 400, y: 300, width: 275, height: 116))
+        XCTAssertEqual(AmpXWindowSnap.snapWithinDelta(moving: [box], bounds: bounds), .zero)
+    }
+
     func testNearWithinSnapDistance() {
         XCTAssertTrue(AmpXWindowSnap.near(100, 110))
         XCTAssertFalse(AmpXWindowSnap.near(100, 120))

@@ -15,6 +15,55 @@ final class AmpXDockGraphTests: XCTestCase {
         CGRect(x: anchor.maxX, y: anchor.maxY - height, width: width, height: height)
     }
 
+    // MARK: - Reflow (Webamp withWindowGraphIntegrity)
+
+    func testReflowShadingMainPullsStackUp() {
+        let eq = self.below(self.main)
+        let playlist = self.below(eq, height: 232)
+        let shadedHeight: CGFloat = 14
+        let result = AmpXDockGraph.reflow(
+            before: [AmpXDockNode.main: self.main, .panel(.equalizer): eq, .panel(.playlist): playlist],
+            sizes: [.main: CGSize(width: 275, height: shadedHeight), .panel(.equalizer): eq.size, .panel(.playlist): playlist.size]
+        )
+        let delta = self.main.height - shadedHeight
+        XCTAssertEqual(result[.main]?.maxY, self.main.maxY)
+        XCTAssertEqual(result[.panel(.equalizer)]?.maxY, result[.main]?.minY)
+        XCTAssertEqual(result[.panel(.equalizer)]?.minY, eq.minY + delta)
+        XCTAssertEqual(result[.panel(.playlist)]?.maxY, result[.panel(.equalizer)]?.minY)
+    }
+
+    func testReflowGrowingPlaylistLeavesSideWindowAndMovesWindowBelow() {
+        let playlist = self.below(self.main, height: 232)
+        let side = self.rightOf(playlist)
+        let under = self.below(playlist)
+        let result = AmpXDockGraph.reflow(
+            before: [AmpXDockNode.main: self.main, .panel(.playlist): playlist, .panel(.visualizer): side, .panel(.equalizer): under],
+            sizes: [.main: self.main.size, .panel(.playlist): CGSize(width: 275, height: 300), .panel(.visualizer): side.size, .panel(.equalizer): under.size]
+        )
+        XCTAssertEqual(result[.panel(.visualizer)], side)
+        XCTAssertEqual(result[.panel(.equalizer)]?.maxY, result[.panel(.playlist)]?.minY)
+        XCTAssertEqual(result[.panel(.playlist)]?.maxY, playlist.maxY)
+    }
+
+    func testReflowWideningMovesRightNeighbor() {
+        let side = self.rightOf(self.main)
+        let result = AmpXDockGraph.reflow(
+            before: [AmpXDockNode.main: self.main, .panel(.visualizer): side],
+            sizes: [.main: CGSize(width: 550, height: self.main.height), .panel(.visualizer): side.size]
+        )
+        XCTAssertEqual(result[.panel(.visualizer)]?.minX, self.main.minX + 550)
+        XCTAssertEqual(result[.panel(.visualizer)]?.maxY, side.maxY)
+    }
+
+    func testReflowLeavesDetachedWindowAlone() {
+        let floating = CGRect(x: 900, y: 100, width: 275, height: 116)
+        let result = AmpXDockGraph.reflow(
+            before: [AmpXDockNode.main: self.main, .panel(.equalizer): floating],
+            sizes: [.main: CGSize(width: 275, height: 14), .panel(.equalizer): floating.size]
+        )
+        XCTAssertEqual(result[.panel(.equalizer)], floating)
+    }
+
     // MARK: - Vertical
 
     func testVerticalChainBelowMain() {

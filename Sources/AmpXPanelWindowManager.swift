@@ -6,7 +6,7 @@ import SwiftUI
 /// Drag behavior matches [Webamp's
 /// `WindowManager`](https://github.com/captbaritone/webamp/blob/master/packages/webamp/js/components/WindowManager.tsx):
 /// a custom mouse-drag loop moves all graph-connected windows together when dragging
-/// the main player; dragging a panel title bar moves that panel and its docked descendants.
+/// the main player; dragging any other window moves it alone, which is how it is undocked.
 @MainActor
 final class AmpXPanelWindowManager {
     static let shared = AmpXPanelWindowManager()
@@ -53,16 +53,9 @@ final class AmpXPanelWindowManager {
     /// Derive the dock parent of every visible panel from current window geometry (the 2D spanning
     /// tree rooted at the main window). Panels absent from the result are floating.
     private func currentDockParents() -> [AmpXPanelID: AmpXDockNode] {
-        guard let mainFrame = self.mainWindow?.frame else { return [:] }
-        var frames: [AmpXDockNode: CGRect] = [.main: mainFrame]
-        for id in self.panelIDs where self.windows[id]?.isVisible == true {
-            frames[.panel(id)] = self.windows[id]?.frame ?? .zero
-        }
+        let frames = self.layoutFrames()
+        guard frames[.main] != nil else { return [:] }
         return AmpXDockGraph.parents(frames: frames, order: self.panelIDs)
-    }
-
-    private func isFloatingNow(_ id: AmpXPanelID) -> Bool {
-        self.currentDockParents()[id] == nil
     }
 
     private func makeRegistry() -> [AmpXPanelDescriptor] {
@@ -229,63 +222,18 @@ final class AmpXPanelWindowManager {
             self.setPanelVisible(descriptor.isVisible(), descriptor: descriptor)
         }
 
-        self.stackDockedPanels()
+        self.syncChildWindowLinks()
     }
 
-    /// Resize the playlist panel to match `layoutState`. Applies the new size **and** origin in a
-    /// single `setFrame` so the window never momentarily grows the wrong way and gets repositioned
-    /// back (which caused a resize flicker). The top edge stays anchored — to the dock parent's
-    /// bottom when docked, or its own current top when floating — matching the bottom-edge handle.
+    /// Resize the playlist panel to match `layoutState` (size handle or windowshade). The top-left
+    /// corner stays put and windows attached below or beside it follow its edges.
     func resizePlaylistPanel() {
-        guard let window = self.windows[.playlist], window.isVisible,
-              let descriptor = self.descriptor(for: .playlist) else { return }
-
-        let contentSize = self.targetContentSize(for: descriptor)
-        let frameSize = window.frameRect(forContentRect: CGRect(origin: .zero, size: contentSize)).size
-
-        let topY: CGFloat
-        let originX: CGFloat
-        if !self.isFloatingNow(.playlist), let anchor = self.dockAnchorWindow(for: .playlist) {
-            topY = anchor.frame.minY
-            originX = anchor.frame.minX
-        } else {
-            topY = window.frame.maxY
-            originX = window.frame.minX
-        }
-        let frame = CGRect(x: originX, y: topY - frameSize.height, width: frameSize.width, height: frameSize.height)
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
-            window.setFrame(frame, display: true)
-        }
-        self.persistPositions()
+        self.resizePanelKeepingAttachments(.playlist)
     }
 
-    /// Resize the equalizer panel after a windowshade toggle (same top-edge anchoring as playlist).
+    /// Resize the equalizer panel after a windowshade toggle.
     func resizeEqualizerPanel() {
-        guard let window = self.windows[.equalizer], window.isVisible,
-              let descriptor = self.descriptor(for: .equalizer) else { return }
-
-        let contentSize = self.targetContentSize(for: descriptor)
-        let frameSize = window.frameRect(forContentRect: CGRect(origin: .zero, size: contentSize)).size
-
-        let topY: CGFloat
-        let originX: CGFloat
-        if !self.isFloatingNow(.equalizer), let anchor = self.dockAnchorWindow(for: .equalizer) {
-            topY = anchor.frame.minY
-            originX = anchor.frame.minX
-        } else {
-            topY = window.frame.maxY
-            originX = window.frame.minX
-        }
-        let frame = CGRect(x: originX, y: topY - frameSize.height, width: frameSize.width, height: frameSize.height)
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
-            window.setFrame(frame, display: true)
-        }
-        self.persistPositions()
-        self.stackDockedPanels()
+        self.resizePanelKeepingAttachments(.equalizer)
     }
 
     /// Expand the visualizer to the full `screen.frame` (covers the menu-bar / notch band).
@@ -310,6 +258,7 @@ final class AmpXPanelWindowManager {
             layoutState.visualizerMinimized = false
         }
         self.visualizerPreTheaterFrame = window.frame
+        self.persistPositions()
         let screen = window.screen ?? NSScreen.main
         // Full display bounds — `visibleFrame` would leave the webcam / menu-bar strip.
         let theaterFrame = screen?.frame ?? window.frame
@@ -317,10 +266,14 @@ final class AmpXPanelWindowManager {
         layoutState.visualizerInTheater = true
         self.presentationOptionsBeforeTheater = NSApp.presentationOptions
         NSApp.presentationOptions.insert([.autoHideMenuBar, .autoHideDock])
+        // Unlink first so AppKit doesn't drag the visualizer's docked neighbours to full screen;
+        // the theater visualizer is left out of the dock graph until it exits.
+        self.detachAllChildLinks()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             window.setFrame(theaterFrame, display: true)
         }
+        self.syncChildWindowLinks()
         window.makeKeyAndOrderFront(nil)
     }
 
@@ -355,16 +308,14 @@ final class AmpXPanelWindowManager {
             context.duration = 0
             window.setFrame(frame, display: true)
         }
+        self.syncChildWindowLinks()
         self.persistPositions()
-        self.stackDockedPanels()
     }
 
-    /// Resize the visualizer panel (shade / user size). Preserves side-dock flush when abutting
-    /// the parent's left or right edge; otherwise uses below-dock top-edge anchoring like playlist.
+    /// Resize the visualizer panel (shade / user size), keeping attached windows attached.
     func resizeVisualizerPanel() {
         guard let layoutState = self.layoutState,
-              let window = self.windows[.visualizer], window.isVisible,
-              let descriptor = self.descriptor(for: .visualizer) else { return }
+              let window = self.windows[.visualizer], window.isVisible else { return }
 
         if layoutState.visualizerInTheater {
             let screen = window.screen ?? NSScreen.main
@@ -376,44 +327,78 @@ final class AmpXPanelWindowManager {
             }
             return
         }
-
-        let contentSize = self.targetContentSize(for: descriptor)
-        let frameSize = window.frameRect(forContentRect: CGRect(origin: .zero, size: contentSize)).size
-
-        let topY: CGFloat
-        let originX: CGFloat
-        if !self.isFloatingNow(.visualizer), let anchor = self.dockAnchorWindow(for: .visualizer) {
-            let panelFrame = window.frame
-            let parentFrame = anchor.frame
-            let gapBelow = abs(panelFrame.maxY - parentFrame.minY)
-            let gapRight = abs(panelFrame.minX - parentFrame.maxX)
-            let gapLeft = abs(panelFrame.maxX - parentFrame.minX)
-            if gapRight <= gapBelow, gapRight <= gapLeft {
-                originX = parentFrame.maxX
-                topY = parentFrame.maxY
-            } else if gapLeft <= gapBelow {
-                originX = parentFrame.minX - frameSize.width
-                topY = parentFrame.maxY
-            } else {
-                originX = parentFrame.minX
-                topY = parentFrame.minY
-            }
-        } else {
-            topY = window.frame.maxY
-            originX = window.frame.minX
-        }
-        let frame = CGRect(x: originX, y: topY - frameSize.height, width: frameSize.width, height: frameSize.height)
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
-            window.setFrame(frame, display: true)
-        }
-        self.persistPositions()
-        self.stackDockedPanels()
+        self.resizePanelKeepingAttachments(.visualizer)
     }
 
-    /// Shrink/expand the main player window to the classic full or shade height, keeping the top edge fixed.
+    /// Shrink/expand the main player window to the classic full or shade height, keeping the top
+    /// edge fixed. Windows docked beneath follow its bottom edge (Winamp windowshade behavior).
     func fitMainWindowToContent() {
+        self.resizeKeepingAttachments {
+            self.applyMainContentSize()
+        }
+    }
+
+    /// Resize every visible window for a Zoom menu change. Each keeps its top-left corner and the
+    /// docked cluster re-flows around the main window so nothing overlaps or leaves a gap.
+    func applyUIScale() {
+        AmpXWindowSnap.syncSnapDistance(withScale: self.uiScale?.scale ?? 1)
+        self.resizeKeepingAttachments {
+            self.applyMainContentSize()
+            for descriptor in self.registry where self.windows[descriptor.id]?.isVisible == true {
+                self.applyContentSize(for: descriptor)
+            }
+        }
+    }
+
+    private func resizePanelKeepingAttachments(_ id: AmpXPanelID) {
+        guard self.windows[id]?.isVisible == true, let descriptor = self.descriptor(for: id) else { return }
+        self.resizeKeepingAttachments {
+            self.applyContentSize(for: descriptor)
+        }
+    }
+
+    /// Run `resize` (which must keep each window's top-left corner fixed), then move every window
+    /// that was attached below or to the right of a resized one so the cluster stays connected —
+    /// Webamp's `withWindowGraphIntegrity`. Windows that merely sat nearby are left alone.
+    private func resizeKeepingAttachments(_ resize: () -> Void) {
+        let before = self.layoutFrames()
+        // Unlink so AppKit doesn't also move child windows when a parent's origin changes.
+        self.detachAllChildLinks()
+        resize()
+        let after = self.layoutFrames()
+        let targets = AmpXDockGraph.reflow(before: before, sizes: after.mapValues(\.size))
+        for (node, frame) in targets where frame != after[node] {
+            guard let window = self.window(for: node) else { continue }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                window.setFrame(frame, display: true)
+            }
+        }
+        self.syncChildWindowLinks()
+        self.persistPositions()
+    }
+
+    /// Frames of the main window and every visible panel taking part in docking (the theater
+    /// visualizer covers the screen and is left out).
+    private func layoutFrames() -> [AmpXDockNode: CGRect] {
+        var frames: [AmpXDockNode: CGRect] = [:]
+        if let mainWindow { frames[.main] = mainWindow.frame }
+        for id in self.panelIDs {
+            guard let window = self.windows[id], window.isVisible else { continue }
+            if id == .visualizer, self.layoutState?.visualizerInTheater == true { continue }
+            frames[.panel(id)] = window.frame
+        }
+        return frames
+    }
+
+    private func window(for node: AmpXDockNode) -> NSWindow? {
+        switch node {
+        case .main: self.mainWindow
+        case let .panel(id): self.windows[id]
+        }
+    }
+
+    private func applyMainContentSize() {
         guard let mainWindow, let layoutState else { return }
         let scale = self.uiScale?.scale ?? 1
         let height = ClassicSkinMetrics.scaled(
@@ -434,29 +419,12 @@ final class AmpXPanelWindowManager {
             context.duration = 0
             mainWindow.setFrame(frame, display: true)
         }
-        self.stackDockedPanels()
-    }
-
-    /// Resize every visible panel for a Zoom menu change, then re-pack the main vertical column so
-    /// EQ/playlist stay flush (persisted offsets are absolute pixels and go stale across scales).
-    func applyUIScale() {
-        let scale = self.uiScale?.scale ?? 1
-        AmpXWindowSnap.syncSnapDistance(withScale: scale)
-        self.fitMainWindowToContent()
-        for descriptor in self.registry {
-            guard self.windows[descriptor.id]?.isVisible == true else { continue }
-            self.applyContentSize(for: descriptor)
-        }
-        self.packMainVerticalColumn(forcing: nil)
-        self.flushDockedWindows()
-        self.syncChildWindowLinks()
-        self.persistPositions()
     }
 
     /// Begin a title-bar drag, following Webamp's window-manager model: detach all docked child
-    /// links so AppKit doesn't auto-move panels we reposition manually, then drag the **moving set**
-    /// as a group. The main window brings its whole connected cluster; a panel brings its docked
-    /// sub-tree. Dock links are rebuilt from the final geometry on mouse-up.
+    /// links so AppKit doesn't auto-move windows we reposition manually, then drag the **moving
+    /// set**. The main window brings its whole connected cluster; any other window moves alone,
+    /// which is how it is undocked. Dock links are rebuilt from the final geometry on mouse-up.
     func startDrag(leading window: NSWindow, event _: NSEvent) {
         self.endDrag()
 
@@ -469,11 +437,6 @@ final class AmpXPanelWindowManager {
             startOrigins: origins,
             mouseStart: NSEvent.mouseLocation
         )
-
-        #if DEBUG
-        // TEMP [DRAG] diagnostic.
-        DragTrace.log("START lead=\(self.dragLabel(for: window)) moving=\(moving.count)")
-        #endif
 
         self.dragEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
             let eventType = event.type
@@ -490,15 +453,6 @@ final class AmpXPanelWindowManager {
             }
             return event
         }
-    }
-
-    /// Re-establish the docked arrangement: mirror the geometry-derived dock graph onto AppKit
-    /// child-window links. Window positions are the source of truth, so this does not impose an
-    /// order — it just reflects where the user put the windows. Called after a panel is shown/hidden
-    /// or the main window moves.
-    func stackDockedPanels() {
-        guard self.mainWindow != nil else { return }
-        self.syncChildWindowLinks()
     }
 
     /// Mirror the geometry-derived dock graph onto AppKit parent/child window links. A docked,
@@ -550,23 +504,10 @@ final class AmpXPanelWindowManager {
     // MARK: - Drag
 
     /// Windows that move together when `lead` is dragged. The main window carries its whole
-    /// geometry-connected cluster; a panel carries itself plus docked descendants.
+    /// geometry-connected cluster; any other window moves alone (Winamp / Webamp behavior).
     private func movingSet(for lead: NSWindow) -> [NSWindow] {
-        if lead === self.mainWindow {
-            return AmpXWindowSnap.traceConnected(from: lead, among: self.managedWindowsIncludingMain())
-        }
-        guard let leadID = self.panelID(for: lead) else { return [lead] }
-        let parents = self.currentDockParents()
-        var moving: [NSWindow] = [lead]
-        for childID in AmpXDockGraph.descendants(of: leadID, parents: parents) {
-            guard let child = self.windows[childID], child.isVisible else { continue }
-            moving.append(child)
-        }
-        return moving
-    }
-
-    private func panelID(for window: NSWindow) -> AmpXPanelID? {
-        self.panelIDs.first { self.windows[$0] === window }
+        guard lead === self.mainWindow else { return [lead] }
+        return AmpXWindowSnap.traceConnected(from: lead, among: self.managedWindowsIncludingMain())
     }
 
     private func handleDragMoved() {
@@ -592,28 +533,20 @@ final class AmpXPanelWindowManager {
             .filter { !movingSet.contains(ObjectIdentifier($0)) }
             .map { AmpXWindowSnap.Box(window: $0) }
 
-        let correction = AmpXWindowSnap.snapDelta(moving: movingBoxes, stationary: stationaryBoxes)
+        var correction = AmpXWindowSnap.snapDelta(moving: movingBoxes, stationary: stationaryBoxes)
+        // Screen edges are magnetic too, on any axis not already stuck to a window.
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? drag.lead.screen
+        if let bounds = screen?.visibleFrame {
+            let within = AmpXWindowSnap.snapWithinDelta(moving: movingBoxes, bounds: bounds)
+            if correction.width == 0 { correction.width = within.width }
+            if correction.height == 0 { correction.height = within.height }
+        }
         let final = CGSize(width: proposed.width + correction.width, height: proposed.height + correction.height)
 
         for window in drag.moving {
             guard let start = drag.startOrigins[ObjectIdentifier(window)] else { continue }
             window.setFrameOrigin(NSPoint(x: start.x + final.width, y: start.y + final.height))
         }
-
-        #if DEBUG
-        // TEMP [DRAG] diagnostic.
-        let snapNote = (correction.width != 0 || correction.height != 0)
-            ? "SNAP dx=\(Int(correction.width)) dy=\(Int(correction.height))" : "free"
-        DragTrace.log("move lead=\(self.dragLabel(for: drag.lead)) n=\(drag.moving.count) stationary=\(stationaryBoxes.count) \(snapNote)")
-        #endif
-    }
-
-    private func dragLabel(for window: NSWindow) -> String {
-        if window === self.mainWindow { return "main" }
-        for id in self.panelIDs where self.windows[id] === window {
-            return id.rawValue
-        }
-        return "?"
     }
 
     private func managedWindowsIncludingMain() -> [NSWindow] {
@@ -633,36 +566,13 @@ final class AmpXPanelWindowManager {
         let wasDragging = self.activeDrag != nil
         self.activeDrag = nil
 
-        // Pull docked windows fully flush to their parents (both axes), then rebuild the dock links
-        // and persist. The during-drag snap only aligns the axis you're near, so a window can land
-        // docked-but-offset on the perpendicular axis; flushing on drop makes it stick clean — no
-        // residual gap that would otherwise ride along when the cluster moves.
+        // Rebuild the dock links from where the windows landed. No re-alignment: a window released
+        // within snap range is already flush (the live snap put it there), and one docked but
+        // offset along the shared edge stays where the user left it, as in Winamp.
         if wasDragging {
-            self.flushDockedWindows()
             self.syncChildWindowLinks()
             self.persistPositions()
         }
-
-        #if DEBUG
-        // TEMP [DRAG] diagnostic — final arrangement + derived parents.
-        if wasDragging {
-            let parents = self.currentDockParents()
-            let summary = self.panelIDs
-                .filter { self.windows[$0]?.isVisible == true }
-                .map { id -> String in
-                    let frame = self.windows[id]?.frame ?? .zero
-                    let parent = parents[id].map { node -> String in
-                        switch node {
-                        case .main: "main"
-                        case let .panel(pid): pid.rawValue
-                        }
-                    } ?? "FLOATING"
-                    return "\(id.rawValue)@(\(Int(frame.minX)),\(Int(frame.minY)))→\(parent)"
-                }
-                .joined(separator: " ")
-            DragTrace.log("END \(summary)")
-        }
-        #endif
     }
 
     /// Save every visible panel's offset from the main window so the arrangement restores on relaunch.
@@ -676,63 +586,11 @@ final class AmpXPanelWindowManager {
         }
     }
 
-    /// Align every docked panel flush against its parent on **both** axes (top-down from the main
-    /// window). The docking edge is whichever of the four is closest in the current geometry; the
-    /// perpendicular axis is aligned to the parent's near edge (left-align when stacked vertically,
-    /// top-align when placed side by side) — the classic Winamp flush behavior.
-    private func flushDockedWindows() {
-        let parents = self.currentDockParents()
-        for id in self.dockedBFSOrder(parents: parents) {
-            if id == .visualizer, self.layoutState?.visualizerInTheater == true { continue }
-            guard let panel = self.windows[id],
-                  let parentWindow = self.dockParentWindow(for: id, parents: parents) else { continue }
-
-            let parentFrame = parentWindow.frame
-            let size = panel.frame.size
-            let panelFrame = panel.frame
-
-            // Gaps to each of the parent's edges (macOS coords: minY = bottom, maxY = top).
-            let gapBelow = abs(panelFrame.maxY - parentFrame.minY)
-            let gapAbove = abs(panelFrame.minY - parentFrame.maxY)
-            let gapRight = abs(panelFrame.minX - parentFrame.maxX)
-            let gapLeft = abs(panelFrame.maxX - parentFrame.minX)
-            let minGap = min(gapBelow, gapAbove, gapRight, gapLeft)
-
-            let origin = if minGap == gapBelow {
-                NSPoint(x: parentFrame.minX, y: parentFrame.minY - size.height)
-            } else if minGap == gapAbove {
-                NSPoint(x: parentFrame.minX, y: parentFrame.maxY)
-            } else if minGap == gapRight {
-                NSPoint(x: parentFrame.maxX, y: parentFrame.maxY - size.height)
-            } else {
-                NSPoint(x: parentFrame.minX - size.width, y: parentFrame.maxY - size.height)
-            }
-            self.setFrameOriginWithoutAnimation(panel, origin: origin)
-        }
-    }
-
-    /// Docked panels ordered so a parent always precedes its children (BFS from `.main`).
-    private func dockedBFSOrder(parents: [AmpXPanelID: AmpXDockNode]) -> [AmpXPanelID] {
-        var ordered: [AmpXPanelID] = []
-        var frontier: [AmpXDockNode] = [.main]
-        while !frontier.isEmpty {
-            let node = frontier.removeFirst()
-            for id in self.panelIDs where parents[id] == node && !ordered.contains(id) {
-                ordered.append(id)
-                frontier.append(.panel(id))
-            }
-        }
-        return ordered
-    }
-
     // MARK: - Private
 
     private func installResizeObserversIfNeeded() {
         guard self.moveObservers.isEmpty else { return }
 
-        self.observeWindowNotification(NSWindow.didResizeNotification) { [weak self] window in
-            self?.handleWindowResized(window)
-        }
         self.observeWindowNotification(NSWindow.didMiniaturizeNotification) { [weak self] window in
             self?.handleMainMiniaturized(window)
         }
@@ -806,31 +664,17 @@ final class AmpXPanelWindowManager {
             isNew = true
         }
 
-        self.applyContentSize(for: descriptor)
         let wasVisible = !isNew && window.isVisible
-        window.orderFront(nil)
-
-        if id == .visualizer {
-            // Side panel: never force into the main→EQ→PL vertical column.
-            if !wasVisible {
-                self.placePanelInitially(id)
-            }
-            self.packMainVerticalColumn(forcing: nil)
-        } else if isNew {
+        self.applyContentSize(for: descriptor)
+        if !wasVisible {
+            // Reappear exactly where it was relative to the main window (Winamp leaves the gap
+            // open while hidden and never rearranges the other windows).
             self.placePanelInitially(id)
-            // If the restored offset overlaps the live column (common after hide/show gap-close
-            // or a Zoom change), pack into the classic main→EQ→PL stack instead.
-            if self.panelFrameOverlapsVisibleCluster(id) {
-                self.packMainVerticalColumn(forcing: id)
-            }
-        } else {
-            // Re-show via EQ/PL toggles: join the main vertical column so panels don't reappear
-            // on top of siblings that slid into the closed gap.
-            self.packMainVerticalColumn(forcing: id)
         }
+        window.orderFront(nil)
     }
 
-    /// Position a freshly created panel: at its persisted offset from the main window if known,
+    /// Position a panel being shown: at its persisted offset from the main window if known,
     /// otherwise via `AmpXPanelPlacement` (visualizer → right of main; others → below cluster).
     private func placePanelInitially(_ id: AmpXPanelID) {
         guard let window = self.windows[id], let mainWindow else { return }
@@ -854,73 +698,6 @@ final class AmpXPanelWindowManager {
         self.setFrameOriginWithoutAnimation(window, origin: origin)
     }
 
-    /// Pack EQ then playlist flush under the main window (classic default column).
-    ///
-    /// `forcing` joins that panel even if it currently sits outside the column (EQ/PL toggle).
-    /// Other visible panels already aligned to the main window's X are re-packed so inserting
-    /// one pushes the rest down and Zoom size changes don't leave gaps.
-    private func packMainVerticalColumn(forcing: AmpXPanelID?) {
-        guard let mainWindow, self.activeDrag == nil else { return }
-
-        let mainX = mainWindow.frame.minX
-        var cursorY = mainWindow.frame.minY
-        var packed = false
-
-        // Move without AppKit child-window auto-follow fighting the layout.
-        self.detachAllChildLinks()
-
-        for panelID in self.panelIDs {
-            guard let window = self.windows[panelID], window.isVisible else { continue }
-
-            let sameColumn = AmpXWindowSnap.near(window.frame.minX, mainX)
-            let sideOfMain = AmpXWindowSnap.near(window.frame.minX, mainWindow.frame.maxX)
-                || AmpXWindowSnap.near(window.frame.maxX, mainWindow.frame.minX)
-            guard AmpXPanelColumnPack.shouldIncludeInVerticalPack(
-                panelID: panelID,
-                forcing: forcing,
-                sameColumn: sameColumn,
-                sideOfMain: sideOfMain
-            ) else {
-                continue
-            }
-
-            let height = window.frame.height
-            let width = AmpXPanelColumnPack.packedWidth(
-                panelID: panelID,
-                currentWidth: window.frame.width,
-                mainWidth: mainWindow.frame.width
-            )
-            let frame = CGRect(
-                x: mainX,
-                y: cursorY - height,
-                width: width,
-                height: height
-            )
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0
-                window.setFrame(frame, display: true)
-            }
-            cursorY = frame.minY
-            packed = true
-        }
-
-        if packed {
-            self.syncChildWindowLinks()
-            self.persistPositions()
-        }
-    }
-
-    private func panelFrameOverlapsVisibleCluster(_ id: AmpXPanelID) -> Bool {
-        guard let frame = self.windows[id]?.frame else { return false }
-        for other in self.managedWindowsIncludingMain() {
-            guard other !== self.windows[id] else { continue }
-            if frame.intersects(other.frame.insetBy(dx: 1, dy: 1)) {
-                return true
-            }
-        }
-        return false
-    }
-
     private func lowestVisibleManagedWindow(excluding: AmpXPanelID) -> NSWindow? {
         self.managedWindowsIncludingMain()
             .filter { $0 !== self.windows[excluding] }
@@ -929,15 +706,12 @@ final class AmpXPanelWindowManager {
 
     private func hidePanel(id: AmpXPanelID) {
         guard let window = self.windows[id] else { return }
-        // Close the vertical gap the panel leaves: detach its child sub-trees and shift any that sat
-        // directly below it up by its height, so the cluster stays flush (e.g. hiding the EQ slides
-        // the playlist up under the main window). `syncChildWindowLinks` then re-attaches them.
-        let gap = window.frame.height
+        if window.isVisible {
+            // Remember where it sat so re-showing puts it back in the same spot.
+            self.persistPositions()
+        }
         for child in window.childWindows ?? [] {
             window.removeChildWindow(child)
-            if AmpXWindowSnap.near(child.frame.maxY, window.frame.minY) {
-                child.setFrameOrigin(NSPoint(x: child.frame.minX, y: child.frame.minY + gap))
-            }
         }
         window.parent?.removeChildWindow(window)
         window.orderOut(nil)
@@ -958,8 +732,8 @@ final class AmpXPanelWindowManager {
             window.contentViewController = nil
             self.hostingControllers[id] = nil
         }
-        // Re-pack remaining column members in case child-window links weren't set (gap close missed).
-        self.packMainVerticalColumn(forcing: nil)
+        // Windows docked to it stay put (Winamp leaves the gap); they are simply no longer linked.
+        self.syncChildWindowLinks()
     }
 
     private func applyContentSize(for descriptor: AmpXPanelDescriptor) {
@@ -1009,49 +783,6 @@ final class AmpXPanelWindowManager {
         }
     }
 
-    /// The window the docked playlist abuts toward the main player, derived from current geometry.
-    private func dockAnchorWindow(for id: AmpXPanelID) -> NSWindow? {
-        self.dockParentWindow(for: id, parents: self.currentDockParents())
-    }
-
-    private func positionPanel(_ id: AmpXPanelID, below anchor: NSWindow, resize: Bool = true) {
-        guard let window = self.windows[id] else { return }
-        if resize, let descriptor = self.descriptor(for: id) {
-            self.applyContentSize(for: descriptor)
-        }
-
-        let anchorFrame = anchor.frame
-        let panelSize = window.frame.size
-        let origin = NSPoint(
-            x: anchorFrame.origin.x,
-            y: anchorFrame.minY - panelSize.height
-        )
-        self.setFrameOriginWithoutAnimation(window, origin: origin)
-    }
-
-    private func repositionDockedPlaylist() {
-        guard let anchor = self.dockAnchorWindow(for: .playlist) else { return }
-        self.positionPanel(.playlist, below: anchor, resize: false)
-    }
-
-    private func handleWindowResized(_ resized: NSWindow) {
-        if resized === self.windows[.playlist] {
-            // Size is owned by `layoutState`; only re-anchor when docked.
-            if !self.isFloatingNow(.playlist) {
-                self.repositionDockedPlaylist()
-                self.persistPositions()
-            }
-            return
-        }
-
-        if resized === self.mainWindow {
-            // Banner show/hide and Zoom both change the main frame — re-pack the column so EQ/PL
-            // stay flush under the new bottom edge instead of overlapping or leaving a gap.
-            self.packMainVerticalColumn(forcing: nil)
-            self.stackDockedPanels()
-        }
-    }
-
     private func handleMainMiniaturized(_ window: NSWindow) {
         guard window === self.mainWindow else { return }
         // Detach before hiding so AppKit's automatic child-window restore on deminiaturize doesn't
@@ -1068,27 +799,6 @@ final class AmpXPanelWindowManager {
         self.syncPanels()
     }
 }
-
-#if DEBUG
-/// TEMP: lightweight stderr trace for studying drag/magnetism feel. Prints `[DRAG]` lines with a
-/// millisecond timestamp so cadence is visible in the streamed terminal output. Remove once the
-/// magnetic snapping is tuned. Debug-only — excluded from release builds.
-private enum DragTrace {
-    private static let start = Date()
-    private static let fileURL = URL(fileURLWithPath: "/tmp/winamp_drag.log")
-    nonisolated(unsafe) static var handle: FileHandle? = {
-        FileManager.default.createFile(atPath: fileURL.path, contents: nil)
-        return try? FileHandle(forWritingTo: fileURL)
-    }()
-
-    static func log(_ message: String) {
-        let ms = Int(Date().timeIntervalSince(self.start) * 1000)
-        let line = "[DRAG +\(ms)ms] \(message)\n"
-        FileHandle.standardError.write(Data(line.utf8))
-        self.handle?.write(Data(line.utf8))
-    }
-}
-#endif
 
 /// Observing root for the detached playlist window.
 ///
