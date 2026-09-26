@@ -105,7 +105,7 @@ final class AmpXLayoutStoreTests: XCTestCase {
         XCTAssertEqual(loaded.frames[.equalizer]?.minX, loadedPlayer.minX)
     }
 
-    func testOversizedPlaylistPreferencesAreBoundedToScreen() throws {
+    func testOversizedPlaylistPreferencesAreBoundedToScreen() {
         let (defaults, name) = self.isolatedDefaults()
         defer { cleanup(name) }
 
