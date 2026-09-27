@@ -198,13 +198,15 @@ enum LibraryTestSupport {
         path: String,
         stat: LibraryStat = LibraryTestSupport.stat(100, 1),
         history: LibraryHistory = LibraryHistory(playCount: 0, lastPlayedAt: nil, rating: 0),
-        dateAdded: Date = fixedDate
+        dateAdded: Date = fixedDate,
+        fingerprint: Data? = nil
     ) throws {
         let context = ModelContext(container)
         let track = LibraryTrack(
             id: id, rootID: rootID, relativePath: path, title: "Seed", artist: "Seed",
             fileSize: stat.fileSize, contentModifiedAt: stat.contentModifiedAt, dateAdded: dateAdded
         )
+        track.contentFingerprint = fingerprint
         track.playCount = history.playCount
         track.lastPlayedAt = history.lastPlayedAt
         track.rating = history.rating
