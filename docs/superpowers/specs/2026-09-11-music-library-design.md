@@ -66,7 +66,7 @@ L2 requires an amendment to the UI design spec (listed under *Browser module*). 
 
 `TrackMetadataLoader.load(from:)` asks `AVAsset` for four values and discards the rest. Nothing persists between launches, so every playlist is rebuilt from M3U paths and every launch re-parses whatever it is handed. There is no structure that can answer "show me Techno between 128 and 132 BPM at 320 kbps", which is the actual daily need.
 
-A relevant free win: every file under `~/Music/DJ` already carries a genre tag equal to its crate name (17 crates). A scan that reads genre reproduces the entire crate structure as facets with no extra work.
+A relevant free win: every file under `~/Music/DJ` already carries a genre tag equal to its crate name (18 crates since 2026-09-27). A scan that reads genre reproduces the entire crate structure as facets with no extra work.
 
 ## Architecture
 
@@ -291,7 +291,13 @@ Cache state: warm in both runs (the collection had been read earlier the same da
 - 5 files in `House/` are tagged `Afro House` (the four `Iñaky Garcia …` MP3s and `IÑAKY GARCIA & LUISEN - GOING DOWN … .wav`). They form an 18th genre facet.
 - 2 AIFF files in `Deep & Organic House/` (`02 The Finishing (Original Mix)`, `03 Kasambila (Original Mix)`) have an ID3 chunk AVFoundation does not read at all; `mutagen` reads `TCON = Deep & Organic House` from it. Both carry a `UFID` frame with an empty owner, unlike readable files from the same source — the likely cause, not verified. They fall into `(No Genre)`.
 
-So criterion 2 as written ("all 17 crates as genre facets with correct counts") does not hold on today's collection: House shows 147 instead of 152, Deep & Organic House 358 instead of 360. This is a data finding, not a gate failure; no required budget is affected.
+So criterion 2 as then written ("all 17 crates as genre facets with correct counts") did not hold: House showed 147 instead of 152, Deep & Organic House 358 instead of 360. This was a data finding, not a gate failure; no required budget was affected.
+
+**Resolved 2026-09-27 (user decision), outside the app; originals backed up in `~/Music/_ampx-tag-backup-2026-09-27/`:**
+
+- The 5 `Afro House` files moved to a new `~/Music/DJ/Afro House/` crate — **18 crates**; House now holds 147 files.
+- The empty-owner `UFID` was not the cause. Bisecting showed AVFoundation drops the whole ID3 tag because of the embedded JPEG artwork (`APIC`) in these two files; Kasambila's was also labelled `image/png`. Re-encoding the same pictures with `sips` (Kasambila relabelled `image/jpeg`) makes the tag readable; The Finishing also needed its empty-owner `UFID` removed. All other frames are unchanged.
+- Verified: every audio file under `~/Music/DJ` now yields a genre AVFoundation reads. **Known limitation:** some embedded JPEGs make AVFoundation ignore a file's entire ID3 tag; such files index with filename metadata and `(No Genre)`.
 
 **Gate decision.** Every required item passed; SMB and the spinning drive are waived as unmeasured. **The L1 gate passes.** Open item for the user: criterion 2's wording versus the 7 files above.
 
@@ -567,7 +573,7 @@ Fixtures go through the existing `scripts/` `uv` generation path; run via `./scr
 ## Success criteria
 
 1. **L1 gate recorded** in this spec — metadata coverage per container, rename evidence per file system, walk and first-scan timings — before scanner work begins.
-2. A first scan of `~/Music/DJ` (2,232 files) completes without blocking the UI, and the index yields all 17 crates as genre facets with correct counts (L1: query test against the real folder; L2: visible in the module).
+2. A first scan of `~/Music/DJ` (2,232 files) completes without blocking the UI, and the index yields all 18 crates as genre facets with correct counts (L1: query test against the real folder; L2: visible in the module).
 3. Relaunch does not re-parse or read the contents of unchanged files (spy).
 4. The *Performance targets* are met, including search during a scan.
 5. Double-click in the browser plays through the existing `AudioPlayer` path with no change to `PlaylistManager`'s public API and no change to `Track`.

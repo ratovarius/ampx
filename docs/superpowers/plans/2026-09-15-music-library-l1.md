@@ -732,7 +732,7 @@ else { playlist.clearPlaylist(); playlist.addTracks(tracks); playlist.playTrack(
 - [ ] **Step 3: Performance tests** (opt-in with `TEST_RUNNER_AMPX_LIBRARY_GATE=1`, real `~/Music/DJ` through the Music entitlement, real home path as in Task 3):
   - `testFirstScan2232UnderSixtySeconds` (engine, in-memory store).
   - `testNoChangeRescan2232UnderTwoSecondsWithZeroReads`; `testNoChangeRescan11kUnderFiveSeconds` (synthetic tree).
-  - `testSuccessCriterion2GenreFacets`: every crate folder name maps to a genre facet whose count equals that folder's audio file count (17 crates, total 2,232; expected counts computed by the test from the folder listing, not hard-coded).
+  - `testSuccessCriterion2GenreFacets`: every crate folder name maps to a genre facet whose count equals that folder's audio file count (18 crates, total 2,232; expected counts computed by the test from the folder listing, not hard-coded).
   - `testSearchPublishesUnder100msIdleAndDuringFirstScan`: `setQuery` → `$rows` publication, measured on the main actor.
   - `testAvailabilityPublishesUnder100ms`: `markUnavailable` → browser rows unavailable.
 
