@@ -5,6 +5,8 @@ description = "Generate binary test fixtures for AmpX"
 requires-python = ">=3.11"
 dependencies = [
     "fonttools>=4.65.0",
+    "lameenc>=1.8",
+    "mutagen>=1.47",
     "pillow>=12.3.0",
 ]
 

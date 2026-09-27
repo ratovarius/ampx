@@ -241,7 +241,28 @@ The sandbox does not change the size and date a file system reports, so rename e
 
 #### L1 gate results
 
-*Filled in by the L1 plan's gate task. Nothing is recorded here yet.*
+*Filled in by the L1 plan's gate tasks (1–3).*
+
+**Metadata (Task 1, 2026-09-27, macOS 26 / Apple silicon, `LibraryMetadataGateTests`).** Fixtures from `scripts/ampx_fixtures/library.py`. Identifiers are `AVMetadataItem.identifier` values found by loading `.commonMetadata` plus every format in `.availableMetadataFormats`. **Every spec field is exposed in every container**, so no field falls back to its absent value by container.
+
+| Field | MP3 ID3v2.3 | MP3 ID3v2.4 | FLAC (Vorbis) | WAV `id3 ` | AIFF `ID3 ` | M4A (iTunes) |
+|---|---|---|---|---|---|---|
+| album | `id3/TALB` | `id3/TALB` | `vorb/ALBUM` | `id3/TALB` | `id3/TALB` | `itsk/%A9alb` |
+| albumArtist | `id3/TPE2` | `id3/TPE2` | `vorb/ALBUMARTIST` | `id3/TPE2` | `id3/TPE2` | `itsk/aART` |
+| genre | `id3/TCON` | `id3/TCON` | `vorb/GENRE` | `id3/TCON` | `id3/TCON` | `itsk/%A9gen` |
+| year | `id3/TYER` | `id3/TDRC` | `vorb/DATE` | `id3/TYER` | `id3/TYER` | `itsk/%A9day` |
+| trackNumber | `id3/TRCK` (`3/12`) | `id3/TRCK` | `vorb/TRACKNUMBER` (`3`) | `id3/TRCK` | `id3/TRCK` | `itsk/trkn` (data; big-endian UInt16 at bytes 2–3) |
+| bpm | `id3/TBPM` | `id3/TBPM` | `vorb/BPM` | `id3/TBPM` | `id3/TBPM` | `itsk/tmpo` |
+| musicalKey | `id3/TKEY` | `id3/TKEY` | `vorb/INITIALKEY` | `id3/TKEY` | `id3/TKEY` | `itlk/com.apple.iTunes.initialkey` |
+| comment | `id3/COMM` | `id3/COMM` | `vorb/COMMENT` | `id3/COMM` | `id3/COMM` | `itsk/%A9cmt` |
+| sampleRate / channels | 44100 / 2 | 44100 / 2 | 44100 / 2 | 44100 / 2 | 44100 / 2 | 44100 / 2 |
+| `estimatedDataRate` | 0 † | 0 † | 0 | 0 | 0 | 34774 |
+
+† 0 on the 2 s fixtures. A real collection MP3 (`Techno/Karla Blum - Ahogar (Original Mix)`) reports 143,845 bps; a real FLAC and WAV report 0. So FLAC, WAV and AIFF normally take the **derived** bitrate (`bitrateIsDerived = true`); MP3 and M4A normally report one.
+
+Notes for extraction: Vorbis stores the track total separately (`TRACKTOTAL`); ID3 `TRCK` and TYER/TDRC need parsing (`3/12` → 3, `2024…` → 2024); the M4A key is a freeform `----:com.apple.iTunes:initialkey` atom.
+
+**Playback (Task 1).** `tagged.aiff` and `tagged.m4a` load, play and stop through `AudioPlayer(installRemoteCommands: false)`. **Passed** → `aif`, `aiff` and `m4a` may be added to `supportedExtensions` (Task 4).
 
 ### Scanning
 
