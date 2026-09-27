@@ -1,8 +1,8 @@
 # Music Library (Index, Scanner, Browser Module)
 
-**Date:** 2026-09-11 · **Revised:** 2026-09-15
-**Status:** Revision 5 — addresses the [Revision 4 review](./2026-09-11-music-library-design-review.md) (see *Revision log* at the end)
-**Related:** [AmpX UI design, Revision 7](./2026-09-11-ampx-ui-design.md) (host for the browser module)
+**Date:** 2026-09-11 · **Revised:** 2026-09-27
+**Status:** Revision 6 — planning-level corrections from the [L1 plan review](../plans/2026-09-15-music-library-l1-plan-review.md); the Revision 5 design approval stands (see *Revision log* at the end)
+**Related:** [AmpX UI design, Revision 9](./2026-09-11-ampx-ui-design.md), its [compact-modules addendum](./2026-09-15-shrunk-modules-design.md) and the Winamp docking model (host for the browser module)
 **Successor specs:** DJ mode ([2026-09-11-dj-mode-design.md](./2026-09-11-dj-mode-design.md)) depends on this one.
 
 ## Goal
@@ -27,7 +27,7 @@ Today `Track` carries `title / artist / duration / fileSize / url` and nothing e
 
 ## Delivery phases
 
-The UI design (Revision 7) retires the Classic skin and lists Library as out of scope for the cutover. This spec therefore ships in two phases so the browser is never built twice:
+The UI design (Revision 7 onward) retires the Classic skin and lists Library as out of scope for the cutover. This spec therefore ships in two phases so the browser is never built twice:
 
 | Phase | When | Contents | User-visible |
 |---|---|---|---|
@@ -40,7 +40,7 @@ L2 requires an amendment to the UI design spec (listed under *Browser module*). 
 
 | Topic | Choice |
 |---|---|
-| Persistence | **SwiftData** (Apple framework, no SPM dependency). The macOS 26.4 deployment target is well past its availability floor, including `#Index` / `#Unique`. |
+| Persistence | **SwiftData** (Apple framework, no SPM dependency). The macOS 26.0 deployment target is well past its availability floor, including `#Index` / `#Unique`. |
 | Model split | `@Model` types are **storage only**. Views see `LibraryRow` snapshots; `PlaylistManager` sees `Track`. `Track` is **unchanged** by this spec. |
 | Row identity | Each row has a stable `id: UUID`. A row belongs to exactly one root (`rootID`) and owns one `relativePath` within it. **Same path = same track**: a file found at a row's path is that row, even if its contents were replaced (re-download, tag editor atomic save). |
 | Path comparison | Paths are compared by a **path key**: Unicode NFC, plus case folding when the root's volume is case-insensitive (`volumeSupportsCaseSensitiveNamesKey`). On a case-insensitive volume a case-only rename is a path match; on a case-sensitive volume it is an ordinary rename. |
@@ -177,6 +177,8 @@ struct LibraryRow: Identifiable, Hashable, Sendable {
 
 The AVAsset work lives in **`TrackMetadataLoader`** (`Sources/Track.swift`). Its `Metadata` struct is widened; `Track.load(from:)` keeps reading only the four fields it uses today. The content fingerprint is computed by `LibraryFileSystem` in the same parse step, not by the loader.
 
+The widened `Metadata` also carries `readFailed: Bool`: true when AVFoundation could not load the asset's duration or audio tracks. The scanner uses it to log a metadata failure once per file per scan (*Corrupt / unreadable file*); `Track.load(from:)` ignores it.
+
 `TrackMetadataParser` (`Sources/TrackMetadataParser.swift`) — filename and path heuristics — is **unchanged**.
 
 #### Metadata precedence
@@ -209,6 +211,38 @@ Before any scanner code, a fixture-driven spike records:
 - **Rename evidence:** on APFS, HFS+, exFAT and SMB, a rename and a move within the volume preserve `fileSize` and `contentModificationDate` exactly as reported by the enumerator (including sub-second precision), and `volumeSupportsCaseSensitiveNamesKey` is readable inside the sandbox. A file system that fails this check has rename tracking disabled by rule in this spec.
 - **Cost:** walk timings for a no-change walk of a 2,232-file and an 11,000-file tree, and first-scan time **including** fingerprint reads, on the internal SSD and on an external spinning drive, against the budgets below. A missed 11k budget reopens *Scan unit*; a fingerprint cost that breaks the first-scan budget reopens *Rename detection*.
 
+**Where each measurement runs.** The test host is the sandboxed `AmpX.app`, which reads `~/Music` only through `assets.music.read-only` and nothing else outside its container without a user-selected URL.
+
+| Evidence | Where it is measured |
+|---|---|
+| Metadata, playback | Sandboxed XCTest over bundled fixtures |
+| Case sensitivity readable in the sandbox; APFS rename evidence | Sandboxed XCTest, in the app container's temporary directory (internal APFS SSD) |
+| No-change walk, 11,000 files (SSD) | Sandboxed XCTest over a synthetic tree in the container's temporary directory |
+| No-change walk and first-scan cost, 2,232 files (SSD) | Sandboxed XCTest over the real `~/Music/DJ`, read-only through the Music entitlement. Opt-in with `TEST_RUNNER_AMPX_LIBRARY_GATE=1`; skipped otherwise (CI has no collection) |
+| HFS+ and exFAT rename evidence | Unsandboxed Swift script, same `URLResourceKey` reads as the enumerator, on `hdiutil`-created disk images |
+| SMB rename evidence, spinning-drive cost | The same script (rename) or a folder the tester provides (cost), when that hardware exists |
+
+The sandbox does not change the size and date a file system reports, so rename evidence may come from an unsandboxed process. Cost must be measured in the sandboxed host.
+
+**Gate exit rule.** The gate passes when every **required** item has passed. A **waivable** item may be recorded as *unmeasured* with the reason, and the gate still passes.
+
+| Item | Class | If it fails | If unmeasured |
+|---|---|---|---|
+| Metadata matrix per container | Required | Field takes its declared absent value (not a failure) | — |
+| AIFF / M4A playback | Required | That extension is not added to `supportedExtensions` | — |
+| Case sensitivity readable in the sandbox | Required | Spec amendment (path keys depend on it) | — |
+| APFS rename evidence | Required | Rename tracking disabled on APFS | — |
+| HFS+, exFAT rename evidence | Required (disk images make them always measurable) | Rename tracking disabled on that file system | — |
+| SMB rename evidence | Waivable | Rename tracking disabled on SMB | Rename tracking disabled on SMB |
+| SSD walk and first-scan budgets | Required | Reopens *Scan unit* / *Rename detection* as stated above | — |
+| Spinning-drive cost | Waivable | Recorded as a known risk; no design change in L1 | Recorded as unmeasured risk |
+
+**Rename-tracking allowlist.** Rename tracking is enabled only when the root's volume type (`URLResourceKey.volumeTypeNameKey`) is on an allowlist in code that holds exactly the file systems whose rename evidence passed. Every other volume type — failed, unmeasured, or unknown — indexes normally with moves disabled.
+
+#### L1 gate results
+
+*Filled in by the L1 plan's gate task. Nothing is recorded here yet.*
+
 ### Scanning
 
 A scan always covers one whole root. A scan run starts by obtaining a **token** from `LibraryStore`. Every save the run makes carries that token, and the store rejects the save — ending the run — if the token has been revoked or the root no longer exists.
@@ -217,7 +251,7 @@ A scan always covers one whole root. A scan run starts by obtaining a **token** 
    - On failure → save `isAvailable = false`, stop.
    - On success → save `isAvailable = true`, `displayPath` and `unreadableFolderCount` when they changed; capture the path-key rule; ensure the root's security scope is active.
 1. **Integrity repair.** Load the root's row keys under the path-key rule from step 0. If two or more rows share a path key (the invariant was broken by a defect), merge them in one save before matching: the row with the oldest `dateAdded` (then smallest `id`) survives, keeping its metadata and fingerprint; it takes the maximum `playCount`, the latest `lastPlayedAt` and its own `rating`, or the first non-zero `rating` of the others by `dateAdded`. The other rows are deleted and a fault is logged. After this step the path key is unique, so matching can rely on it.
-2. **Walk.** Enumerate through `LibraryFileSystem`, prefetching `.isRegularFileKey`, `.fileSizeKey`, `.contentModificationDateKey` and `.volumeIdentifierKey`. Skip `_extracted/`, `_library/`, dotfiles, package contents, and — by comparing the in-session `volumeIdentifierKey` with the root's — the descendants of any directory on another volume. Accept the extensions in `M3UParser.supportedExtensions`, the app's single audio extension set; this spec widens it from `mp3`, `flac`, `wav` to add `aif`, `aiff` and `m4a`, which also lets playlist file/folder import accept them (an intentional behaviour change, gated on playback). The walk reads no file contents.
+2. **Walk.** Enumerate through `LibraryFileSystem`, prefetching `.isRegularFileKey`, `.fileSizeKey`, `.contentModificationDateKey` and `.volumeIdentifierKey`. Skip `_extracted/`, `_library/`, dotfiles, package contents, and — by comparing the in-session `volumeIdentifierKey` with the root's — the descendants of any directory on another volume. Accept the extensions in `M3UParser.supportedExtensions`, the app's single audio extension set; this spec widens it from `mp3`, `flac`, `wav` to add `aif`, `aiff` and `m4a`, which also lets playlist file/folder import accept them (an intentional behaviour change, gated on playback). The Add Files panel (`PlaylistManager.showFilePicker`) derives its allowed types from the same set plus `m3u`, so the panel and folder import cannot disagree; this is an internal change, not a `PlaylistManager` API change. The walk reads no file contents.
    - When the error handler reports a URL, record its directory as an **uncovered folder** and continue: the walk is **partial**.
    - Cancellation or loss of access makes the walk **aborted**: the run saves nothing further and stops. Anything already saved (steps 0–1) stays valid.
 3. **Match by path.** Each entry whose path key has a row is **matched** to it. When the enumerator's spelling differs from the row's `relativePath` (a case-only rename on a case-insensitive volume, or a normalization-only rename), the new spelling is recorded.
@@ -252,7 +286,7 @@ Examples:
 **Known limitations (accepted):**
 
 - Swapping the names of two indexed files leaves each row on its path (same path = same track), so ratings follow the path, not the audio.
-- A rename is **not tracked** (missing row plus new row) when: the file was also modified before the next scan; the root had unreadable folders during that scan; another file in the root, or another missing row, has the same size and modification date (hard links, copies with preserved dates); the fingerprint could not be read; or the file system failed the rename-evidence gate.
+- A rename is **not tracked** (missing row plus new row) when: the file was also modified before the next scan; the root had unreadable folders during that scan; another file in the root, or another missing row, has the same size and modification date (hard links, copies with preserved dates); the fingerprint could not be read; or the root's volume type is not on the rename-tracking allowlist (failed or unmeasured at the gate).
 - A different file that matches a missing row's size, modification date and head/tail content is treated as the same track.
 - A file replaced at the same path with identical size and modification date keeps its previous metadata and fingerprint until either changes (the staleness rule).
 
@@ -349,7 +383,7 @@ Every enqueue registers the involved roots with the shared bookmark store (see *
 
 Built in the AmpX UI host as `Sources/Modules/Library/`, following that spec's contracts: `AmpXModuleContent` drawing, custom rows (no `NSTableView`/`NSScrollView`/`NSTextField`), one Combine subscription set to `LibraryBrowserModel`, and effective-visibility rules for any continuous drawing (scan progress).
 
-- **Layout at 490 pt:** header; a search well; a left facet column (~140 pt) with a Genre / Artist / Album selector and one value list with counts; a right track list with Artist – Title, Time, BPM, Key and kbps (22 pt rows, derived bitrates marked); a footer with scan progress and a **ROOTS** menu (Add Folder…, Remove, Relocate…, and a status line per root: unavailable, or *n folders unreadable*). Exact metrics are sampled in planning against the module reference idiom. Unavailable rows are drawn in `textDim`.
+- **Layout at the 490 pt reference width** (whether Library also resizes horizontally like the Playlist is amendment item 5): header; a search well; a left facet column (~140 pt) with a Genre / Artist / Album selector and one value list with counts; a right track list with Artist – Title, Time, BPM, Key and kbps (22 pt rows, derived bitrates marked); a footer with scan progress and a **ROOTS** menu (Add Folder…, Remove, Relocate…, and a status line per root: unavailable, or *n folders unreadable*). Exact metrics are sampled in planning against the module reference idiom. Unavailable rows are drawn in `textDim`.
 - **Commands:** `Window ▸ Library` (⌘L — currently unbound; `AmpXMenuCatalog.FileShortcut` uses bare `L` / `⇧L` for Add Files / Add Folder, so Library must keep the Command modifier) and `File ▸ Add Library Folder…`. ⌘F focuses search; Escape in search clears it and then leaves the field.
 - **Accessibility:** a selectable row hierarchy with settable selection and selection-change notifications, as the Playlist module has; facet values expose their counts; the search field exposes its value.
 
@@ -359,6 +393,12 @@ Built in the AmpX UI host as `Sources/Modules/Library/`, following that spec's c
 2. Library becomes a **second variable-height module**. Overflow rule: shrink the Library viewport first, then Playlist, each down to three rows.
 3. Add a custom **text input component** (search) implementing `NSTextInputClient` for IME and marked text — the UI spec currently defines none and forbids `NSTextField`.
 4. Add key-router priority **2b — Focused Library module**: arrows/Home/End/Page navigation and selection, Enter, ⌘-Enter, ⌘F.
+
+Since Revision 5 the UI contract has moved (UI spec Revision 9, the compact-modules addendum, Winamp docking with one window per module). The amendment must also decide:
+
+5. **Width.** Library stays at the fixed 490 pt, or becomes a second horizontally resizable module under Revision 9's `leftWidth` rule.
+6. **Compact presentation.** Library gets a functional compact form (as Player, EQ and Playlist do under the addendum) or keeps header-only collapse (as ENTHEA does).
+7. **Docking.** Library's module window takes part in Winamp-style docking and snapping exactly like the other left-column modules. The overflow rule in item 2 is restated for docked module windows.
 
 ## Error handling & edge cases
 
@@ -412,7 +452,7 @@ Measured separately; each is a test or instrumented measurement, not an estimate
 
 | Area | Expectations |
 |---|---|
-| L1 gate | Metadata field-coverage matrix recorded per container; AIFF and M4A play through `AudioPlayer`; rename/move preserves size and modification date on APFS, HFS+, exFAT and SMB; case sensitivity readable in the sandbox; walk and first-scan timings including fingerprints on SSD and spinning drive |
+| L1 gate | Metadata field-coverage matrix recorded per container; AIFF and M4A play through `AudioPlayer`; rename/move preserves size and modification date on APFS, HFS+ and exFAT (SMB when available); case sensitivity readable in the sandbox; walk and first-scan timings including fingerprints on SSD (spinning drive when available); results recorded under *L1 gate results* per the exit rule |
 | Extensions | `M3UParser` accepts `aif`/`aiff`/`m4a` case-insensitively; existing M3U tests green; folder import picks up AIFF/M4A fixtures |
 | `TrackMetadataLoader` | Every field available per the gate matrix is extracted; unavailable fields take their declared absent value; `estimatedDataRate` vs derived bitrate sets `bitrateIsDerived` correctly |
 | Metadata precedence | Untagged `Artist - Song.mp3` → `Artist` / `Song`; untagged `Song.mp3` in a common dir → stem / `Unknown Artist`; title-only tag → tagged title / `Unknown Artist`. Matches `Track.load(from:)` for the same fixtures |
@@ -448,6 +488,9 @@ Fixtures go through the existing `scripts/` `uv` generation path; run via `./scr
 - `Sources/Playlist/SecurityScopedBookmarkStore.swift` — delegate to the extracted helper; behaviour unchanged
 - **New** `Sources/Playlist/SecurityScopedBookmark.swift` — shared create/resolve/refresh primitive
 - `Sources/M3UParser.swift` — widen `supportedExtensions` with `aif`, `aiff`, `m4a` (after the playback gate passes)
+- `Sources/PlaylistManager.swift` — Add Files panel types derived from `supportedExtensions` (internal only)
+- **New** `Sources/Library/LibraryEngine.swift` — explicit factory (`openIfConfigured`), composition and root-operation coordinator; no app call site in L1
+- **New** `scripts/library-gate-rename.swift` — unsandboxed rename-evidence probe for HFS+/exFAT disk images and SMB
 - **New** `Sources/Library/LibrarySchemaV1.swift` — `LibraryRoot`, `LibraryTrack`, `LibraryMigrationPlan`
 - **New** `Sources/Library/LibraryStore.swift` — `@ModelActor` writer, roots, scan tokens, change publication, start-up marker, security-scope lifetime
 - **New** `Sources/Library/LibraryFileSystem.swift` — enumeration, case-sensitivity and fingerprint protocol plus the `FileManager` / `FileHandle` implementation
@@ -457,7 +500,7 @@ Fixtures go through the existing `scripts/` `uv` generation path; run via `./scr
 - **New** `Sources/Library/LibraryIndex.swift` — snapshot actor, `LibraryRow`, change application and throttling
 - **New** `Sources/Library/LibraryQuery.swift` — query value type and evaluation
 - **New** `Sources/Library/LibraryBrowserModel.swift` — `@MainActor` `ObservableObject`, selection, enqueue
-- `scripts/` fixture generation — FLAC, ID3-in-WAV, ID3-in-AIFF, M4A and untagged fixtures
+- `scripts/` fixture generation — FLAC, ID3-in-WAV, ID3-in-AIFF, M4A and untagged fixtures. Encoding uses the system `afconvert` plus the `lameenc` (MP3) and `mutagen` (tags) Python packages under `uv`, so CI needs no FFmpeg. These are test tooling, not app dependencies
 - **New** `Tests/AmpXTests/LibraryMetadataGateTests.swift`, `TrackMetadataLoaderTests.swift`, `SecurityScopedBookmarkTests.swift`, `LibraryFingerprintTests.swift`, `LibraryReconcilerTests.swift`, `LibraryStoreTests.swift`, `LibraryScanTokenTests.swift`, `LibraryScannerTests.swift`, `LibraryIdentityTests.swift`, `LibraryRootTests.swift`, `LibraryChangePublicationTests.swift`, `LibraryScanSchedulingTests.swift`, `LibrarySchemaMigrationTests.swift`, `LibraryQueryTests.swift`, `LibraryBrowserModelTests.swift`
 
 ### L2 — Browser module (after the UI cutover)
@@ -496,11 +539,24 @@ Fixtures go through the existing `scripts/` `uv` generation path; run via `./scr
 | Full-root rescans too slow for the 11k archive | Gate measurement; subtree scoping returns as an amendment if the budget is missed. Watched roots are opt-in; `~/Music/DJ` alone is the expected default |
 | L2 blocked on the UI cutover | L1 delivers and tests the entire engine independently; L2 is a UI-only change on top |
 | Custom text input (IME, marked text, accessibility) is costly in a no-`NSTextField` UI | Listed as an explicit UI-spec amendment so it is scoped and estimated, not discovered mid-implementation |
-| `Package.swift` build-smoke and SwiftData | Verify in the first L1 task; SwiftData and CryptoKit are system frameworks |
+| SwiftData / CryptoKit linkage in the Xcode target | Verified by the first L1 task's build; both are system frameworks. (`Package.swift` no longer exists; Xcode is the only build.) |
 | Scope creep into DJ mode | BPM/key are read-only from tags; computing and writing them back is the next spec |
 | Schema break when DJ mode widens `LibraryTrack` | `VersionedSchema` + `SchemaMigrationPlan` from day one, with a migration test |
 
 ## Revision log
+
+**Revision 6 (2026-09-27)** — planning-level corrections from the [L1 plan review](../plans/2026-09-15-music-library-l1-plan-review.md). The design approved in Revision 5 is unchanged.
+
+| Finding | Resolution |
+|---|---|
+| Deployment target moved | 26.4 → 26.0; SwiftData `#Index`/`#Unique` need only macOS 15 |
+| Plan 2 — gate cannot run under `xcodebuild` / the sandbox | *Where each measurement runs*: sandbox-safe locations (container temp dir, `~/Music` entitlement) for sandboxed evidence; an unsandboxed script on disk images for HFS+/exFAT rename evidence; opt-in via `TEST_RUNNER_AMPX_LIBRARY_GATE` |
+| Plan 3 — no exit rule for missing hardware | *Gate exit rule*: required vs waivable items; SMB and spinning-drive evidence are waivable; the rename-tracking allowlist keyed on `volumeTypeNameKey` disables moves on any unmeasured file system (adopted 2026-09-27 as the proposed default; the user may revise it) |
+| Plan 4 — metadata failure undetectable | `Metadata.readFailed` |
+| Plan 6 — Add Files panel narrower than import | Panel types derived from `supportedExtensions` |
+| UI contract moved | L2 amendment gains width, compact presentation and docking items |
+| CI has no FFmpeg | Fixture encoding via `afconvert`, `lameenc`, `mutagen` |
+| `Package.swift` removed | Risk row now points at the Xcode build |
 
 **Revision 5 (2026-09-15)** — responds to the [Revision 4 review](./2026-09-11-music-library-design-review.md).
 
