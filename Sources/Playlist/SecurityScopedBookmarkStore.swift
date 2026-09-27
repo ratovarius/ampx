@@ -3,12 +3,6 @@ import os
 
 private let bookmarkLogger = Logger(subsystem: "com.ampx.macos", category: "SecurityScopedBookmarks")
 
-private struct ResolvedBookmark {
-    let url: URL
-    let isStale: Bool
-    let usesSecurityScope: Bool
-}
-
 final class SecurityScopedBookmarkStore: @unchecked Sendable {
     private struct State {
         var securityScopedRefCounts: [URL: Int] = [:]
@@ -63,13 +57,13 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
             var dedupedBookmarks: [Data] = []
 
             for bookmarkData in bookmarks {
-                guard var resolved = Self.resolveBookmark(bookmarkData) else {
+                guard var resolved = SecurityScopedBookmark.resolve(bookmarkData) else {
                     continue
                 }
 
                 var storedData = bookmarkData
                 if resolved.isStale {
-                    if let refreshed = Self.refreshBookmarkData(
+                    if let refreshed = SecurityScopedBookmark.refreshedData(
                         for: resolved.url,
                         usesSecurityScope: resolved.usesSecurityScope
                     ) {
@@ -113,7 +107,7 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
 
         self.state.withLock { state in
             if state.securityScopedBookmarks.contains(where: { existingData in
-                guard let resolved = Self.resolveBookmark(existingData) else { return false }
+                guard let resolved = SecurityScopedBookmark.resolve(existingData) else { return false }
                 return self.normalizedURL(resolved.url).path == path
             }) {
                 if !self.activateBookmark(forPath: path, in: &state) {
@@ -132,12 +126,7 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
     @discardableResult
     private func persistBookmark(for url: URL, withSecurityScope: Bool, in state: inout State) -> Bool {
         do {
-            let options: URL.BookmarkCreationOptions = withSecurityScope ? [.withSecurityScope] : []
-            let bookmarkData = try url.bookmarkData(
-                options: options,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
+            let bookmarkData = try SecurityScopedBookmark.makeData(for: url, usesSecurityScope: withSecurityScope)
 
             let index = state.securityScopedBookmarks.count
             state.securityScopedBookmarks.append(bookmarkData)
@@ -248,18 +237,18 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
             return false
         }
 
-        guard var resolved = Self.resolveBookmark(state.securityScopedBookmarks[match.index]) else {
+        guard var resolved = SecurityScopedBookmark.resolve(state.securityScopedBookmarks[match.index]) else {
             return false
         }
 
         if resolved.isStale {
-            if let refreshed = Self.refreshBookmarkData(
+            if let refreshed = SecurityScopedBookmark.refreshedData(
                 for: resolved.url,
                 usesSecurityScope: resolved.usesSecurityScope
             ) {
                 state.securityScopedBookmarks[match.index] = refreshed
                 self.userDefaults.set(state.securityScopedBookmarks, forKey: self.bookmarksKey)
-                if let refreshedResolved = Self.resolveBookmark(refreshed) {
+                if let refreshedResolved = SecurityScopedBookmark.resolve(refreshed) {
                     resolved = refreshedResolved
                 }
             }
@@ -293,40 +282,6 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
         targetPath == bookmarkPath || targetPath.hasPrefix(bookmarkPath + "/")
     }
 
-    private static func refreshBookmarkData(for url: URL, usesSecurityScope: Bool) -> Data? {
-        let options: URL.BookmarkCreationOptions = usesSecurityScope ? [.withSecurityScope] : []
-        return try? url.bookmarkData(
-            options: options,
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-    }
-
-    private static func resolveBookmark(_ bookmarkData: Data) -> ResolvedBookmark? {
-        var isStale = false
-        do {
-            let url = try URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope, .withoutUI],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
-            return ResolvedBookmark(url: url, isStale: isStale, usesSecurityScope: true)
-        } catch {
-            do {
-                let url = try URL(
-                    resolvingBookmarkData: bookmarkData,
-                    options: [.withoutUI],
-                    relativeTo: nil,
-                    bookmarkDataIsStale: &isStale
-                )
-                return ResolvedBookmark(url: url, isStale: isStale, usesSecurityScope: false)
-            } catch {
-                return nil
-            }
-        }
-    }
-
     private func saveParentBookmarks(startingAt initialPath: URL, in state: inout State) {
         var currentPath = initialPath
         for _ in 0 ..< 3 {
@@ -336,7 +291,7 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
 
             let path = self.normalizedURL(currentPath).path
             let alreadyHasBookmark = state.securityScopedBookmarks.contains { data in
-                guard let resolved = Self.resolveBookmark(data) else { return false }
+                guard let resolved = SecurityScopedBookmark.resolve(data) else { return false }
                 return self.normalizedURL(resolved.url).path == path
             }
 
