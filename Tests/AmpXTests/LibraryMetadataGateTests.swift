@@ -62,8 +62,8 @@ final class LibraryMetadataGateTests: XCTestCase {
             matrix[name] = row
         }
 
-        self.emit("metadata", matrix)
-        self.emit("metadata-raw", raw)
+        self.emitGate("metadata", matrix)
+        self.emitGate("metadata-raw", raw)
     }
 
     @MainActor
@@ -86,7 +86,7 @@ final class LibraryMetadataGateTests: XCTestCase {
             let flushed = expectation(description: "flush \(name)")
             player.testing_afterAudioQueueFlush { flushed.fulfill() }
             wait(for: [flushed], timeout: 2)
-            self.emit("playback", [name: outcome.value ? "loaded, played, stopped" : "failed"])
+            self.emitGate("playback", [name: outcome.value ? "loaded, played, stopped" : "failed"])
         }
     }
 
@@ -146,17 +146,5 @@ final class LibraryMetadataGateTests: XCTestCase {
         default:
             return false
         }
-    }
-
-    /// Hosted-test stdout is not captured by xcodebuild, so results are kept as attachments.
-    /// Export: `xcrun xcresulttool export attachments --path <xcresult> --output-path <dir>`.
-    private func emit(_ label: String, _ payload: some Encodable) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-        let data = (try? encoder.encode(payload)) ?? Data("{}".utf8)
-        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
-        attachment.name = "LIBRARY-GATE-\(label)"
-        attachment.lifetime = .keepAlways
-        self.add(attachment)
     }
 }

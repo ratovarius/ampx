@@ -243,7 +243,7 @@ The sandbox does not change the size and date a file system reports, so rename e
 
 *Filled in by the L1 plan's gate tasks (1–3).*
 
-**Metadata (Task 1, 2026-09-27, macOS 26 / Apple silicon, `LibraryMetadataGateTests`).** Fixtures from `scripts/ampx_fixtures/library.py`. Identifiers are `AVMetadataItem.identifier` values found by loading `.commonMetadata` plus every format in `.availableMetadataFormats`. **Every spec field is exposed in every container**, so no field falls back to its absent value by container.
+**Metadata (Task 1, 2026-09-27, macOS 27.0 / Apple M1 Pro, `LibraryMetadataGateTests`).** Fixtures from `scripts/ampx_fixtures/library.py`. Identifiers are `AVMetadataItem.identifier` values found by loading `.commonMetadata` plus every format in `.availableMetadataFormats`. **Every spec field is exposed in every container**, so no field falls back to its absent value by container.
 
 | Field | MP3 ID3v2.3 | MP3 ID3v2.4 | FLAC (Vorbis) | WAV `id3 ` | AIFF `ID3 ` | M4A (iTunes) |
 |---|---|---|---|---|---|---|
@@ -263,6 +263,37 @@ The sandbox does not change the size and date a file system reports, so rename e
 Notes for extraction: Vorbis stores the track total separately (`TRACKTOTAL`); ID3 `TRCK` and TYER/TDRC need parsing (`3/12` → 3, `2024…` → 2024); the M4A key is a freeform `----:com.apple.iTunes:initialkey` atom.
 
 **Playback (Task 1).** `tagged.aiff` and `tagged.m4a` load, play and stop through `AudioPlayer(installRemoteCommands: false)`. **Passed** → `aif`, `aiff` and `m4a` may be added to `supportedExtensions` (Task 4).
+
+**Rename evidence and case sensitivity (Task 3).** Values read through `FileManager.enumerator` with the walk's prefetch keys; a 64 KiB file renamed, then moved into a subfolder on the same volume.
+
+| File system | Where | Size + date preserved (rename / move) | Date precision | Case-sensitive | Result |
+|---|---|---|---|---|---|
+| APFS (`apfs`) | Sandboxed XCTest, app container temp dir, internal SSD | yes / yes | sub-second | false, readable in the sandbox | **Enabled** |
+| HFS+ (`hfs`) | `scripts/library-gate-rename.swift` on an `hdiutil` image | yes / yes | 1 s | false | **Enabled** |
+| exFAT (`exfat`) | Same script, `hdiutil` image | yes / yes | 10 ms | false | **Enabled** |
+| SMB (`smbfs`) | — | *unmeasured*: no share mounted | — | — | Disabled (waivable) |
+
+`LibraryRenameTracking.verifiedVolumeTypes = ["apfs", "hfs", "exfat"]`.
+
+**Cost (Task 3, Apple M1 Pro, 32 GB, macOS 27.0, internal SSD, sandboxed host).** The first-scan figure measures what the widened loader will read (today's loader, every metadata format, audio format description, `estimatedDataRate`) plus the fingerprint, sequentially per file.
+
+| Measurement | Budget | Run 1 | Run 2 | Result |
+|---|---|---|---|---|
+| No-change walk, `~/Music/DJ`, 2,232 files | < 2 s | 0.121 s | 0.103 s | Pass |
+| No-change walk, synthetic 11,000 files | < 5 s | 0.333 s | — | Pass |
+| First scan incl. fingerprints, 2,232 files | < 60 s | 8.04 s | 6.11 s | Pass |
+| Fingerprint read failures | — | 0 | 0 | — |
+
+Cache state: warm in both runs (the collection had been read earlier the same day); a cold-cache run needs `sudo purge` and was not taken. The spinning drive is *unmeasured* (none attached) — recorded as a risk, waivable. The Music entitlement gives the sandboxed host read access to `~/Music/DJ` through the real home path.
+
+**Genre facets vs crates (success criterion 2).** All 17 crate folders appear as genre values, but 7 of 2,232 files do not carry their crate name as a genre AVFoundation can read:
+
+- 5 files in `House/` are tagged `Afro House` (the four `Iñaky Garcia …` MP3s and `IÑAKY GARCIA & LUISEN - GOING DOWN … .wav`). They form an 18th genre facet.
+- 2 AIFF files in `Deep & Organic House/` (`02 The Finishing (Original Mix)`, `03 Kasambila (Original Mix)`) have an ID3 chunk AVFoundation does not read at all; `mutagen` reads `TCON = Deep & Organic House` from it. Both carry a `UFID` frame with an empty owner, unlike readable files from the same source — the likely cause, not verified. They fall into `(No Genre)`.
+
+So criterion 2 as written ("all 17 crates as genre facets with correct counts") does not hold on today's collection: House shows 147 instead of 152, Deep & Organic House 358 instead of 360. This is a data finding, not a gate failure; no required budget is affected.
+
+**Gate decision.** Every required item passed; SMB and the spinning drive are waived as unmeasured. **The L1 gate passes.** Open item for the user: criterion 2's wording versus the 7 files above.
 
 ### Scanning
 
