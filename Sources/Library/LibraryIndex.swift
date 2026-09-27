@@ -19,7 +19,11 @@ actor LibraryIndex {
     private let listener = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
 
     private var rowsByRoot: [UUID: [LibraryRow]] = [:]
+    /// Per-row stored state needed to rebuild a row when only its root changes.
+    private var trackInfo: [UUID: (relativePath: String, isMissing: Bool)] = [:]
     private var allRows: [LibraryRow]?
+    /// Rows pre-sorted per (column, direction) for the current version; queries then only filter and count.
+    private var sortedRows: [String: [LibraryRow]] = [:]
     private var isBuilt = false
     private var version: UInt64 = 0
     private var versionSubscribers: [UUID: AsyncStream<UInt64>.Continuation] = [:]
@@ -46,8 +50,15 @@ actor LibraryIndex {
     // MARK: - Reads
 
     func query(_ request: LibraryQuery, generation: UInt64) throws -> LibraryResult {
-        let rows = try self.snapshot()
-        return request.evaluate(rows: rows, snapshotVersion: self.version, generation: generation)
+        let key = "\(request.sort.rawValue)-\(request.ascending)"
+        let sorted: [LibraryRow]
+        if let cached = self.sortedRows[key] {
+            sorted = cached
+        } else {
+            sorted = try request.sorted(self.snapshot())
+            self.sortedRows[key] = sorted
+        }
+        return request.evaluate(sortedRows: sorted, snapshotVersion: self.version, generation: generation)
     }
 
     /// Latest rows for `ids`, in snapshot order; ids no longer present are dropped.
@@ -93,9 +104,14 @@ actor LibraryIndex {
             self.rowsByRoot[rootID] = nil
             self.bumpVersion()
         case let .rootsChanged(rootID):
-            // Root location/availability gates enqueue: rebuild now, superseding any pending row refetch.
-            self.cancelTrailing(rootID)
-            self.refetch(rootID)
+            // Root location/availability gates enqueue: apply now. With a row refetch pending, a full refetch
+            // supersedes it; otherwise the cached rows are current and only the root's fields change.
+            if self.pendingTrailing.contains(rootID) {
+                self.cancelTrailing(rootID)
+                self.refetch(rootID)
+            } else {
+                self.refreshRoot(rootID)
+            }
         case let .rowsChanged(rootID):
             self.throttledRefetch(rootID)
         }
@@ -135,7 +151,7 @@ actor LibraryIndex {
             let context = ModelContext(self.container) // fresh context: sees every committed save
             if let root = try context.fetch(FetchDescriptor<LibraryRoot>(predicate: #Predicate { $0.id == rootID })).first {
                 let tracks = try context.fetch(FetchDescriptor<LibraryTrack>(predicate: #Predicate { $0.rootID == rootID }))
-                self.rowsByRoot[rootID] = tracks.map { Self.row($0, root: root) }
+                self.rowsByRoot[rootID] = self.rows(tracks, roots: [rootID: root])
             } else {
                 self.rowsByRoot[rootID] = nil
             }
@@ -146,8 +162,41 @@ actor LibraryIndex {
         self.bumpVersion()
     }
 
+    /// Root-only change: re-derive `url` and `isAvailable` of the cached rows from the root's current record.
+    private func refreshRoot(_ rootID: UUID) {
+        do {
+            let context = ModelContext(self.container)
+            guard let root = try context.fetch(FetchDescriptor<LibraryRoot>(predicate: #Predicate { $0.id == rootID })).first else {
+                self.rowsByRoot[rootID] = nil
+                self.bumpVersion()
+                return
+            }
+            let base = URL(fileURLWithPath: root.displayPath, isDirectory: true)
+            self.rowsByRoot[rootID] = self.rowsByRoot[rootID]?.map { row in
+                guard let info = self.trackInfo[row.id] else { return row }
+                return LibraryRow(
+                    id: row.id, rootID: row.rootID, url: base.appendingPathComponent(info.relativePath),
+                    title: row.title, artist: row.artist, album: row.album, albumArtist: row.albumArtist,
+                    genre: row.genre, trackNumber: row.trackNumber, duration: row.duration, fileSize: row.fileSize,
+                    bpm: row.bpm, musicalKey: row.musicalKey, bitrate: row.bitrate, bitrateIsDerived: row.bitrateIsDerived,
+                    codec: row.codec, isAvailable: !info.isMissing && root.isAvailable, searchKey: row.searchKey
+                )
+            }
+            if self.rowsByRoot[rootID] == nil {
+                // A root the snapshot has not seen yet (just added): load its rows.
+                self.refetch(rootID)
+                return
+            }
+        } catch {
+            Logger(subsystem: "com.ampx.macos", category: "LibraryIndex")
+                .error("Root refresh failed: \(error.localizedDescription, privacy: .public)")
+        }
+        self.bumpVersion()
+    }
+
     private func bumpVersion() {
         self.allRows = nil
+        self.sortedRows.removeAll()
         self.version += 1
         for continuation in self.versionSubscribers.values {
             continuation.yield(self.version)
@@ -166,9 +215,7 @@ actor LibraryIndex {
             let roots = try context.fetch(FetchDescriptor<LibraryRoot>())
             let tracks = try context.fetch(FetchDescriptor<LibraryTrack>())
             let rootsByID = Dictionary(uniqueKeysWithValues: roots.map { ($0.id, $0) })
-            self.rowsByRoot = Dictionary(grouping: tracks.compactMap { track in
-                rootsByID[track.rootID].map { Self.row(track, root: $0) }
-            }, by: \.rootID)
+            self.rowsByRoot = Dictionary(grouping: self.rows(tracks, roots: rootsByID), by: \.rootID)
             self.isBuilt = true
         }
         if let rows = self.allRows {
@@ -176,6 +223,18 @@ actor LibraryIndex {
         }
         let rows = self.rowsByRoot.values.flatMap { $0 }
         self.allRows = rows
+        return rows
+    }
+
+    /// Builds rows and records the stored state a root-only refresh needs.
+    private func rows(_ tracks: [LibraryTrack], roots: [UUID: LibraryRoot]) -> [LibraryRow] {
+        var rows: [LibraryRow] = []
+        rows.reserveCapacity(tracks.count)
+        for track in tracks {
+            guard let root = roots[track.rootID] else { continue }
+            self.trackInfo[track.id] = (track.relativePath, track.isMissing)
+            rows.append(Self.row(track, root: root))
+        }
         return rows
     }
 

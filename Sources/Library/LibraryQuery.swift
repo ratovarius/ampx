@@ -35,6 +35,16 @@ struct LibraryQuery: Codable, Sendable, Equatable {
     static let foldOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
 
     func evaluate(rows: [LibraryRow], snapshotVersion: UInt64, generation: UInt64) -> LibraryResult {
+        self.evaluate(sortedRows: self.sorted(rows), snapshotVersion: snapshotVersion, generation: generation)
+    }
+
+    /// Rows in this query's display order. Filtering preserves order, so an index can sort once per snapshot.
+    func sorted(_ rows: [LibraryRow]) -> [LibraryRow] {
+        rows.sorted(by: self.precedes)
+    }
+
+    /// `rows` must already be in `sorted(_:)` order for this query's column and direction.
+    func evaluate(sortedRows rows: [LibraryRow], snapshotVersion: UInt64, generation: UInt64) -> LibraryResult {
         let terms = self.search.folding(options: Self.foldOptions, locale: nil)
             .split(whereSeparator: \.isWhitespace).map(String.init)
         let searched = terms.isEmpty ? rows : rows.filter { row in terms.allSatisfy { row.searchKey.contains($0) } }
@@ -47,7 +57,7 @@ struct LibraryQuery: Codable, Sendable, Equatable {
         )
         let matched = searched.filter { self.matches($0, skipping: nil) }
         return LibraryResult(
-            rows: matched.sorted(by: self.precedes),
+            rows: matched,
             facets: facets,
             snapshotVersion: snapshotVersion,
             generation: generation

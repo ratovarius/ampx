@@ -159,6 +159,19 @@ final class LibraryChangePublicationTests: XCTestCase {
         XCTAssertEqual(final, afterRebuild, "the superseded trailing refetch must not run")
     }
 
+    func testRootOnlyChangeReusesCachedRows() async throws {
+        try await self.insert(["a.mp3", "b.mp3"])
+        _ = try await self.index.query(LibraryQuery(), generation: 1)
+        var versions = await self.index.versions().makeAsyncIterator()
+        let before = await self.index.refetchCount
+        try await self.store.markUnavailable(id: self.rootID) // no row change pending
+        _ = await versions.next()
+        let after = await self.index.refetchCount
+        XCTAssertEqual(after, before, "an availability change must not re-fetch every track")
+        let rows = try await self.index.query(LibraryQuery(), generation: 2).rows
+        XCTAssertEqual(rows.map(\.isAvailable), [false, false])
+    }
+
     func testRejectedTokenBumpsNoVersion() async throws {
         _ = try await self.index.query(LibraryQuery(), generation: 1)
         let before = try await self.index.query(LibraryQuery(), generation: 2).snapshotVersion
