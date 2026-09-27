@@ -299,6 +299,28 @@ So criterion 2 as then written ("all 17 crates as genre facets with correct coun
 - The empty-owner `UFID` was not the cause. Bisecting showed AVFoundation drops the whole ID3 tag because of the embedded JPEG artwork (`APIC`) in these two files; Kasambila's was also labelled `image/png`. Re-encoding the same pictures with `sips` (Kasambila relabelled `image/jpeg`) makes the tag readable; The Finishing also needed its empty-owner `UFID` removed. All other frames are unchanged.
 - Verified: every audio file under `~/Music/DJ` now yields a genre AVFoundation reads. **Known limitation:** some embedded JPEGs make AVFoundation ignore a file's entire ID3 tag; such files index with filename metadata and `(No Genre)`.
 
+**Final L1 measurements (Task 16, real engine, sandboxed host, Debug build, Apple M1 Pro, warm cache).** `LibraryPerformanceTests` (opt-in `TEST_RUNNER_AMPX_LIBRARY_GATE=1`):
+
+| Target | Budget | Result |
+|---|---|---|
+| First scan, `~/Music/DJ` 2,232 files, incl. fingerprints | < 60 s | 7.2 s |
+| No-change rescan, 2,232 files | < 2 s, zero content reads | 0.27 s, 0 metadata loads, 0 fingerprint reads |
+| No-change rescan, 11,000 synthetic files | < 5 s, zero content reads | 1.2 s, 0 / 0 |
+| Search, keystroke → `LibraryBrowserModel` publication, idle (2,232 rows) | < 100 ms | 63 ms max of 8 |
+| Search during a first scan | < 100 ms | 2 ms max of 40 (the snapshot held its first 200-row batch; refreshes are throttled to 1/s) |
+| Availability: store save → browser rows unavailable | < 100 ms | 83 ms |
+| Success criterion 2 | 18 crates = genre facets with equal counts | Pass (2,232 files, no mismatch) |
+
+Reaching the search and availability budgets required sorting each snapshot once per (column, direction) and applying root-only changes to cached rows instead of re-fetching every track. Main-thread frame drops were not instrumented. `LibraryRetryPropertyTests` checked 50,425 interruption cases against the real reconciler with zero mismatches, and fails when the Revision 4 ambiguity bug is reintroduced.
+
+**L2 handoff (not done in L1):**
+
+- Write and accept the AmpX UI spec amendment, items 1–7 under *Browser module*.
+- App delegate: construct one `SecurityScopedBookmarkStore`, pass it to `PlaylistManager.shared`, and call `LibraryEngine.openIfConfigured` at launch (`.utility`); use `LibraryEngine.open` on the first Add Library Folder.
+- Root panels (`NSOpenPanel`) for Add and Relocate; the Remove confirmation naming the row count; per-root status (unavailable, *n folders unreadable*).
+- `Sources/Modules/Library/` module drawing `LibraryBrowserModel` (`LibraryBrowserServices.live(engine)`), menu commands, key-router priority 2b, custom search text input.
+- Manual check: tracks enqueued from a root outside `~/Music` still play after relaunch (success criterion 8).
+
 **Gate decision.** Every required item passed; SMB and the spinning drive are waived as unmeasured. **The L1 gate passes.** Open item for the user: criterion 2's wording versus the 7 files above.
 
 ### Scanning
