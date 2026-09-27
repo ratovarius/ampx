@@ -30,6 +30,7 @@ actor LibraryEngine {
     nonisolated let watcher: LibraryWatcher
     private var watchedURLs: [UUID: URL] = [:]
     private var listener: Task<Void, Never>?
+    private var pendingRewatches: [Task<Void, Never>] = []
 
     private init(
         store: LibraryStore,
@@ -134,6 +135,13 @@ actor LibraryEngine {
             self.unwatch(rootID)
             await self.scanner.cancelScans(rootID: rootID)
             await self.scanner.requestScan(rootID: rootID)
+            // Re-watch from the scan's outcome, not from whichever change events it happens to publish: a root
+            // back at the same path with an unchanged status publishes none.
+            let scanner = self.scanner
+            self.pendingRewatches.append(Task {
+                await scanner.waitUntilIdle()
+                try? await self.syncWatch(rootID)
+            })
         case .mounted:
             for root in await (try? self.store.roots()) ?? [] where !root.isAvailable {
                 await self.scanner.requestScan(rootID: root.id)
@@ -153,11 +161,20 @@ actor LibraryEngine {
     /// Test and teardown hook: returns once no scan is queued or running.
     func waitUntilIdle() async {
         await self.scanner.waitUntilIdle()
+        while !self.pendingRewatches.isEmpty {
+            let tasks = self.pendingRewatches
+            self.pendingRewatches.removeAll()
+            for task in tasks {
+                await task.value
+            }
+        }
     }
 
     func stop() async {
         self.listener?.cancel()
         self.listener = nil
+        self.pendingRewatches.forEach { $0.cancel() }
+        self.pendingRewatches.removeAll()
         await self.scanner.stop()
         await self.watcher.stop()
         self.watchedURLs.removeAll()

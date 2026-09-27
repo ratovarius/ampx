@@ -9,6 +9,11 @@ final class LibraryEngineTests: XCTestCase {
     /// Records walked root folder names; every walk finds one file.
     private actor RecordingFileSystem: LibraryFileSystem {
         private(set) var walked: [String] = []
+        var coverage: LibraryCoverage = .complete
+
+        func setCoverage(_ coverage: LibraryCoverage) {
+            self.coverage = coverage
+        }
 
         func volume(at _: URL) async throws -> LibraryVolume {
             LibraryVolume(caseSensitive: true, typeName: "apfs")
@@ -16,7 +21,7 @@ final class LibraryEngineTests: XCTestCase {
 
         func walk(root: URL, volume: LibraryVolume) async throws -> LibraryWalk {
             self.walked.append(root.lastPathComponent)
-            return LibraryWalk(entries: [LibraryEntry(relativePath: "x.mp3", stat: T.stat(1, 1))], coverage: .complete, volume: volume)
+            return LibraryWalk(entries: [LibraryEntry(relativePath: "x.mp3", stat: T.stat(1, 1))], coverage: self.coverage, volume: volume)
         }
 
         func stat(at _: URL) async throws -> LibraryStat {
@@ -182,6 +187,20 @@ final class LibraryEngineTests: XCTestCase {
         let roots = try await engine.roots()
         XCTAssertEqual(roots.first?.isAvailable, false)
         XCTAssertEqual(engine.watcher.activeStreamCount, 0, "an unavailable root is not watched")
+    }
+
+    func testRootChangedToSameLocationStaysWatchedAfterPartialScan() async throws {
+        // Renamed away and back: the bookmark resolves to the same path, and the follow-up walk is partial,
+        // so neither step 0 nor finishScan publishes a root change. The folder must still be watched.
+        let engine = try await self.open()
+        await self.fileSystem.setCoverage(.partial(uncoveredFolders: ["locked"])) // same unreadable count every scan
+        let id = try await engine.addRoot(url: self.folder("DJ"))
+        await engine.waitUntilIdle()
+        await engine.handle(.rootChanged(id))
+        await engine.waitUntilIdle()
+        let walked = await self.fileSystem.walked
+        XCTAssertEqual(walked, ["DJ", "DJ"])
+        XCTAssertEqual(engine.watcher.activeStreamCount, 1)
     }
 
     func testStopReleasesScopesWatchersAndTasks() async throws {

@@ -156,6 +156,28 @@ final class LibraryScannerTests: XCTestCase {
         XCTAssertEqual(try h.tracks().map(\.relativePath), ["a.mp3", "b.mp3"])
     }
 
+    func testRevokedRunCannotMarkRootUnavailable() async throws {
+        // A relocation revokes the run; the old location then vanishes under it. The stale run must not flag the
+        // (relocated) root unavailable or release its access.
+        let h = try await ScanHarness.make(self)
+        await h.fileSystem.set("A.mp3", stat: T.stat(10, 1), fingerprint: Data([1]))
+        h.loader.fail("A.mp3")
+        let store = h.store, fileSystem = h.fileSystem, rootID = h.rootID
+        h.loader.onCall { _ in
+            await store.revokeScan(rootID: rootID)
+            await fileSystem.configure(reachable: false)
+        }
+        do {
+            _ = try await h.scanner.scanOnce(rootID: h.rootID)
+            XCTFail("the revoked run ends")
+        } catch {
+            XCTAssertEqual(error as? LibraryStoreError, .revokedToken)
+        }
+        let root = try await h.root()
+        XCTAssertTrue(root.isAvailable)
+        XCTAssertEqual(h.scope.openCounts.count, 1, "the root's access must stay open")
+    }
+
     func testDuplicateRowsRepairedBeforeMatching() async throws {
         let h = try await ScanHarness.make(self)
         let older = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))

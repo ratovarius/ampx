@@ -64,6 +64,13 @@ extension LibraryStore {
         self.stopScope(id)
     }
 
+    /// Access lost during a run: like `markUnavailable(id:)`, but only for the run's live token. A revoked run
+    /// (relocated, removed, cancelled) must not flag the root or release the scope a newer owner holds.
+    func markUnavailable(token: LibraryScanToken) throws {
+        guard self.activeTokens[token.rootID] == token else { throw LibraryStoreError.revokedToken }
+        try self.markUnavailable(id: token.rootID)
+    }
+
     /// Scan step 0: resolve (refreshing stale data), confirm the folder exists and access starts, and save
     /// availability. Failure saves `isAvailable = false` and throws `unavailableRoot`.
     func resolveRoot(token: LibraryScanToken) throws -> LibraryRootSnapshot {

@@ -72,7 +72,7 @@ actor LibraryScanner {
         do {
             volume = try await self.fileSystem.volume(at: root.url)
         } catch {
-            try await self.store.markUnavailable(id: rootID)
+            try await self.store.markUnavailable(token: token)
             throw error
         }
 
@@ -91,7 +91,7 @@ actor LibraryScanner {
             walk = try await self.fileSystem.walk(root: root.url, volume: volume)
         } catch {
             if await !self.fileSystem.isReachable(root.url) {
-                try await self.store.markUnavailable(id: rootID)
+                try await self.store.markUnavailable(token: token)
             }
             throw error
         }
@@ -166,7 +166,7 @@ actor LibraryScanner {
 
                 if metadata.readFailed || fingerprint == nil || after == nil {
                     guard await self.fileSystem.isReachable(root.url) else {
-                        try await self.store.markUnavailable(id: root.id)
+                        try await self.store.markUnavailable(token: token)
                         throw LibraryScanError.rootUnreachable
                     }
                     if metadata.readFailed, loggedFailures.insert(item.entry.relativePath).inserted {

@@ -145,6 +145,7 @@ struct ScanHarness {
     let scanner: LibraryScanner
     let rootID: UUID
     let rootURL: URL
+    let scope: ScopeSpy
 
     /// `storeURL` nil = in memory. Reopening the same `storeURL` with `rootID` reuses the existing root.
     static func make(
@@ -157,7 +158,8 @@ struct ScanHarness {
     ) async throws -> ScanHarness {
         let container = try LibraryContainerFactory.make(url: storeURL)
         let log = EventLog()
-        let store = LibraryTestSupport.makeRootStore(container: container, scope: ScopeSpy(log: log), flag: FlagSpy(log: log))
+        let scope = ScopeSpy(log: log)
+        let store = LibraryTestSupport.makeRootStore(container: container, scope: scope, flag: FlagSpy(log: log))
         let rootURL = try rootURL ?? LibraryTestSupport.temporaryDirectory(testCase)
         let id: UUID = if let rootID {
             rootID
@@ -169,7 +171,7 @@ struct ScanHarness {
         let scanner = LibraryScanner(store: store, fileSystem: fileSystem, loadMetadata: loader.load, batchSize: batchSize)
         return ScanHarness(
             container: container, store: store, fileSystem: fileSystem, loader: loader,
-            scanner: scanner, rootID: id, rootURL: rootURL
+            scanner: scanner, rootID: id, rootURL: rootURL, scope: scope
         )
     }
 
