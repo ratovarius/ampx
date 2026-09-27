@@ -76,6 +76,8 @@ enum TrackMetadataLoader {
 
     /// Identifiers per field, as recorded by the L1 gate for ID3 (MP3/WAV/AIFF), Vorbis (FLAC) and iTunes (M4A).
     private enum Field {
+        static let vorbisTitle = "vorb/TITLE"
+        static let vorbisArtist = "vorb/ARTIST"
         static let album = ["id3/TALB", "vorb/ALBUM", "itsk/%A9alb"]
         static let albumArtist = ["id3/TPE2", "vorb/ALBUMARTIST", "itsk/aART"]
         static let genre = ["id3/TCON", "vorb/GENRE", "itsk/%A9gen"]
@@ -110,6 +112,17 @@ enum TrackMetadataLoader {
             default:
                 break
             }
+        }
+
+        // FLAC: AVFoundation exposes Vorbis TITLE/ARTIST only as format items, not common metadata.
+        let values = await self.taggedValues(of: asset, commonMetadata: commonMetadata)
+        if let title = values.strings[Field.vorbisTitle] {
+            trackTitle = title
+            hasID3Tags = true
+        }
+        if let artist = values.strings[Field.vorbisArtist] {
+            trackArtist = artist
+            hasID3Tags = true
         }
 
         if !hasID3Tags {
@@ -155,7 +168,6 @@ enum TrackMetadataLoader {
         }
         metadata.readFailed = readFailed
 
-        let values = await self.taggedValues(of: asset, commonMetadata: commonMetadata)
         metadata.album = self.first(Field.album, in: values) ?? ""
         metadata.albumArtist = self.first(Field.albumArtist, in: values) ?? ""
         metadata.genre = self.first(Field.genre, in: values)

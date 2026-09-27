@@ -22,18 +22,10 @@ final class TrackMetadataLoaderTests: XCTestCase {
             "tagged.wav": "wav", "tagged.aiff": "aiff", "tagged.m4a": "m4a",
         ]
         for (name, codec) in codecs {
-            let url = try self.fixture(name)
-            let metadata = await TrackMetadataLoader.load(from: url)
-            if name == "tagged.flac" {
-                // AVFoundation puts no Vorbis TITLE/ARTIST in common metadata, so the spec's unchanged
-                // precedence falls back to the filename parser for FLAC.
-                let fallback = TrackMetadataParser.parse(from: url)
-                XCTAssertEqual(metadata.title, fallback.title, name)
-                XCTAssertEqual(metadata.artist, fallback.artist, name)
-            } else {
-                XCTAssertEqual(metadata.title, "Library Song", name)
-                XCTAssertEqual(metadata.artist, "Library Artist", name)
-            }
+            let metadata = try await TrackMetadataLoader.load(from: self.fixture(name))
+            // FLAC's Vorbis TITLE/ARTIST are not in common metadata; precedence step 1 reads them (Revision 7).
+            XCTAssertEqual(metadata.title, "Library Song", name)
+            XCTAssertEqual(metadata.artist, "Library Artist", name)
             XCTAssertEqual(metadata.album, "Library Album", name)
             XCTAssertEqual(metadata.albumArtist, "Album Artist", name)
             XCTAssertEqual(metadata.genre, "Techno", name)

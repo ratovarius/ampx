@@ -1,7 +1,7 @@
 # Music Library (Index, Scanner, Browser Module)
 
 **Date:** 2026-09-11 · **Revised:** 2026-09-27
-**Status:** Revision 6 — planning-level corrections from the [L1 plan review](../plans/2026-09-15-music-library-l1-plan-review.md); the Revision 5 design approval stands (see *Revision log* at the end)
+**Status:** Revision 7 — user decisions after the L1 gate (Revision 6: planning corrections from the [L1 plan review](../plans/2026-09-15-music-library-l1-plan-review.md)); the Revision 5 design approval stands (see *Revision log* at the end)
 **Related:** [AmpX UI design, Revision 9](./2026-09-11-ampx-ui-design.md), its [compact-modules addendum](./2026-09-15-shrunk-modules-design.md) and the Winamp docking model (host for the browser module)
 **Successor specs:** DJ mode ([2026-09-11-dj-mode-design.md](./2026-09-11-dj-mode-design.md)) depends on this one.
 
@@ -183,9 +183,9 @@ The widened `Metadata` also carries `readFailed: Bool`: true when AVFoundation c
 
 #### Metadata precedence
 
-`title` and `artist` keep **exactly today's loader behaviour**, so the library and the playlist never disagree about the same file:
+`title` and `artist` come from the one shared loader, so the library and the playlist never disagree about the same file. The rule is today's loader behaviour plus FLAC tags (Revision 7):
 
-1. Common-metadata `title` / `artist` tags.
+1. Common-metadata `title` / `artist` tags; for FLAC, whose Vorbis `TITLE` / `ARTIST` AVFoundation exposes only as `vorb/TITLE` / `vorb/ARTIST` format items, those. (Before Revision 7, FLAC fell through to step 2; the playlist now shows FLAC tag titles too — decided by the user 2026-09-27.)
 2. If **neither** tag is present → `TrackMetadataParser.parse(from:)` supplies both (e.g. `Artist - Song.mp3` → `Artist` / `Song`; its last resort is filename stem / `"Unknown Artist"`).
 3. If only one tag is present, the other keeps the loader default: filename stem for `title`, `"Unknown Artist"` for `artist`.
 
@@ -596,6 +596,13 @@ Fixtures go through the existing `scripts/` `uv` generation path; run via `./scr
 | Schema break when DJ mode widens `LibraryTrack` | `VersionedSchema` + `SchemaMigrationPlan` from day one, with a migration test |
 
 ## Revision log
+
+**Revision 7 (2026-09-27)** — user decisions after the L1 gate.
+
+| Topic | Resolution |
+|---|---|
+| FLAC title/artist | Metadata precedence step 1 also reads Vorbis `TITLE`/`ARTIST`; the playlist gains FLAC tag titles (intentional behaviour change) |
+| Success criterion 2 vs 7 mistagged files | The user fixes those files' tags; the criterion stands as written |
 
 **Revision 6 (2026-09-27)** — planning-level corrections from the [L1 plan review](../plans/2026-09-15-music-library-l1-plan-review.md). The design approved in Revision 5 is unchanged.
 
