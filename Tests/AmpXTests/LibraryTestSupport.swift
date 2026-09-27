@@ -22,6 +22,84 @@ actor TestBarrier {
     }
 }
 
+/// Thread-safe ordered event log shared by spies.
+final class EventLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    func append(_ event: String) {
+        self.lock.withLock { self.storage.append(event) }
+    }
+
+    var events: [String] {
+        self.lock.withLock { self.storage }
+    }
+}
+
+/// Records security-scope starts/stops; `allowStart` decides what `start` returns.
+final class ScopeSpy: @unchecked Sendable {
+    let log: EventLog
+    private let lock = NSLock()
+    private var allow = true
+    private var counts: [String: Int] = [:]
+
+    init(log: EventLog = EventLog()) {
+        self.log = log
+    }
+
+    var allowStart: Bool {
+        get { self.lock.withLock { self.allow } }
+        set { self.lock.withLock { self.allow = newValue } }
+    }
+
+    /// Outstanding starts per path; balanced scopes leave every count at zero.
+    var openCounts: [String: Int] {
+        self.lock.withLock { self.counts.filter { $0.value != 0 } }
+    }
+
+    var scope: LibrarySecurityScope {
+        LibrarySecurityScope(
+            start: { url in
+                let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+                let allowed = self.lock.withLock { () -> Bool in
+                    if self.allow {
+                        self.counts[path, default: 0] += 1
+                    }
+                    return self.allow
+                }
+                self.log.append("start:\(url.lastPathComponent)")
+                return allowed
+            },
+            stop: { url in
+                let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+                self.lock.withLock { self.counts[path, default: 0] -= 1 }
+                self.log.append("stop:\(url.lastPathComponent)")
+            }
+        )
+    }
+}
+
+/// Startup flag that logs every write next to the saves in the same `EventLog`.
+final class FlagSpy: LibraryStartupFlag, @unchecked Sendable {
+    let log: EventLog
+    private let lock = NSLock()
+    private var value: Bool
+
+    init(log: EventLog, initial: Bool = false) {
+        self.log = log
+        self.value = initial
+    }
+
+    var hasRoots: Bool {
+        self.lock.withLock { self.value }
+    }
+
+    func setHasRoots(_ value: Bool) {
+        self.lock.withLock { self.value = value }
+        self.log.append("flag:\(value)")
+    }
+}
+
 /// Deterministic builders for library value types. Test-only.
 enum LibraryTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_700_000_000)
@@ -82,6 +160,27 @@ enum LibraryTestSupport {
         )
         dependencies.saveContext = saveContext
         dependencies.now = { self.fixedDate }
+        return LibraryStore(modelContainer: container, dependencies: dependencies)
+    }
+
+    /// Plain (non-security-scoped) bookmarks: deterministic in unit tests.
+    static let plainBookmarks = LibraryBookmarking(
+        make: { try SecurityScopedBookmark.makeData(for: $0, usesSecurityScope: false) },
+        resolve: { SecurityScopedBookmark.resolve($0) },
+        refresh: { url, _ in SecurityScopedBookmark.refreshedData(for: url, usesSecurityScope: false) }
+    )
+
+    /// A store wired to spies for root tests; saves are logged as `save` in `log`.
+    static func makeRootStore(container: ModelContainer, scope: ScopeSpy, flag: FlagSpy) -> LibraryStore {
+        let log = flag.log
+        var dependencies = LibraryStoreDependencies(startupFlag: flag)
+        dependencies.scope = scope.scope
+        dependencies.bookmarks = self.plainBookmarks
+        dependencies.now = { self.fixedDate }
+        dependencies.saveContext = { context in
+            try context.save()
+            log.append("save")
+        }
         return LibraryStore(modelContainer: container, dependencies: dependencies)
     }
 

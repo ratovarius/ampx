@@ -85,6 +85,8 @@ actor LibraryStore: ModelActor {
     let dependencies: LibraryStoreDependencies
     var activeTokens: [UUID: LibraryScanToken] = [:]
     var subscribers: [UUID: AsyncStream<LibraryChange>.Continuation] = [:]
+    /// Security scopes held per available root (spec: "Access lifetime").
+    var activeScopes: [UUID: URL] = [:]
 
     init(modelContainer: ModelContainer, dependencies: LibraryStoreDependencies) {
         let context = ModelContext(modelContainer)
