@@ -1,7 +1,8 @@
 import Foundation
 
 enum M3UParser {
-    static let supportedExtensions: Set<String> = ["mp3", "flac", "wav"]
+    /// The app's single audio extension set. AIFF and M4A were added after the L1 playback gate passed.
+    static let supportedExtensions: Set<String> = ["mp3", "flac", "wav", "aif", "aiff", "m4a"]
 
     static func isSupportedAudioExtension(_ ext: String) -> Bool {
         self.supportedExtensions.contains(ext.lowercased())
