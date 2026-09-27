@@ -55,13 +55,16 @@ actor FakeLibraryFileSystem: LibraryFileSystem {
 
     func walk(root _: URL, volume: LibraryVolume) async throws -> LibraryWalk {
         self.walkCount += 1
+        // Snapshot first: changes made while the walk is blocked land in folders it has "already walked".
+        let entries = self.files.map { LibraryEntry(relativePath: $0.key, stat: $0.value.stat) }
+            .sorted { $0.relativePath < $1.relativePath }
+        let coverage = self.coverage
         if let barrier = self.walkBarrier {
+            self.walkBarrier = nil
             await barrier.wait()
         }
         guard self.reachable else { throw CocoaError(.fileNoSuchFile) }
-        let entries = self.files.map { LibraryEntry(relativePath: $0.key, stat: $0.value.stat) }
-            .sorted { $0.relativePath < $1.relativePath }
-        return LibraryWalk(entries: self.coverage == .aborted ? [] : entries, coverage: self.coverage, volume: volume)
+        return LibraryWalk(entries: coverage == .aborted ? [] : entries, coverage: coverage, volume: volume)
     }
 
     func stat(at url: URL) async throws -> LibraryStat {
