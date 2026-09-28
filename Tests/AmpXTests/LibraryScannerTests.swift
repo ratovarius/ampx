@@ -95,6 +95,25 @@ final class LibraryScannerTests: XCTestCase {
         XCTAssertNil(root.lastCompletedScanAt)
     }
 
+    /// Every run ends with `.finished`, even an aborted one, so the footer never stays on SCANNING.
+    func testAbortedWalkPublishesFinished() async throws {
+        let h = try await ScanHarness.make(self)
+        await h.fileSystem.configure(coverage: .aborted)
+        let progress = await h.scanner.progress()
+        _ = try await h.scanner.scanOnce(rootID: h.rootID)
+        let sentinel = UUID()
+        await h.scanner.publish(ScanProgress(rootID: sentinel, phase: .walking, done: 0, total: 0))
+
+        var phases: [ScanProgress.Phase] = []
+        for await event in progress {
+            if event.rootID == sentinel {
+                break
+            }
+            phases.append(event.phase)
+        }
+        XCTAssertEqual(phases.last, .finished)
+    }
+
     func testFileChangedDuringReadIsLeftStaleAndRequestsFollowUp() async throws {
         let h = try await ScanHarness.make(self)
         await h.fileSystem.set("Growing.mp3", stat: T.stat(100, 1), fingerprint: Data([1]), statAfterRead: T.stat(200, 2))

@@ -109,6 +109,8 @@ enum LibraryChange: Sendable, Equatable {
 struct ScanProgress: Sendable, Equatable {
     enum Phase: Sendable {
         case walking, reconciling, parsing
+        /// Published when a run ends, however it ends (complete, aborted, failed or cancelled).
+        case finished
     }
 
     let rootID: UUID

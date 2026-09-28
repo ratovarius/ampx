@@ -73,7 +73,9 @@ final class AmpXLayoutStore {
             width: self.validatedPlaylistWidth(dto.playlistWidth),
             screen: screen
         )
-        let librarySize = self.validatedLibrarySize(width: dto.libraryWidth, height: dto.libraryHeight)
+        let librarySize = self.boundedLibrarySize(
+            self.validatedLibrarySize(width: dto.libraryWidth, height: dto.libraryHeight), screen: screen
+        )
 
         var saved: [AmpXModuleID: CGRect] = [:]
         for (rawID, frameDTO) in dto.frames ?? [:] {
@@ -196,6 +198,15 @@ final class AmpXLayoutStore {
             }
         }
         return clamped
+    }
+
+    /// A Library size saved on a larger display, bounded so the window fits this one (never below the minimum).
+    private static func boundedLibrarySize(_ size: CGSize, screen: NSScreen) -> CGSize {
+        let visible = screen.visibleFrame
+        return CGSize(
+            width: max(min(size.width, visible.width), AmpXMetrics.minimumLibrarySize.width),
+            height: max(min(size.height, visible.height), AmpXMetrics.minimumLibrarySize.height)
+        )
     }
 
     /// Playlist preferences saved on a larger display, bounded so the window fits this one.

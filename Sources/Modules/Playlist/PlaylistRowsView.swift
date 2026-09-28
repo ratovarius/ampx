@@ -286,9 +286,7 @@ final class PlaylistRowsView: AmpXControlView {
         ]) as? [URL], !urls.isEmpty
         else { return false }
 
-        for url in urls {
-            manager.importDroppedURL(url)
-        }
+        manager.importDroppedURLs(urls)
         return true
     }
 

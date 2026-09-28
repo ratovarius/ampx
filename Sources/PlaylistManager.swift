@@ -622,6 +622,33 @@ class PlaylistManager: ObservableObject {
         self.m3uEntry(for: trackURL, relativeTo: playlistFile)
     }
 
+    /// A drop of several items. Audio files load in one ordered batch, and a file already covered by an
+    /// active scope (e.g. a Library root, bookmarked when the drag began) saves no bookmark of its own:
+    /// each save re-resolves the whole store, so per-file saves on a large drop would stall the app.
+    func importDroppedURLs(_ urls: [URL]) {
+        var files: [URL] = []
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            guard exists, !isDirectory.boolValue, M3UParser.isSupportedAudioExtension(url.pathExtension) else {
+                self.importDroppedURL(url)
+                continue
+            }
+            if !self.bookmarkStore.ensureAccess(for: url) {
+                self.bookmarkStore.saveBookmark(for: url)
+            }
+            files.append(url)
+        }
+        guard !files.isEmpty else { return }
+        self.importTracksInBackground { [files] in
+            var tracks: [Track] = []
+            for url in files {
+                await tracks.append(Track.load(from: url))
+            }
+            return tracks
+        }
+    }
+
     func importDroppedURL(_ url: URL) {
         let ext = url.pathExtension
 

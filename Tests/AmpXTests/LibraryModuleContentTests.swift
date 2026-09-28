@@ -205,6 +205,15 @@ final class LibraryModuleContentTests: XCTestCase {
         XCTAssertEqual(content.toolbar.search.committedText, "")
     }
 
+    func testFooterShowsScanOnlyWhileRunning() {
+        let id = UUID()
+        let walking = ScanProgress(rootID: id, phase: .walking, done: 0, total: 0)
+        XCTAssertEqual(LibraryModuleContent.displayedProgress(walking), walking)
+        XCTAssertNil(LibraryModuleContent.displayedProgress(ScanProgress(rootID: id, phase: .parsing, done: 3, total: 3)))
+        XCTAssertNil(LibraryModuleContent.displayedProgress(ScanProgress(rootID: id, phase: .finished, done: 0, total: 0)))
+        XCTAssertNil(LibraryModuleContent.displayedProgress(nil))
+    }
+
     // MARK: - Actions
 
     func testDoubleClickReplacesAndPlays() async throws {

@@ -126,6 +126,15 @@ enum AmpXMenuBuilder {
     @MainActor
     private static func makeEditMenu() -> NSMenuItem {
         let menu = NSMenu(title: "Edit")
+        // Nil targets: the first responder (the Library search box) handles them.
+        for (title, action, key) in [
+            ("Cut", #selector(NSText.cut(_:)), "x"),
+            ("Copy", #selector(NSText.copy(_:)), "c"),
+            ("Paste", #selector(NSText.paste(_:)), "v"),
+            ("Select All", #selector(NSResponder.selectAll(_:)), "a"),
+        ] {
+            menu.addItem(NSMenuItem(title: title, action: action, keyEquivalent: key))
+        }
         return self.titled("Edit", submenu: menu)
     }
 

@@ -217,12 +217,17 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.updateSidebarReference()
     }
 
+    /// The footer shows scan progress only while a run is going.
+    static func displayedProgress(_ progress: ScanProgress?) -> ScanProgress? {
+        progress.flatMap { $0.phase == .finished || ($0.phase == .parsing && $0.done == $0.total) ? nil : $0 }
+    }
+
     private func updateFooter() {
         let rows = self.table.rows
         self.footer.update(
             trackCount: rows.count,
             totalDuration: rows.reduce(0) { $0 + $1.duration },
-            progress: self.model?.progress.flatMap { $0.phase == .parsing && $0.done == $0.total ? nil : $0 },
+            progress: Self.displayedProgress(self.model?.progress),
             missing: self.model?.unavailableTotal ?? 0,
             showingMissing: self.filter.showMissing
         )
@@ -258,6 +263,11 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.toolbar.onClear = { [weak self] in
             self?.filter.clear()
             self?.applyFilter()
+        }
+        // ↩ in search moves to the results, as in Winamp's Media Library.
+        self.toolbar.search.onCommit = { [weak self] _ in
+            guard let self else { return }
+            window?.makeFirstResponder(self.table)
         }
         self.genreList.onClick = { [weak self] value, command in
             self?.filter.facetClick(value, facet: \.genres, command: command)
@@ -362,10 +372,30 @@ final class LibraryModuleContent: AmpXModuleContent {
         window?.makeFirstResponder(self.toolbar.search)
     }
 
+    /// On open, keyboard focus goes to the table (the module view asks for this).
+    override var preferredFocusView: NSView? {
+        self.table
+    }
+
+    /// Tab order after the header: search, BPM, the facets, the table, the MIXES WELL switch, then the footer.
+    override func focusableControls() -> [NSView] {
+        [
+            self.toolbar.search, self.toolbar.bpmMin, self.toolbar.bpmMax, self.toolbar.clearBpmButton,
+            self.toolbar.clearButton, self.genreList, self.artistList, self.table,
+            self.sidebar.playingButton, self.sidebar.selectedButton, self.sidebar.queueButton,
+            self.footer.missingButton, self.footer.rootsButton, self.footer.enqueueButton,
+        ] // Hidden or disabled views stay in the chain; AppKit skips them while they cannot take focus.
+    }
+
     /// Keys `AmpXKeyRouter` routes here (`.library`): ↑↓ Home End PageUp PageDown (± ⇧) move the table's
     /// focus, ↩ replaces and plays, ⌘↩ appends, ⌘A selects all and ⌘F focuses search.
     func handleKey(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if let facet = window?.firstResponder as? LibraryFacetListView, facet === self.genreList || facet === self.artistList,
+           facet.handleKey(event)
+        {
+            return true
+        }
         let extend = flags.contains(.shift)
         let order = self.table.rows.map(\.id)
         var selection = self.table.selection

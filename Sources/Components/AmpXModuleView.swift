@@ -195,6 +195,9 @@ final class AmpXModuleView: NSView {
         if self.isContentCollapsed, let compactContent {
             return compactContent.expandButton
         }
+        if !self.isContentCollapsed, let view = self.content.preferredFocusView {
+            return view
+        }
         return self.header
     }
 

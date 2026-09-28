@@ -15,6 +15,11 @@ class AmpXModuleContent: AmpXDrawingView {
         }
     }
 
+    /// Where keyboard focus goes when the module opens; nil means the module header.
+    var preferredFocusView: NSView? {
+        nil
+    }
+
     func focusableControls() -> [NSView] {
         subviews
             .filter { view in

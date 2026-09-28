@@ -208,6 +208,72 @@ final class LibraryWiringTests: XCTestCase {
         await self.eventually { self.playlist.tracks.map(\.title) == ["A", "A", "B", "C"] }
     }
 
+    func testOpeningLibraryFocusesTheTable() throws {
+        let application = self.makeApplication(controller: nil)
+        let (content, window) = try self.openLibrary(application)
+        XCTAssertTrue(window.firstResponder === content.table)
+        XCTAssertEqual(AmpXKeyRouter.focusContext(from: window).module, .library)
+    }
+
+    /// Tab walks every pane and control of the Library and wraps (criterion 7: keyboard-only use).
+    func testTabCyclesThroughLibraryPanes() throws {
+        let application = self.makeApplication(controller: nil)
+        let (content, window) = try self.openLibrary(application)
+        let order: [NSView] = [
+            content.toolbar.search, content.toolbar.bpmMin, content.toolbar.bpmMax, content.toolbar.clearBpmButton,
+            content.toolbar.clearButton, content.genreList, content.artistList, content.table,
+            content.sidebar.playingButton, content.sidebar.selectedButton, content.sidebar.queueButton,
+            content.footer.missingButton, content.footer.rootsButton, content.footer.enqueueButton,
+        ]
+        let expected = order.filter(\.canBecomeKeyView)
+        for view in [content.toolbar.search, content.genreList, content.artistList, content.table, content.footer.rootsButton] {
+            XCTAssertTrue(expected.contains { $0 === view }, "\(view) is not reachable")
+        }
+
+        // The module's traversal starts at its header, then walks the content and wraps.
+        let header = try XCTUnwrap(application.hosts.moduleView(for: .library)?.header)
+        let loop: [NSView] = expected + [header]
+        XCTAssertTrue(
+            content.toolbar.search.nextKeyView === content.toolbar.bpmMin,
+            "search → \(String(describing: content.toolbar.search.nextKeyView)); header → \(String(describing: header.nextKeyView))"
+        )
+        XCTAssertTrue(window.makeFirstResponder(content.toolbar.search))
+        var visited: [NSResponder] = []
+        for _ in 0 ..< loop.count {
+            window.selectNextKeyView(nil)
+            try visited.append(XCTUnwrap(window.firstResponder))
+        }
+        XCTAssertTrue(zip(visited, loop.dropFirst() + [content.toolbar.search]).allSatisfy { $0 === $1 }, "\(visited)")
+    }
+
+    func testReturnInSearchMovesToResults() throws {
+        let application = self.makeApplication(controller: nil)
+        let (content, window) = try self.openLibrary(application)
+        XCTAssertTrue(window.makeFirstResponder(content.toolbar.search))
+        window.firstResponder?.keyDown(with: self.keyDown(36, "\r"))
+        XCTAssertTrue(window.firstResponder === content.table)
+    }
+
+    func testFacetKeysMoveAndToggle() throws {
+        let application = self.makeApplication(controller: nil)
+        let (content, window) = try self.openLibrary(application)
+        content.genreList.counts = [.text("House"): 2, .text("Techno"): 1]
+        XCTAssertTrue(window.makeFirstResponder(content.genreList))
+
+        XCTAssertTrue(self.dispatch(self.keyDown(125), in: window))
+        XCTAssertEqual(content.genreList.focusedIndex, 0)
+        XCTAssertTrue(self.dispatch(self.keyDown(125), in: window))
+        XCTAssertEqual(content.genreList.focusedIndex, 1)
+        XCTAssertTrue(self.dispatch(self.keyDown(36), in: window))
+        XCTAssertEqual(content.filter.genres, [.text("Techno")])
+        XCTAssertTrue(self.dispatch(self.keyDown(126), in: window))
+        XCTAssertTrue(self.dispatch(self.keyDown(36, flags: .command), in: window))
+        XCTAssertEqual(content.filter.genres, [.text("House"), .text("Techno")])
+        // Focus stays in the list; the table selection is untouched.
+        XCTAssertTrue(window.firstResponder === content.genreList)
+        XCTAssertNil(content.table.selection.focused)
+    }
+
     // MARK: - Launch and menus
 
     func testLaunchWithFlagOffOpensNoContainer() async {

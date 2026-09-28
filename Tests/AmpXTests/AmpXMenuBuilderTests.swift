@@ -139,6 +139,25 @@ final class AmpXMenuBuilderTests: XCTestCase {
         application.hosts.hideAllWindowsForTesting()
     }
 
+    /// ⌘X ⌘C ⌘V ⌘A reach the focused text input (the Library search) through the responder chain.
+    func testEditMenuHasStandardTextCommands() throws {
+        let menu = AmpXMenuBuilder.makeMainMenu(application: self.makeApplication())
+        let edit = try XCTUnwrap(menu.item(withTitle: "Edit")?.submenu)
+        let expected: [(String, Selector, String)] = [
+            ("Cut", #selector(NSText.cut(_:)), "x"),
+            ("Copy", #selector(NSText.copy(_:)), "c"),
+            ("Paste", #selector(NSText.paste(_:)), "v"),
+            ("Select All", #selector(NSResponder.selectAll(_:)), "a"),
+        ]
+        for (title, action, key) in expected {
+            let item = try XCTUnwrap(edit.item(withTitle: title), title)
+            XCTAssertEqual(item.action, action)
+            XCTAssertNil(item.target)
+            XCTAssertEqual(item.keyEquivalent, key)
+            XCTAssertEqual(item.keyEquivalentModifierMask, .command)
+        }
+    }
+
     func testFileMenuAddLibraryFolder() throws {
         let application = self.makeApplication()
         let menu = AmpXMenuBuilder.makeMainMenu(application: application)

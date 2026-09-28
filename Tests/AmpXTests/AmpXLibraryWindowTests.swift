@@ -99,6 +99,26 @@ final class AmpXLibraryWindowTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(restored.width, AmpXMetrics.minimumLibrarySize.width)
     }
 
+    /// A size saved on a larger display is bounded to this one, never below the minimum.
+    func testOversizedSavedLibraryIsBoundedToScreen() throws {
+        let visible = AmpXTestScreen.standard.visibleFrame
+        let store = AmpXLayoutStore(defaults: self.isolatedDefaults(), screen: AmpXTestScreen.standard)
+        var layout = store.load()
+        layout.state.reopen(.library)
+        layout.librarySize = CGSize(width: 5000, height: 3000)
+        layout.frames[.library] = CGRect(x: visible.minX, y: visible.minY, width: 5000, height: 3000)
+        store.save(layout)
+
+        let restored = store.load().librarySize
+        XCTAssertLessThanOrEqual(restored.width, visible.width)
+        XCTAssertLessThanOrEqual(restored.height, visible.height)
+
+        let coordinator = self.makeCoordinator(store: store)
+        coordinator.showAll()
+        let window = try XCTUnwrap(coordinator.window(for: .library))
+        XCTAssertTrue(visible.insetBy(dx: -1, dy: -1).contains(window.frame), "\(window.frame) not inside \(visible)")
+    }
+
     // MARK: - Window
 
     func testReopenLibraryShowsAtSavedFrame() throws {

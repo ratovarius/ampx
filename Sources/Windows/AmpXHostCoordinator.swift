@@ -173,6 +173,10 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         guard id != .enthea || self.isEntheaEnabled else { return }
         self.state.reopen(id)
         self.showWindow(for: id)
+        // A reopened window with nothing focused starts at its preferred view (the Library's table).
+        if let view = self.moduleViews[id], let window = self.window(for: id), window.firstResponder === window {
+            window.makeFirstResponder(view.preferredFocusView)
+        }
         if id == .enthea {
             (self.moduleViews[id]?.content as? EntheaModuleContent)?.reopenHost()
         }
@@ -450,7 +454,11 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         controller.install(view, size: size, playlistViewportHeight: self.playlistViewportHeight)
         controller.applyFrame(frame)
         self.frames[id] = frame
+        // Without an initial first responder AppKit rebuilds the key-view loop on first display,
+        // discarding the module's own Tab order.
+        controller.window?.initialFirstResponder = view.preferredFocusView
         controller.showWindow(nil)
+        view.wireFocusTraversal()
     }
 
     /// Resizes `ids` to their current window sizes, keeping each top-left corner, and moves the

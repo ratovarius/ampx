@@ -65,6 +65,7 @@ actor LibraryScanner {
 
     /// Steps 0–7 for one root.
     func scanOnce(rootID: UUID) async throws -> LibraryScanOutcome {
+        defer { self.publish(ScanProgress(rootID: rootID, phase: .finished, done: 0, total: 0)) }
         // 0. Access.
         let token = try await self.store.beginScan(rootID: rootID)
         let root = try await self.store.resolveRoot(token: token)

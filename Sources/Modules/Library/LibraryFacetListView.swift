@@ -12,6 +12,9 @@ final class LibraryFacetListView: AmpXControlView {
     var counts: [LibraryFacetValue: Int] = [:] {
         didSet {
             self.values = Self.sorted(self.counts)
+            if let index = self.focusedIndex, index >= self.values.count {
+                self.focusedIndex = self.values.isEmpty ? nil : self.values.count - 1
+            }
             self.scroll(to: self.scrollOffset)
         }
     }
@@ -22,6 +25,10 @@ final class LibraryFacetListView: AmpXControlView {
     }
 
     var onClick: ((LibraryFacetValue, _ command: Bool) -> Void)?
+    /// The keyboard cursor: ↑↓ Home End move it, ↩ picks its value and ⌘↩ adds it (as a ⌘-click does).
+    private(set) var focusedIndex: Int? {
+        didSet { needsDisplay = true }
+    }
 
     private let scrollbar: AmpXScrollbar
     private(set) var scrollOffset: CGFloat = 0
@@ -140,6 +147,12 @@ final class LibraryFacetListView: AmpXControlView {
                 context.setFillColor(skin.selection.cgColor)
                 context.fill(rect)
             }
+            if index == self.focusedIndex, window?.firstResponder === self {
+                let backingScale = window?.backingScaleFactor ?? 1
+                context.setStrokeColor(skin.green.withAlphaComponent(0.6).cgColor)
+                context.setLineWidth(1 / backingScale)
+                context.stroke(AmpXPixelGrid.strokeRect(rect.insetBy(dx: 0.5, dy: 0.5), lineWidth: 1, backingScale: backingScale))
+            }
             let baseline = rect.minY + Self.rowHeight / 2 + 4
             let countText = String(count)
             let countWidth = LibraryTrackTableView.textWidth(countText, skin: skin)
@@ -176,6 +189,43 @@ final class LibraryFacetListView: AmpXControlView {
         let index = Int(floor((y + self.scrollOffset) / Self.rowHeight))
         guard index >= 0, index < self.values.count else { return }
         self.onClick?(self.values[index].0, command)
+    }
+
+    /// Keys the Library routes here while the list has focus. Returns false for keys it does not use.
+    func handleKey(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        guard !self.values.isEmpty else { return false }
+        let last = self.values.count - 1
+        switch event.keyCode {
+        case 125, 126:
+            let delta = event.keyCode == 125 ? 1 : -1
+            self.focusedIndex = self.focusedIndex.map { min(max($0 + delta, 0), last) } ?? (delta > 0 ? 0 : last)
+        case 115, 119:
+            self.focusedIndex = event.keyCode == 115 ? 0 : last
+        case 116, 121:
+            let page = max(1, Int(self.listViewport.height / Self.rowHeight))
+            let delta = event.keyCode == 121 ? page : -page
+            self.focusedIndex = min(max((self.focusedIndex ?? 0) + delta, 0), last)
+        case 36, 76:
+            guard let index = self.focusedIndex else { return false }
+            self.onClick?(self.values[index].0, flags.contains(.command))
+            return true
+        default:
+            return false
+        }
+        self.scrollToFocused()
+        return true
+    }
+
+    private func scrollToFocused() {
+        guard let index = self.focusedIndex else { return }
+        let top = CGFloat(index) * Self.rowHeight
+        let viewport = self.listViewport.height
+        if top < self.scrollOffset {
+            self.scroll(to: top)
+        } else if top + Self.rowHeight > self.scrollOffset + viewport {
+            self.scroll(to: top + Self.rowHeight - viewport)
+        }
     }
 
     override func scrollWheel(with event: NSEvent) {
