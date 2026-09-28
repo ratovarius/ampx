@@ -68,6 +68,7 @@ final class LibraryMetadataGateTests: XCTestCase {
 
     @MainActor
     func testAIFFAndM4APlay() throws {
+        try AmpXTestEnvironment.skipOnCI("needs a real audio output device and real-time playback")
         let player = AudioPlayer(installRemoteCommands: false)
         for name in ["tagged.aiff", "tagged.m4a"] {
             let url = try self.libraryRoot.appendingPathComponent(name)

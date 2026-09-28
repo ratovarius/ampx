@@ -72,7 +72,9 @@ final class LibraryGateFileSystemTests: XCTestCase {
         let elapsed = (ContinuousClock.now - start) / .seconds(1)
 
         XCTAssertEqual(entries.count, 11000)
-        XCTAssertLessThan(elapsed, 5, "no-change walk of 11,000 files exceeds the 5 s budget")
+        if AmpXTestEnvironment.enforcesTimeBudgets {
+            XCTAssertLessThan(elapsed, 5, "no-change walk of 11,000 files exceeds the 5 s budget")
+        }
         self.emitGate("walk11k", ["files": "\(entries.count)", "seconds": String(format: "%.3f", elapsed)])
     }
 

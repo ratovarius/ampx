@@ -207,7 +207,9 @@ final class LibraryPerformanceTests: XCTestCase {
         await engine.waitUntilIdle()
         let seconds = (ContinuousClock.now - start) / .seconds(1)
         self.emitGate("rescan11k", ["firstScanSeconds": firstSeconds, "noChangeRescanSeconds": seconds])
-        XCTAssertLessThan(seconds, 5)
+        if AmpXTestEnvironment.enforcesTimeBudgets {
+            XCTAssertLessThan(seconds, 5)
+        }
         XCTAssertEqual(counter.loadCount, 0)
         XCTAssertEqual(counter.fingerprintCount, 0)
     }

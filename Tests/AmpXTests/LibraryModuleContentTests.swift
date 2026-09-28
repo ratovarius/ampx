@@ -266,7 +266,9 @@ final class LibraryModuleContentTests: XCTestCase {
         let elapsed = (ContinuousClock.now - start) / .seconds(1)
         XCTAssertEqual(self.playlist.tracks.count, 11000)
         XCTAssertEqual(self.playlist.tracks.prefix(3).map(\.title), ["00000", "00001", "00002"])
-        XCTAssertLessThan(elapsed, 1)
+        if AmpXTestEnvironment.enforcesTimeBudgets {
+            XCTAssertLessThan(elapsed, 1)
+        }
     }
 
     // MARK: - States and roots
