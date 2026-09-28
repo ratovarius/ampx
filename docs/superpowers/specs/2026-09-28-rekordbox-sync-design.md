@@ -1,7 +1,7 @@
 # rekordbox Collection Sync
 
 **Date:** 2026-09-28 · **Revised:** 2026-09-28 (Revision 3: failures go to the console log only, never to the UI)
-**Status:** Proposed
+**Status:** Implemented on `feature/music-library` (2026-09-28). The manual checks under *Verification* are still pending.
 **Ships in:** PR #15 (`feature/music-library`), with library L1 and L2.
 **Takes over from:** [DJ mode](./2026-09-11-dj-mode-design.md) phase A: the rekordbox import, Camelot conversion, the `LibrarySchemaV2` migration and the scanner re-parse rule. Smart playlists, A-UI's MIXES WELL and phases B/B′ stay in DJ mode.
 **Builds on:** [Music Library, Revision 7](./2026-09-11-music-library-design.md) (engine) and [Library Module](./2026-09-27-library-module-design.md) (window).
@@ -74,7 +74,7 @@ A lightweight migration from `LibrarySchemaV1` under the existing `LibraryMigrat
 | `analysisSource: AnalysisSource?` | — | `.fileTag` or `.rekordbox`; nil when `bpm` and `musicalKey` are both nil. Precedence: `rekordbox` over `fileTag` |
 | `bpm`, `musicalKey` (existing) | `AverageBpm`, `Tonality` | `musicalKey` stores the key as rekordbox writes it |
 | `camelotKey: String?` | derived | Recomputed from `musicalKey` whenever it changes, whatever the source. nil for an unknown spelling |
-| `beatGrid: Data?` | `<TEMPO Inizio Bpm Metro Battito>` | A Codable list of `(start, bpm, meter, beat)`, stored for DJ mode's auto-mix. Not displayed |
+| `beatGrid: Data?` | `<TEMPO Inizio Bpm Metro Battito>` | `(start, bpm, meter, beat)` per entry in the packed format of `RekordboxBeatGrid` (version byte, then per beat two little-endian Float64s, a UInt8 beat and a length-prefixed meter), stored for DJ mode's auto-mix. Not displayed. JSON was too slow: this export has 538,178 `TEMPO` elements |
 | `label`, `remixer`, `composer`, `grouping`, `mix: String?` | same-named attributes | rekordbox only; an empty attribute stores nil |
 | `rating` (existing) | `Rating` 0–255 → 0–5 (`/ 51`, rounded) | See `ratingSource` |
 | `ratingSource: RatingSource?` | — | `.rekordbox` or `.user`. A sync updates `rating` only while the source is nil or `.rekordbox`. AmpX has no rating UI yet; when it arrives it sets `.user`, and a differing rekordbox rating is then a reported conflict |
@@ -143,7 +143,7 @@ In the Library window, custom-drawn like the rest of it. Nothing about rekordbox
   - KEY shows `musicalKey`. A new CAMELOT column is visible by default.
   - LABEL, REMIXER, COMPOSER, GROUPING and MIX are new and hidden by default.
   - CAMELOT sorts by number, then A before B, with empty values last.
-  - Minimum widths keep the default set inside the 910 pt minimum window.
+  - At narrow widths every column shrinks in proportion, as in L2 (the table is 388 pt wide at the 910 pt minimum window; the L2 columns alone need 522 pt).
 - **Search** also matches label, remixer, composer, grouping and mix.
 - **Footer:** a rekordbox indicator next to the scan status, shown only while at least one present source exists. It reads `REKORDBOX 14:30` (latest sync) or `REKORDBOX SYNCING`. Clicking it opens the report. It never shows an error state.
 - **ROOTS menu:** in a root's submenu, only when it has a present source, a disabled line `rekordbox: collection.xml · synced 14:30`, and **View rekordbox Report**.
@@ -204,3 +204,24 @@ Tracked as a separate task, **not part of PR #15**.
   - A rekordbox update can change the key or the schema without notice.
   - It may conflict with rekordbox's licence terms, which must be checked before any release.
   - The XML sync stays the supported path, and this source falls back to it on any failure.
+
+## Verification (2026-09-28)
+
+- **Automated:** the full suite passes locally: 1,168 cases, 0 failures, 3 opt-in gates skipped.
+- **Real collection** (`RekordboxCollectionGateTests`, `TEST_RUNNER_AMPX_LIBRARY_GATE=1`, Debug build, M1 Pro):
+
+  | Measure | Result |
+  |---|---|
+  | Tracks in `~/Music/DJ` with BPM, key and Camelot from rekordbox | 2,232 of 2,232 |
+  | Export entries matched / unmatched / ambiguous | 2,232 / 217 / 0 (the 217 are outside `~/Music/DJ`) |
+  | Adding `~/Music/DJ` to imported (scan plus sync) | 9.6 s |
+  | Re-check of the unchanged export | 0 reads |
+  | Forced re-sync of the unchanged export | 1.88–1.89 s over 3 runs, 0 rows written |
+  | Where a sync's time goes | bare `XMLParser` 1.1 s, parser 1.5 s, plan 0.25 s, snapshot 0.17 s (overlapped with the parse) |
+
+- **Pending (need a person at the Mac):**
+  - success criterion 2: change a BPM in rekordbox, re-export over `~/Music/DJ/collection.xml`, and time how long AmpX takes to show it (budget 5 s);
+  - success criterion 3: add a library folder with no export and confirm nothing rekordbox-related appears;
+  - a truncated `collection.xml` in a test folder shows no popup or indicator, and Console (`category:RekordboxSync`) shows the `.info` line;
+  - captures of the synced table (BPM, KEY, CAMELOT, footer `REKORDBOX HH:mm`) and of the report, saved to `docs/superpowers/plans/rekordbox-sync/`.
+
