@@ -213,16 +213,53 @@ final class LibraryEngineTests: XCTestCase {
         XCTAssertTrue(self.scope.openCounts.isEmpty)
     }
 
+    // MARK: - rekordbox
+
+    func testLaunchScanTriggersCheck() async throws {
+        let folder = try self.folder("DJ")
+        let fake = FakeLibraryFileSystem(root: folder)
+        await fake.set("a.mp3", stat: T.stat(100, 1), fingerprint: Data([1]))
+        let exportPath = fake.root.path + "/collection.xml"
+        await fake.setTopLevel(exportPath, data: RekordboxXML.make([.init(path: fake.root.path + "/a.mp3", bpm: 120)]), modified: 100)
+
+        let first = try await LibraryEngine.open(self.configuration(fileSystem: fake))
+        _ = try await first.addRoot(url: folder)
+        try await self.eventually { try await first.index.query(LibraryQuery(), generation: 0).rows.first?.bpm == 120 }
+        await first.waitUntilIdle()
+        await first.stop()
+
+        // Re-exported while AmpX was closed: the launch scan's check imports it.
+        await fake.setTopLevel(exportPath, data: RekordboxXML.make([.init(path: fake.root.path + "/a.mp3", bpm: 133)]), modified: 200)
+        let reopened = try await LibraryEngine.openIfConfigured(self.configuration(fileSystem: fake))
+        let engine = try XCTUnwrap(reopened)
+        self.engines.append(engine)
+        try await self.eventually { try await engine.index.query(LibraryQuery(), generation: 0).rows.first?.bpm == 133 }
+    }
+
+    private func eventually(
+        _ condition: @escaping () async throws -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async rethrows {
+        for _ in 0 ..< 300 {
+            if try await condition() {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("condition not met", file: file, line: line)
+    }
+
     // MARK: - Helpers
 
-    private func configuration() -> LibraryEngineConfiguration {
+    private func configuration(fileSystem: (any LibraryFileSystem)? = nil) -> LibraryEngineConfiguration {
         let scope = self.scope!
         var configuration = LibraryEngineConfiguration(
             startupFlag: self.flag,
             bookmarkStore: SecurityScopedBookmarkStore(userDefaults: T.isolatedDefaults(self))
         )
         configuration.storeURL = self.storeURL
-        configuration.fileSystem = self.fileSystem
+        configuration.fileSystem = fileSystem ?? self.fileSystem
         configuration.loadMetadata = FakeMetadataLoader().load
         configuration.watcherLatency = 0.1
         configuration.storeDependencies = { flag in

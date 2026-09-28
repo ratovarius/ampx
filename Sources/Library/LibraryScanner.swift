@@ -25,8 +25,10 @@ actor LibraryScanner {
     private let batchSize: Int
     private var progressSubscribers: [UUID: AsyncStream<ScanProgress>.Continuation] = [:]
 
-    // Scheduling state (see LibraryScanner+Scheduling.swift).
-    var queue: [UUID] = []
+    /// Scheduling state (see LibraryScanner+Scheduling.swift).
+    var queue: [LibraryScanJob] = []
+    /// Work and completion of queued or running exclusive jobs, by job id.
+    var exclusiveJobs: [UUID: LibraryExclusiveJob] = [:]
     var queued: Set<UUID> = []
     var runningRoot: UUID?
     var runningTask: Task<Void, Never>?

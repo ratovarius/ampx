@@ -194,6 +194,92 @@ final class LibraryScanSchedulingTests: XCTestCase {
         XCTAssertEqual(walks, 2)
     }
 
+    // MARK: - Exclusive jobs (rekordbox sync spec § Turn-taking with scans)
+
+    func testExclusiveJobWaitsForRunningScan() async throws {
+        let scanner = try XCTUnwrap(self.scanner)
+        let a = try await self.addRoot("A")
+        let gate = await self.fileSystem.block("A")
+        let log = EventLog()
+        await self.scanner.requestScan(rootID: a)
+        await gate.started.wait()
+        let job = Task { await scanner.performExclusive { log.append("job") } }
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        XCTAssertEqual(log.events, [])
+        await gate.release.open()
+        await job.value
+        XCTAssertEqual(log.events, ["job"])
+        let maxRuns = await self.scanner.maxConcurrentRuns
+        XCTAssertEqual(maxRuns, 1)
+    }
+
+    func testScanWaitsForExclusiveJob() async throws {
+        let scanner = try XCTUnwrap(self.scanner)
+        let a = try await self.addRoot("A")
+        let started = TestBarrier(), release = TestBarrier()
+        let job = Task {
+            await scanner.performExclusive {
+                await started.open()
+                await release.wait()
+            }
+        }
+        await started.wait()
+        await self.scanner.requestScan(rootID: a)
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        let walkedWhileJobRan = await self.fileSystem.order
+        XCTAssertEqual(walkedWhileJobRan, [])
+        await release.open()
+        await job.value
+        await self.scanner.waitUntilIdle()
+        let order = await self.fileSystem.order
+        XCTAssertEqual(order, ["A"])
+        let maxRuns = await self.scanner.maxConcurrentRuns
+        XCTAssertEqual(maxRuns, 1)
+    }
+
+    func testExclusiveJobsRunInOrder() async throws {
+        let scanner = try XCTUnwrap(self.scanner)
+        let log = EventLog()
+        let a = try await self.addRoot("A")
+        let gate = await self.fileSystem.block("A")
+        await self.scanner.requestScan(rootID: a)
+        await gate.started.wait()
+        let first = Task { await scanner.performExclusive { log.append("1") } }
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        let second = Task { await scanner.performExclusive { log.append("2") } }
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        await gate.release.open()
+        await first.value
+        await second.value
+        XCTAssertEqual(log.events, ["1", "2"])
+    }
+
+    func testStopDropsQueuedExclusiveJob() async throws {
+        let scanner = try XCTUnwrap(self.scanner)
+        let log = EventLog()
+        let a = try await self.addRoot("A")
+        let gate = await self.fileSystem.block("A")
+        await self.scanner.requestScan(rootID: a)
+        await gate.started.wait()
+        let job = Task { await scanner.performExclusive { log.append("job") } }
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        let stop = Task { await scanner.stop() }
+        await gate.release.open()
+        await stop.value
+        await job.value
+        XCTAssertEqual(log.events, [])
+    }
+
     private func addRoot(_ name: String) async throws -> UUID {
         let url = self.directory.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

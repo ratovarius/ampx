@@ -83,6 +83,59 @@ actor FakeLibraryFileSystem: LibraryFileSystem {
         self.reachable
     }
 
+    // MARK: - Top-level files (rekordbox discovery)
+
+    private var topLevel: [String: (data: Data, stamp: RekordboxFileStamp)] = [:]
+    private var unreadable: Set<String> = []
+    var readBarrier: (started: TestBarrier, release: TestBarrier)?
+    private(set) var fullReads = 0
+
+    /// `path` is absolute; only files directly inside a queried root are listed.
+    func setTopLevel(_ path: String, data: Data, modified: TimeInterval) {
+        self.topLevel[path] = (data, RekordboxFileStamp(size: Int64(data.count), modifiedAt: Date(timeIntervalSince1970: modified)))
+    }
+
+    func removeTopLevel(_ path: String) {
+        self.topLevel[path] = nil
+    }
+
+    func setUnreadable(_ path: String) {
+        self.unreadable.insert(path)
+    }
+
+    func blockNextRead() -> (started: TestBarrier, release: TestBarrier) {
+        let pair = (TestBarrier(), TestBarrier())
+        self.readBarrier = pair
+        return pair
+    }
+
+    func topLevelFiles(in root: URL, pathExtension: String) async throws -> [LibraryTopLevelFile] {
+        let prefix = root.standardizedFileURL.resolvingSymlinksInPath().path + "/"
+        return self.topLevel.compactMap { path, file in
+            guard path.hasPrefix(prefix), !path.dropFirst(prefix.count).contains("/"),
+                  (path as NSString).pathExtension.caseInsensitiveCompare(pathExtension) == .orderedSame
+            else { return nil }
+            return LibraryTopLevelFile(url: URL(fileURLWithPath: path), name: (path as NSString).lastPathComponent, stamp: file.stamp)
+        }
+        .sorted { $0.name < $1.name }
+    }
+
+    func readPrefix(of url: URL, length: Int) async throws -> Data {
+        guard !self.unreadable.contains(url.path), let file = self.topLevel[url.path] else { throw CocoaError(.fileReadNoPermission) }
+        return file.data.prefix(length)
+    }
+
+    func readAll(of url: URL) async throws -> Data {
+        self.fullReads += 1
+        if let barrier = self.readBarrier {
+            self.readBarrier = nil
+            await barrier.started.open()
+            await barrier.release.wait()
+        }
+        guard !self.unreadable.contains(url.path), let file = self.topLevel[url.path] else { throw CocoaError(.fileReadNoPermission) }
+        return file.data
+    }
+
     private func relative(_ url: URL) -> String {
         let prefix = self.root.path + "/"
         let path = url.standardizedFileURL.resolvingSymlinksInPath().path
@@ -181,5 +234,32 @@ struct ScanHarness {
 
     func root() async throws -> LibraryRootSnapshot {
         try await self.store.roots().first { $0.id == self.rootID }!
+    }
+}
+
+/// A minimal rekordbox export for sync tests.
+enum RekordboxXML {
+    struct Entry {
+        var path: String
+        var bpm: Double = 124
+        var key = "Am"
+        var label: String?
+    }
+
+    static func make(_ entries: [Entry], product: String = "rekordbox") -> Data {
+        let tracks = entries.enumerated().map { index, entry in
+            let location = "file://localhost" + (entry.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? entry.path)
+            let label = entry.label.map { #" Label="\#($0)""# } ?? ""
+            return #"<TRACK TrackID="\#(index + 1)" Name="T" AverageBpm="\#(entry.bpm)" Tonality="\#(entry.key)"\#(label) Location="\#(location)"/>"#
+        }
+        return Data(#"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <DJ_PLAYLISTS Version="1.0.0">
+          <PRODUCT Name="\#(product)" Version="7.2.19" Company="AlphaTheta"/>
+          <COLLECTION Entries="\#(entries.count)">
+            \#(tracks.joined(separator: "\n    "))
+          </COLLECTION>
+        </DJ_PLAYLISTS>
+        """#.utf8)
     }
 }

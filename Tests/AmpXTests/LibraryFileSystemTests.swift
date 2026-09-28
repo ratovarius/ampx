@@ -150,4 +150,31 @@ final class LibraryFileSystemTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: url.path)
         self.lockedURLs.append(url)
     }
+
+    // MARK: - rekordbox discovery
+
+    func testTopLevelFilesListsOnlyTopLevelXml() async throws {
+        let manager = FileManager.default
+        try manager.createDirectory(at: self.root.appendingPathComponent("sub"), withIntermediateDirectories: true)
+        try manager.createDirectory(at: self.root.appendingPathComponent("folder.xml"), withIntermediateDirectories: true)
+        for name in ["a.xml", "B.XML", "sub/c.xml", "d.txt"] {
+            try Data("x".utf8).write(to: self.root.appendingPathComponent(name))
+        }
+
+        let files = try await self.fileSystem.topLevelFiles(in: self.root, pathExtension: "xml")
+
+        XCTAssertEqual(files.map(\.name).sorted(), ["B.XML", "a.xml"])
+        let a = try XCTUnwrap(files.first { $0.name == "a.xml" })
+        XCTAssertEqual(a.stamp.size, 1)
+        XCTAssertEqual(a.url.lastPathComponent, "a.xml")
+    }
+
+    func testReadPrefixReadsAtMostLength() async throws {
+        let url = self.root.appendingPathComponent("big.xml")
+        try Data(repeating: 65, count: 10000).write(to: url)
+        let prefix = try await self.fileSystem.readPrefix(of: url, length: 4096)
+        XCTAssertEqual(prefix.count, 4096)
+        let all = try await self.fileSystem.readAll(of: url)
+        XCTAssertEqual(all.count, 10000)
+    }
 }

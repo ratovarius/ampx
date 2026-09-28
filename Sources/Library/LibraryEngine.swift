@@ -28,6 +28,8 @@ actor LibraryEngine {
     nonisolated let store: LibraryStore
     nonisolated let scanner: LibraryScanner
     nonisolated let watcher: LibraryWatcher
+    /// Imports rekordbox exports found at roots' top level after their scans (rekordbox sync spec).
+    nonisolated let rekordbox: RekordboxSync
     private var watchedURLs: [UUID: URL] = [:]
     private var listener: Task<Void, Never>?
     private var pendingRewatches: [Task<Void, Never>] = []
@@ -37,8 +39,10 @@ actor LibraryEngine {
         index: LibraryIndex,
         scanner: LibraryScanner,
         watcher: LibraryWatcher,
+        rekordbox: RekordboxSync,
         bookmarkStore: SecurityScopedBookmarkStore
     ) {
+        self.rekordbox = rekordbox
         self.store = store
         self.index = index
         self.scanner = scanner
@@ -74,6 +78,7 @@ actor LibraryEngine {
             index: index,
             scanner: scanner,
             watcher: watcher,
+            rekordbox: RekordboxSync(store: store, scanner: scanner, fileSystem: configuration.fileSystem),
             bookmarkStore: configuration.bookmarkStore
         )
         reference.engine = engine
@@ -88,6 +93,8 @@ actor LibraryEngine {
             }
         }
         await self.watcher.startVolumeObservation()
+        // Before the launch scans, so their `finished` events trigger the rekordbox checks.
+        await self.rekordbox.start()
         for root in try await self.store.startAccessForAvailableRoots() {
             self.watch(root)
             await self.scanner.requestScan(rootID: root.id)
@@ -161,6 +168,7 @@ actor LibraryEngine {
     /// Test and teardown hook: returns once no scan is queued or running.
     func waitUntilIdle() async {
         await self.scanner.waitUntilIdle()
+        await self.rekordbox.waitUntilIdle()
         while !self.pendingRewatches.isEmpty {
             let tasks = self.pendingRewatches
             self.pendingRewatches.removeAll()
@@ -175,7 +183,9 @@ actor LibraryEngine {
         self.listener = nil
         self.pendingRewatches.forEach { $0.cancel() }
         self.pendingRewatches.removeAll()
+        await self.rekordbox.halt()
         await self.scanner.stop()
+        await self.rekordbox.waitUntilIdle()
         await self.watcher.stop()
         self.watchedURLs.removeAll()
         await self.index.stop()

@@ -10,6 +10,33 @@ protocol LibraryFileSystem: Sendable {
     func stat(at url: URL) async throws -> LibraryStat
     func fingerprint(at url: URL) async throws -> Data
     func isReachable(_ root: URL) async -> Bool
+    /// Regular files directly inside `root` whose extension equals `pathExtension`, ignoring case
+    /// (rekordbox sync spec § Discovery).
+    func topLevelFiles(in root: URL, pathExtension: String) async throws -> [LibraryTopLevelFile]
+    func readPrefix(of url: URL, length: Int) async throws -> Data
+    func readAll(of url: URL) async throws -> Data
+}
+
+/// A file at a root's top level, with the stamp that tells whether it changed.
+struct LibraryTopLevelFile: Sendable, Equatable {
+    let url: URL
+    let name: String
+    let stamp: RekordboxFileStamp
+}
+
+/// Test doubles that script only scans find nothing at the top level and read nothing.
+extension LibraryFileSystem {
+    func topLevelFiles(in _: URL, pathExtension _: String) async throws -> [LibraryTopLevelFile] {
+        []
+    }
+
+    func readPrefix(of url: URL, length _: Int) async throws -> Data {
+        throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path])
+    }
+
+    func readAll(of url: URL) async throws -> Data {
+        throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path])
+    }
 }
 
 struct FoundationLibraryFileSystem: LibraryFileSystem {
@@ -59,6 +86,32 @@ struct FoundationLibraryFileSystem: LibraryFileSystem {
     func isReachable(_ root: URL) async -> Bool {
         let resolved = root.resolvingSymlinksInPath()
         return self.isDirectory(resolved) && FileManager.default.isReadableFile(atPath: resolved.path)
+    }
+
+    func topLevelFiles(in root: URL, pathExtension: String) async throws -> [LibraryTopLevelFile] {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: root.resolvingSymlinksInPath(), includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]
+        )
+        return contents.compactMap { url in
+            guard url.pathExtension.caseInsensitiveCompare(pathExtension) == .orderedSame,
+                  let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                  let size = values.fileSize, let modified = values.contentModificationDate
+            else { return nil }
+            return LibraryTopLevelFile(
+                url: url, name: url.lastPathComponent, stamp: RekordboxFileStamp(size: Int64(size), modifiedAt: modified)
+            )
+        }
+    }
+
+    func readPrefix(of url: URL, length: Int) async throws -> Data {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        return try handle.read(upToCount: length) ?? Data()
+    }
+
+    func readAll(of url: URL) async throws -> Data {
+        try await Task.detached(priority: .utility) { try Data(contentsOf: url, options: .mappedIfSafe) }.value
     }
 
     // MARK: - Enumeration
