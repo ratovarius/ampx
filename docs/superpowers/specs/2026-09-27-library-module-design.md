@@ -193,7 +193,7 @@ The DJ-mode spec is updated to point here.
 - `Sources/Modules/AmpXModuleID.swift`, `AmpXLayoutStore.swift`, `Sources/Windows/*` — `library` window hosting and snapping, excluded from the stack
 - `Sources/Utilities/AmpXKeyRouter.swift`, `AmpXMenuCatalog.swift` — priority 2b, ⌘L, Add Library Folder…
 - `Sources/AmpXAppDelegate.swift` / `AmpXApplicationController.swift` — shared bookmark store, engine start-up
-- `Sources/Modules/Playlist/*` — accept library row drops (append)
+- Playlist: unchanged. Library drags put the available rows' file URLs on the pasteboard, which the Playlist's existing file drop imports (appending). The drag registers each involved root with the shared bookmark store when it starts.
 - `Sources/Library/LibraryQuery.swift` — `bpmRange`, `onlyUnavailable`, `genre` sort
 - Specs: this document; pointers in the UI, music library and DJ-mode specs
 
