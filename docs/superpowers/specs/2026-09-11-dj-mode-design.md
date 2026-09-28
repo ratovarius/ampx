@@ -20,6 +20,8 @@ This spec covers two bodies of work that share a goal but almost no code. They a
 | **B — Playing it** | Two-deck `AudioGraph`, `MixScheduler`, crossfade, auto-mix, party queue | Phase A (auto-mix needs BPM) |
 | **B′ — Native analysis** | `TempoEstimator` / `KeyEstimator` / `AnalysisQueue`, tag write-back | Phase A; **optional**, may never ship |
 
+> **Moved (2026-09-28):** phase A's rekordbox import, Camelot conversion, `LibrarySchemaV2` migration and scanner re-parse rule are now specified in [rekordbox Collection Sync](./2026-09-28-rekordbox-sync-design.md), which replaces the one-off import with a watched, auto-applied sync and ships with the library in PR #15. Smart playlists stay in phase A here.
+
 Phase A is cheap and delivers most of the value. Its engine work can land as soon as library L1 does; A-UI waits for L2 like the rest of the library UI. Phase B is the audio-engine risk. B′ is explicitly the one to drop if time runs out — the rekordbox import is what makes the collection navigable, not our own beat detector.
 
 ## Non-goals
