@@ -6,6 +6,8 @@ import struct
 import wave
 from pathlib import Path
 
+from ampx_fixtures.library import write_library_fixtures
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES_DIR = REPO_ROOT / "Tests" / "Fixtures"
 
@@ -42,6 +44,7 @@ def main() -> None:
     print(f"Wrote {FIXTURES_DIR / 'short.wav'}")
     write_sample_m3u(FIXTURES_DIR / "sample.m3u")
     print(f"Wrote {FIXTURES_DIR / 'sample.m3u'}")
+    print(f"Wrote {write_library_fixtures(FIXTURES_DIR)}")
 
 
 if __name__ == "__main__":

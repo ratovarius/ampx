@@ -16,6 +16,7 @@ struct AmpXFocusContext: Equatable {
 enum AmpXKeyRoute: Equatable {
     case control
     case playlist
+    case library
     case enthea
     case global
     case unhandled
@@ -50,6 +51,16 @@ enum AmpXKeyRouter {
 
         if context.module == .playlist, context.playlistEditingEnabled, self.matchesPlaylistKey(event, flags: flags) {
             return .playlist
+        }
+
+        if context.module == .library, context.playlistEditingEnabled, self.matchesLibraryKey(event, flags: flags) {
+            // While search has focus only ⌘F is the Library's; the rest belong to the text.
+            let commandF = flags == [.command] && key == 3
+            return !context.textResponderActive || commandF ? .library : .unhandled
+        }
+        // The Library search box keeps the caret keys (elsewhere ←→ seek even while typing).
+        if context.module == .library, context.textResponderActive, flags.isEmpty, (123 ... 126).contains(key) {
+            return .unhandled
         }
 
         if context.module == .enthea, self.matchesEntheaKey(event, flags: flags) {
@@ -90,6 +101,7 @@ enum AmpXKeyRouter {
         context: AmpXFocusContext,
         controlHandler: () -> Void,
         playlistHandler: () -> Void,
+        libraryHandler: () -> Void = {},
         entheaHandler: () -> Void,
         globalHandler: () -> Void
     ) -> Bool {
@@ -99,6 +111,9 @@ enum AmpXKeyRouter {
             return true
         case .playlist:
             playlistHandler()
+            return true
+        case .library:
+            libraryHandler()
             return true
         case .enthea:
             entheaHandler()
@@ -125,6 +140,8 @@ enum AmpXKeyRouter {
             self.dispatchControl(event, window: window)
         case .playlist:
             self.dispatchPlaylist(event, playlistManager: playlistManager)
+        case .library:
+            self.libraryContent(in: window)?.handleKey(event) ?? false
         case .enthea:
             self.dispatchEnthea(event, entheaTheater: entheaTheater)
         case .global:
@@ -268,6 +285,32 @@ enum AmpXKeyRouter {
         return false
     }
 
+    /// ↑↓ Home End PageUp PageDown (± ⇧), ↩ and ⌘↩, ⌘A and ⌘F.
+    private static func matchesLibraryKey(_ event: NSEvent, flags: NSEvent.ModifierFlags) -> Bool {
+        switch event.keyCode {
+        case 125, 126, 115, 119, 116, 121:
+            flags.isEmpty || flags == [.shift]
+        case 36, 76:
+            flags.isEmpty || flags == [.command]
+        case 0, 3:
+            flags == [.command]
+        default:
+            false
+        }
+    }
+
+    /// The Library content that owns the key window's first responder.
+    private static func libraryContent(in window: NSWindow?) -> LibraryModuleContent? {
+        var view = window?.firstResponder as? NSView
+        while let current = view {
+            if let moduleView = current as? AmpXModuleView {
+                return moduleView.content as? LibraryModuleContent
+            }
+            view = current.superview
+        }
+        return nil
+    }
+
     private static func matchesEntheaKey(_ event: NSEvent, flags: NSEvent.ModifierFlags) -> Bool {
         guard flags.isEmpty else { return false }
         return event.keyCode == 3 || event.keyCode == 53
@@ -329,7 +372,7 @@ enum AmpXKeyRouter {
     }
 
     private static func isTextResponder(_ responder: NSResponder?) -> Bool {
-        responder is NSTextView || responder is NSTextField
+        responder is NSTextView || responder is NSTextField || responder is AmpXTextInput
     }
 
     @discardableResult

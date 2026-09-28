@@ -9,6 +9,8 @@ final class AmpXMiniVisualizerPerformanceTests: XCTestCase {
     /// with the build/hardware; CI scheduling is not used as a hard timing assertion.
     func testRecordNativeMiniFrameCosts() throws {
         guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("No Metal device") }
+        // Every style on the runner's virtual GPU takes 1–2 minutes, past the default per-test allowance.
+        self.executionTimeAllowance = 300
         for style in AmpXMiniVisualizerStyle.allCases {
             let renderer = try XCTUnwrap(AmpXMiniVisualizerRenderer())
             var frame = AmpXMiniVisualizerFrame()

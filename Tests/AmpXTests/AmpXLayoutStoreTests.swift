@@ -38,7 +38,8 @@ final class AmpXLayoutStoreTests: XCTestCase {
             state: layout.state,
             playlistViewportHeight: layout.playlistViewportHeight,
             playlistWidth: layout.playlistWidth,
-            anchorTopLeft: AmpXLayout.defaultAnchor(visibleFrame: self.screen.visibleFrame)
+            anchorTopLeft: AmpXLayout.defaultAnchor(visibleFrame: self.screen.visibleFrame),
+            visibleFrame: self.screen.visibleFrame
         )
         XCTAssertEqual(layout.frames, expected)
         XCTAssertEqual(layout.state, AmpXModuleState())
@@ -142,7 +143,7 @@ final class AmpXLayoutStoreTests: XCTestCase {
         XCTAssertEqual(player.minX, 200)
         XCTAssertEqual(player.maxY, 900)
         XCTAssertEqual(loaded.state.collapsed, [.equalizer])
-        XCTAssertEqual(loaded.state.closed, [])
+        XCTAssertEqual(loaded.state.closed, [.library], "V1 predates the Library, which stays closed")
         XCTAssertEqual(loaded.playlistViewportHeight, 240)
         XCTAssertEqual(loaded.playlistWidth, 600)
         XCTAssertEqual(loaded.frames[.equalizer]?.maxY, player.minY)
@@ -167,7 +168,7 @@ final class AmpXLayoutStoreTests: XCTestCase {
         defaults.set(Data(json.utf8), forKey: AmpXLayoutStore.storageKey)
 
         let loaded = self.store(defaults).load()
-        XCTAssertEqual(loaded.state.closed, [.equalizer])
+        XCTAssertEqual(loaded.state.closed, [.equalizer, .library])
         XCTAssertTrue(loaded.state.collapsed.isEmpty)
         XCTAssertEqual(Set(loaded.frames.keys), Set(AmpXModuleID.allCases))
     }

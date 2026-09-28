@@ -2,12 +2,14 @@ import AppKit
 import Combine
 import Foundation
 import os
+import UniformTypeIdentifiers
 
 private let playlistLogger = Logger(subsystem: "com.ampx.macos", category: "Playlist")
 
 @MainActor
 class PlaylistManager: ObservableObject {
-    static let shared = PlaylistManager()
+    /// Shares the app's one bookmark store with the library, so enqueued library tracks keep access after relaunch.
+    static let shared = PlaylistManager(bookmarkStore: .shared)
 
     @Published var tracks: [Track] = []
     @Published var currentIndex: Int = -1
@@ -620,6 +622,33 @@ class PlaylistManager: ObservableObject {
         self.m3uEntry(for: trackURL, relativeTo: playlistFile)
     }
 
+    /// A drop of several items. Audio files load in one ordered batch, and a file already covered by an
+    /// active scope (e.g. a Library root, bookmarked when the drag began) saves no bookmark of its own:
+    /// each save re-resolves the whole store, so per-file saves on a large drop would stall the app.
+    func importDroppedURLs(_ urls: [URL]) {
+        var files: [URL] = []
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            guard exists, !isDirectory.boolValue, M3UParser.isSupportedAudioExtension(url.pathExtension) else {
+                self.importDroppedURL(url)
+                continue
+            }
+            if !self.bookmarkStore.ensureAccess(for: url) {
+                self.bookmarkStore.saveBookmark(for: url)
+            }
+            files.append(url)
+        }
+        guard !files.isEmpty else { return }
+        self.importTracksInBackground { [files] in
+            var tracks: [Track] = []
+            for url in files {
+                await tracks.append(Track.load(from: url))
+            }
+            return tracks
+        }
+    }
+
     func importDroppedURL(_ url: URL) {
         let ext = url.pathExtension
 
@@ -652,12 +681,17 @@ class PlaylistManager: ObservableObject {
         }
     }
 
+    /// Add Files panel types: the single audio extension set plus `m3u`, so the panel and folder import agree.
+    static var addFilesPanelContentTypes: [UTType] {
+        (M3UParser.supportedExtensions.sorted() + ["m3u"]).compactMap { UTType(filenameExtension: $0) }
+    }
+
     func showFilePicker() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
-        panel.allowedContentTypes = [.mp3, .wav, .init(filenameExtension: "flac"), .init(filenameExtension: "m3u")].compactMap { $0 }
+        panel.allowedContentTypes = Self.addFilesPanelContentTypes
 
         panel.begin { [weak self] response in
             guard let self, response == .OK else { return }

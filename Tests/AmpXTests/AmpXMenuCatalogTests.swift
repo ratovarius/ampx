@@ -8,6 +8,7 @@ final class AmpXMenuCatalogTests: XCTestCase {
             [
                 "Add Files…",
                 "Add Folder…",
+                "Add Library Folder…",
                 "Load Playlist…",
                 "Save Playlist…",
             ]
@@ -32,7 +33,7 @@ final class AmpXMenuCatalogTests: XCTestCase {
     func testViewPanelsMatchClassicChrome() {
         XCTAssertEqual(
             AmpXMenuCatalog.ViewPanel.allCases.map(\.rawValue),
-            ["Equalizer", "Playlist", "Visualizer"]
+            ["Equalizer", "Playlist", "Visualizer", "Library"]
         )
     }
 

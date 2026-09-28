@@ -19,6 +19,9 @@ enum AmpXMetrics {
     /// Spec Revision 9: the Playlist may be wider than the reference, never narrower than the fixed EQ width.
     static let minimumPlaylistWidth: CGFloat = compositionWidth
     static let defaultPlaylistWidth: CGFloat = compositionWidth
+    /// Library Module spec: fits the 230 pt facet column, a 420 pt table and the 260 pt MIXES WELL sidebar.
+    static let minimumLibrarySize = CGSize(width: 910, height: 420)
+    static let defaultLibrarySize = CGSize(width: 1000, height: 500)
 
     /// Midnight Hardware key tiers: 36 pt main transport row, 28 pt toggles and actions, 20 pt header,
     /// mini transport and scroll keys. Every key shares a 2 pt radius and 12 pt medium labels.

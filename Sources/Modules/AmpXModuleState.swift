@@ -2,7 +2,7 @@
 /// `AmpXSavedLayout.frames`; docking is derived from those frames, never stored here.
 struct AmpXModuleState: Equatable {
     var collapsed: Set<AmpXModuleID> = []
-    var closed: Set<AmpXModuleID> = [.enthea]
+    var closed: Set<AmpXModuleID> = [.enthea, .library]
 
     mutating func setCollapsed(_ id: AmpXModuleID, _ value: Bool) {
         if value {

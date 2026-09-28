@@ -6,6 +6,9 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     let audioPlayer: AudioPlayer
     let playlistManager: PlaylistManager
     let hosts: AmpXHostCoordinator
+    let libraryController: LibraryController?
+    /// Launch-time `startIfConfigured()`; opens the engine only when the library has roots.
+    private(set) var libraryStartTask: Task<Void, Never>?
 
     private let playsStartupSound: Bool
     private var playbackCoordinationBound = false
@@ -14,11 +17,13 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         audioPlayer: AudioPlayer,
         playlistManager: PlaylistManager,
         hosts: AmpXHostCoordinator,
+        libraryController: LibraryController? = nil,
         playsStartupSound: Bool? = nil
     ) {
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
         self.hosts = hosts
+        self.libraryController = libraryController
         self.playsStartupSound = playsStartupSound ?? !Self.isRunningUnderTest
         super.init()
     }
@@ -28,11 +33,19 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         self.loadStartupSoundIfNeeded()
         self.wirePlayerMenuButton()
         self.hosts.showAll()
+        if let libraryController = self.libraryController {
+            self.libraryStartTask = Task(priority: .utility) {
+                await libraryController.startIfConfigured()
+            }
+        }
     }
 
     func terminate() {
         self.hosts.flushLayoutPersistence()
         self.hosts.theaterController.handleApplicationTermination()
+        if let libraryController = self.libraryController {
+            Task { await libraryController.stop() }
+        }
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -50,6 +63,9 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
             return true
         case #selector(self.togglePlaylist(_:)):
             menuItem.state = self.hosts.state.closed.contains(.playlist) ? .off : .on
+            return true
+        case #selector(self.toggleLibrary(_:)):
+            menuItem.state = self.hosts.state.closed.contains(.library) ? .off : .on
             return true
         case #selector(self.toggleVisualizer(_:)):
             menuItem.state = self.hosts.state.closed.contains(.enthea) ? .off : .on
@@ -69,6 +85,15 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
 
     @objc func addFolder(_: Any?) {
         self.playlistManager.showFolderPicker()
+    }
+
+    /// Opens the Library window, then its Add Folder flow (which opens the engine on first use).
+    @objc func addLibraryFolder(_: Any?) {
+        if self.hosts.state.closed.contains(.library) {
+            self.hosts.reopenModule(.library)
+        }
+        guard let content = self.hosts.moduleView(for: .library)?.content as? LibraryModuleContent else { return }
+        Task { await content.addFolder() }
     }
 
     @objc func loadPlaylist(_: Any?) {
@@ -128,6 +153,10 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     }
 
     // MARK: - Window
+
+    @objc func toggleLibrary(_: Any?) {
+        self.toggleModule(.library)
+    }
 
     @objc func showAmpX(_: Any?) {
         self.hosts.showAll()

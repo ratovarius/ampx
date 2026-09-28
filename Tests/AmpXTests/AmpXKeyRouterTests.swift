@@ -184,6 +184,42 @@ final class AmpXKeyRouterTests: XCTestCase {
         XCTAssertNil(AmpXKeyRouter.playerCommand(for: self.keyDown(keyCode: 17)))
     }
 
+    func testLibraryRouteKeys() {
+        let context = AmpXFocusContext(module: .library, control: nil)
+        for keyCode: UInt16 in [125, 126, 115, 119, 116, 121] {
+            for flags: NSEvent.ModifierFlags in [[], [.shift]] {
+                XCTAssertEqual(
+                    AmpXKeyRouter.route(event: self.keyDown(keyCode: keyCode, modifierFlags: flags), context: context),
+                    .library,
+                    "key \(keyCode) \(flags)"
+                )
+            }
+        }
+        for keyCode: UInt16 in [36, 76] {
+            for flags: NSEvent.ModifierFlags in [[], [.command]] {
+                XCTAssertEqual(
+                    AmpXKeyRouter.route(event: self.keyDown(keyCode: keyCode, modifierFlags: flags), context: context),
+                    .library
+                )
+            }
+        }
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 0, modifierFlags: [.command]), context: context), .library)
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 3, modifierFlags: [.command]), context: context), .library)
+        // Left/Right still seek, Space still plays: the Library claims only its own keys.
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 123), context: context), .global)
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 49), context: context), .global)
+
+        let typing = AmpXFocusContext(module: .library, control: nil, textResponderActive: true)
+        for keyCode: UInt16 in [123, 124, 125, 126, 36, 49, 8] {
+            XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: keyCode), context: typing), .unhandled)
+        }
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 0, modifierFlags: [.command]), context: typing), .unhandled)
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 3, modifierFlags: [.command]), context: typing), .library)
+
+        let collapsed = AmpXFocusContext(module: .library, control: nil, playlistEditingEnabled: false)
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 36), context: collapsed), .unhandled)
+    }
+
     func testDispatchInvokesRecipientOnce() {
         var controlCount = 0
         var globalCount = 0

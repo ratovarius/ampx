@@ -7,6 +7,7 @@ enum AmpXMenuCatalog {
     enum FileItem: String, CaseIterable {
         case addFiles = "Add Files…"
         case addFolder = "Add Folder…"
+        case addLibraryFolder = "Add Library Folder…"
         case loadPlaylist = "Load Playlist…"
         case savePlaylist = "Save Playlist…"
     }
@@ -25,6 +26,8 @@ enum AmpXMenuCatalog {
         case equalizer = "Equalizer"
         case playlist = "Playlist"
         case visualizer = "Visualizer"
+        /// Its own window, listed under Window (⌘L) rather than View.
+        case library = "Library"
     }
 
     /// File hotkeys: bare `L` / `⇧L` (no Command), matching `AmpXKeyRouter`.

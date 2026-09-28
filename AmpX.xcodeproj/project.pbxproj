@@ -13,6 +13,7 @@
 		A10000060 /* Enthea in Resources */ = {isa = PBXBuildFile; fileRef = A20000060 /* Enthea */; };
 		B10000007 /* sample.m3u in Resources */ = {isa = PBXBuildFile; fileRef = B20000007 /* sample.m3u */; };
 		B10000009 /* short.wav in Resources */ = {isa = PBXBuildFile; fileRef = B20000009 /* short.wav */; };
+		B10000010 /* Library in Resources */ = {isa = PBXBuildFile; fileRef = B20000010 /* Library */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		B10000000 /* AmpXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AmpXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000007 /* sample.m3u */ = {isa = PBXFileReference; lastKnownFileType = text; path = sample.m3u; sourceTree = "<group>"; };
 		B20000009 /* short.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = short.wav; sourceTree = "<group>"; };
+		B20000010 /* Library */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Library; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -111,6 +113,7 @@
 			children = (
 				B20000007 /* sample.m3u */,
 				B20000009 /* short.wav */,
+				B20000010 /* Library */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -205,6 +208,7 @@
 			files = (
 				B10000007 /* sample.m3u in Resources */,
 				B10000009 /* short.wav in Resources */,
+				B10000010 /* Library in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

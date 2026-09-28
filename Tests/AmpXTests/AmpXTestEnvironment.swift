@@ -8,6 +8,12 @@ enum AmpXTestEnvironment {
         ProcessInfo.processInfo.environment["CI"] == "true"
     }
 
+    /// Wall-clock budgets are specified for developer hardware (the specs measure on an M1 Pro). Shared CI
+    /// runners are several times slower and noisy, so there the tests keep their functional checks only.
+    static var enforcesTimeBudgets: Bool {
+        !self.isCI
+    }
+
     /// Runners have no audio output device and a virtual GPU, so real-time playback and frame
     /// pacing are unreliable there.
     static func skipOnCI(_ reason: String) throws {
