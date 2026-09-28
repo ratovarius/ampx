@@ -131,10 +131,16 @@ final class AmpXModuleWindowController: NSWindowController, NSWindowDelegate {
         )
     }
 
-    /// Only an expanded Playlist resizes, in both axes (spec Revision 9).
+    /// Only an expanded Playlist (spec Revision 9) or Library (Library Module spec) resizes, in both axes.
     private func updateResizeConstraints(contentSize: CGSize) {
         guard let window else { return }
-        let canResize = self.moduleID == .playlist && self.coordinator?.state.collapsed.contains(.playlist) == false
+        let expanded = self.coordinator?.state.collapsed.contains(self.moduleID) == false
+        if self.moduleID == .library, expanded {
+            window.contentMinSize = AmpXMetrics.minimumLibrarySize
+            window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+            return
+        }
+        let canResize = self.moduleID == .playlist && expanded
         window.contentMinSize = NSSize(
             width: canResize ? AmpXMetrics.minimumPlaylistWidth : contentSize.width,
             height: canResize

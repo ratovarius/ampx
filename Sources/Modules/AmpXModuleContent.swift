@@ -44,6 +44,8 @@ class AmpXModuleContent: AmpXDrawingView {
             preconditionFailure("Playlist module content must be constructed by AmpXHostCoordinator")
         case .enthea:
             preconditionFailure("Enthea module content must be constructed by AmpXHostCoordinator")
+        case .library:
+            preconditionFailure("Library module content must be constructed by AmpXHostCoordinator")
         }
     }
 }

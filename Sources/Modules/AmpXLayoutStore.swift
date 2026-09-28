@@ -8,6 +8,7 @@ struct AmpXSavedLayout: Equatable {
     var frames: [AmpXModuleID: CGRect]
     var playlistViewportHeight: CGFloat
     var playlistWidth: CGFloat = AmpXMetrics.defaultPlaylistWidth
+    var librarySize: CGSize = AmpXMetrics.defaultLibrarySize
 }
 
 @MainActor
@@ -57,7 +58,8 @@ final class AmpXLayoutStore {
                 state: state,
                 playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
                 playlistWidth: AmpXMetrics.defaultPlaylistWidth,
-                anchorTopLeft: AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame)
+                anchorTopLeft: AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame),
+                visibleFrame: screen.visibleFrame
             ),
             playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
             playlistWidth: AmpXMetrics.defaultPlaylistWidth
@@ -65,12 +67,13 @@ final class AmpXLayoutStore {
     }
 
     fileprivate static func normalizedLayout(from dto: AmpXLayoutV2DTO, screen: NSScreen) -> AmpXSavedLayout {
-        let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed)
+        let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed, libraryOpen: dto.libraryOpen)
         let (viewport, width) = self.boundedPlaylistSize(
             viewportHeight: self.validatedPlaylistViewportHeight(dto.playlistViewportHeight),
             width: self.validatedPlaylistWidth(dto.playlistWidth),
             screen: screen
         )
+        let librarySize = self.validatedLibrarySize(width: dto.libraryWidth, height: dto.libraryHeight)
 
         var saved: [AmpXModuleID: CGRect] = [:]
         for (rawID, frameDTO) in dto.frames ?? [:] {
@@ -84,17 +87,21 @@ final class AmpXLayoutStore {
             state: state,
             playlistViewportHeight: viewport,
             playlistWidth: width,
-            anchorTopLeft: anchor
+            librarySize: librarySize,
+            anchorTopLeft: anchor,
+            visibleFrame: screen.visibleFrame
         )
         let frames = self.clampedClustersToVisibleFrame(fallback.merging(saved) { _, stored in stored }, screen: screen)
 
-        return AmpXSavedLayout(state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width)
+        return AmpXSavedLayout(
+            state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width, librarySize: librarySize
+        )
     }
 
     /// V1 kept one stack window; its frames can't map onto separate windows, so the default
     /// arrangement is anchored at the old stack's top-left instead.
     fileprivate static func migratedLayout(from dto: AmpXLayoutV1DTO, screen: NSScreen) -> AmpXSavedLayout {
-        let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed)
+        let state = self.normalizedState(collapsed: dto.collapsed, closed: dto.closed, libraryOpen: nil)
         let (viewport, width) = self.boundedPlaylistSize(
             viewportHeight: self.validatedPlaylistViewportHeight(dto.playlistViewportHeight),
             width: self.validatedPlaylistWidth(dto.playlistWidth),
@@ -106,17 +113,35 @@ final class AmpXLayoutStore {
             state: state,
             playlistViewportHeight: viewport,
             playlistWidth: width,
-            anchorTopLeft: anchor
+            anchorTopLeft: anchor,
+            visibleFrame: screen.visibleFrame
         ).mapValues { self.clampedToVisibleFrame($0, screen: screen) }
         return AmpXSavedLayout(state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width)
     }
 
-    private static func normalizedState(collapsed: [String], closed: [String]) -> AmpXModuleState {
+    /// Payloads written before the Library existed have no `libraryOpen`: the Library stays closed.
+    private static func normalizedState(collapsed: [String], closed: [String], libraryOpen: Bool?) -> AmpXModuleState {
         var state = AmpXModuleState()
         state.collapsed = self.normalizedIDSet(collapsed)
         state.closed = self.normalizedIDSet(closed)
         state.closed.remove(.player)
+        if libraryOpen == true {
+            state.closed.remove(.library)
+        } else {
+            state.closed.insert(.library)
+        }
         return state
+    }
+
+    private static func validatedLibrarySize(width: Double?, height: Double?) -> CGSize {
+        func valid(_ value: Double?, fallback: CGFloat, minimum: CGFloat) -> CGFloat {
+            guard let value, value.isFinite, value > 0 else { return fallback }
+            return max(value, minimum)
+        }
+        return CGSize(
+            width: valid(width, fallback: AmpXMetrics.defaultLibrarySize.width, minimum: AmpXMetrics.minimumLibrarySize.width),
+            height: valid(height, fallback: AmpXMetrics.defaultLibrarySize.height, minimum: AmpXMetrics.minimumLibrarySize.height)
+        )
     }
 
     private static func normalizedIDSet(_ rawIDs: [String]) -> Set<AmpXModuleID> {
@@ -220,6 +245,10 @@ private struct AmpXLayoutV2DTO: Codable {
     let frames: [String: AmpXFrameDTO]?
     let playlistViewportHeight: Double?
     let playlistWidth: Double?
+    /// Absent in payloads written before the Library existed.
+    let libraryOpen: Bool?
+    let libraryWidth: Double?
+    let libraryHeight: Double?
 
     init(layout: AmpXSavedLayout) {
         self.version = 2
@@ -228,6 +257,9 @@ private struct AmpXLayoutV2DTO: Codable {
         self.frames = Dictionary(uniqueKeysWithValues: layout.frames.map { ($0.key.rawValue, AmpXFrameDTO($0.value)) })
         self.playlistViewportHeight = Double(layout.playlistViewportHeight)
         self.playlistWidth = Double(layout.playlistWidth)
+        self.libraryOpen = !layout.state.closed.contains(.library)
+        self.libraryWidth = Double(layout.librarySize.width)
+        self.libraryHeight = Double(layout.librarySize.height)
     }
 }
 

@@ -121,6 +121,7 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
         case .equalizer: TitlePlacement(brandInkX: 175.5, titleInkX: 243.5, baseline: 21, ruleGapBefore: 19.5, ruleGapAfter: 18)
         case .playlist: TitlePlacement(brandInkX: 185, titleInkX: 244.5, baseline: 21, ruleGapBefore: 18.5, ruleGapAfter: 16)
         case .enthea: TitlePlacement(brandInkX: nil, titleInkX: 243.5, baseline: 21, ruleGapBefore: 19.5, ruleGapAfter: 16.5)
+        case .library: TitlePlacement(brandInkX: nil, titleInkX: 244.5, baseline: 21, ruleGapBefore: 18.5, ruleGapAfter: 16)
         }
     }
 
@@ -130,6 +131,7 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
         case .equalizer: "EQUALIZER"
         case .playlist: "PLAYLIST"
         case .enthea: "ENTHEA"
+        case .library: "LIBRARY"
         }
         return title.map {
             AmpXLabel(text: $0, color: skin.text, fontSize: 14.5 * self.scale, weight: .regular, tracking: 0.25 * self.scale)
@@ -279,6 +281,8 @@ final class AmpXModuleHeaderView: AmpXDrawingView {
             "Playlist"
         case .enthea:
             "ENTHEA"
+        case .library:
+            "Library"
         }
     }
 

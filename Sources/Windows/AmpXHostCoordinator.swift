@@ -25,6 +25,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     private var frames: [AmpXModuleID: CGRect]
     private var playlistViewportHeight: CGFloat
     private var playlistWidth: CGFloat
+    /// Expanded Library window size (Library Module spec); resized like any window edge.
+    private(set) var librarySize: CGSize
     private var playlistResizeStart: (width: CGFloat, height: CGFloat)?
     /// Open frames when a live window resize began; attached windows reflow from this snapshot.
     private var liveResizeSnapshot: [AmpXModuleID: CGRect]?
@@ -77,6 +79,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         self.frames = saved.frames
         self.playlistViewportHeight = saved.playlistViewportHeight
         self.playlistWidth = saved.playlistWidth
+        self.librarySize = saved.librarySize
 
         self.createModuleViews()
     }
@@ -303,8 +306,14 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     /// Live edge-resize of the Playlist window: size follows the window and attached windows
     /// follow the edge they touch.
     func moduleWindowDidLiveResize(_ id: AmpXModuleID, frame: CGRect) {
-        guard id == .playlist, let snapshot = self.liveResizeSnapshot else { return }
-        if !self.state.collapsed.contains(.playlist) {
+        guard id == .playlist || id == .library, let snapshot = self.liveResizeSnapshot else { return }
+        if id == .library, !self.state.collapsed.contains(.library) {
+            self.librarySize = CGSize(
+                width: max(AmpXMetrics.minimumLibrarySize.width, frame.width),
+                height: max(AmpXMetrics.minimumLibrarySize.height, frame.height)
+            )
+        }
+        if id == .playlist, !self.state.collapsed.contains(.playlist) {
             self.playlistWidth = max(AmpXMetrics.minimumPlaylistWidth, frame.width)
             self.playlistViewportHeight = max(
                 AmpXMetrics.minimumPlaylistViewportHeight,
@@ -324,8 +333,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         for (other, frame) in self.openFrames() {
             self.frames[other] = frame
         }
-        if id == .playlist {
-            self.resizeKeepingAttachments([.playlist])
+        if id == .playlist || id == .library {
+            self.resizeKeepingAttachments([id])
         }
         self.persistLayout()
     }
@@ -406,7 +415,13 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     }
 
     private func windowSize(for id: AmpXModuleID) -> CGSize {
-        AmpXLayout.moduleSize(id, state: self.state, playlistViewportHeight: self.playlistViewportHeight, playlistWidth: self.playlistWidth)
+        AmpXLayout.moduleSize(
+            id,
+            state: self.state,
+            playlistViewportHeight: self.playlistViewportHeight,
+            playlistWidth: self.playlistWidth,
+            librarySize: self.librarySize
+        )
     }
 
     /// Creates the module's window on first use and shows it at its saved frame, sized for the
@@ -515,6 +530,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
                 isTheater: { [weak self] in self?.theaterController.isActive ?? false },
                 onToggleTheater: { [weak self] in self?.toggleTheater() }
             )
+        case .library:
+            LibraryModuleContent(skin: self.skin)
         }
     }
 
@@ -582,7 +599,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             state: persistedState,
             frames: self.frames,
             playlistViewportHeight: self.playlistViewportHeight,
-            playlistWidth: self.playlistWidth
+            playlistWidth: self.playlistWidth,
+            librarySize: self.librarySize
         ))
     }
 }
