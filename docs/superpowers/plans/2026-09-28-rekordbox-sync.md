@@ -12,7 +12,7 @@
 
 **Tech Stack:** Swift 6, SwiftData (`VersionedSchema`, custom migration stage), Foundation `XMLParser`, AppKit custom drawing, XCTest.
 
-**Spec:** [rekordbox Collection Sync, Revision 2](../specs/2026-09-28-rekordbox-sync-design.md). Engine: [Music Library, Revision 7](../specs/2026-09-11-music-library-design.md); window: [Library Module](../specs/2026-09-27-library-module-design.md).
+**Spec:** [rekordbox Collection Sync, Revision 3](../specs/2026-09-28-rekordbox-sync-design.md). Engine: [Music Library, Revision 7](../specs/2026-09-11-music-library-design.md); window: [Library Module](../specs/2026-09-27-library-module-design.md).
 
 **Base:** `feature/music-library` (PR #15), in `.worktrees/music-library`.
 
@@ -20,7 +20,7 @@
 
 - Nothing is ever written to rekordbox or to audio files. Exports are opened read-only.
 - Discovery looks only at a root's **top level**: files whose extension is `xml` in any case, accepted only if their first **4 KB** contain `<DJ_PLAYLISTS` and a `PRODUCT` element with `Name="rekordbox"`. Newest modification date wins; ties go to the name that sorts first.
-- **Silent** when there is no export, when it disappears, when it matches nothing, or when it cannot be read: no error, no log above `.debug`, no indicator. The only visible failure is `REKORDBOX ⚠`, after the same `(size, modificationDate)` fails to parse twice.
+- **Nothing in the UI, ever, for failures:** no popup, alert, error indicator or error text. A missing, vanished, unmatched or unreadable export is silent in the UI. Failures are logged to the console with `Logger(subsystem: "com.ampx.macos", category: "RekordboxSync")`: a parse failure at `.info` the first time for a given `(size, modificationDate)`, `.error` when the same file fails again; unreadable files at `.info`.
 - Always applies silently, the first discovery included. There is no file picker, manual link or confirmation.
 - The sync never creates library rows or roots. A missing rekordbox value never clears an existing BPM or key. An export that disappears, and tracks that leave it, keep every imported value.
 - Precedence: `rekordbox` over `fileTag`. The scanner writes tag BPM and key only when `analysisSource != .rekordbox`.
@@ -33,7 +33,7 @@
 
 ## Review Focus
 
-1. **A re-export that is still being written when its root's scan finishes** (rekordbox writes 40 MB): the parse fails and nothing is written. The write's completion triggers another scan and check, which must succeed, and the first failure must not show ⚠. Test in Task 6 (`testTruncatedThenCompleteFileSyncsWithoutWarning`).
+1. **A re-export that is still being written when its root's scan finishes** (rekordbox writes 40 MB): the parse fails and nothing is written. The write's completion triggers another scan and check, which must succeed, and no failure state ever reaches the UI. Test in Task 6 (`testTruncatedThenCompleteFileSyncs`).
 2. **A root whose path reaches the tracks through a symlink or with different case** (`/Users/x/music` on a case-insensitive volume): the match must still be by path, not fall to the size fallback. Test in Task 4 (`testMatchesThroughSymlinkedRoot`, `testMatchesCaseInsensitivelyOnCaseInsensitiveRoot`).
 3. **Copies of library files stored elsewhere, listed before the library's own entries in the XML** (this collection has `MUSICA/…` copies of `DJ/…` tracks): the copy must not claim the row by the size fallback. Test in Task 4 (`testFallbackCopyBeforePathMatchDoesNotStealRow`).
 4. **Removing or relocating a root while its check runs:** that check writes nothing; checks for other roots are unaffected. Test in Task 6 (`testRemovingRootDuringCheckWritesNothing`, `testOtherRootCheckSurvivesRemoval`).
@@ -163,7 +163,7 @@ enum LibrarySchemaV2: VersionedSchema {          // versionIdentifier 2.0.0
     //   init sets schemaVersion = 2
     // RekordboxSource (new): rootID: UUID (unique), fileName: String, isPresent: Bool,
     //   stampSize: Int64?, stampModifiedAt: Date?, lastImportAt: Date?,
-    //   lastReport: Data?, lastError: String?
+    //   lastReport: Data?
 }
 typealias LibraryRoot = LibrarySchemaV2.LibraryRoot
 typealias LibraryTrack = LibrarySchemaV2.LibraryTrack
@@ -308,7 +308,7 @@ struct RekordboxSyncToken: Hashable, Sendable { let rootID: UUID; fileprivate le
 struct RekordboxSourceSnapshot: Sendable, Equatable {
     let rootID: UUID; let fileName: String; let isPresent: Bool
     let stamp: RekordboxFileStamp?; let lastImportAt: Date?
-    let lastReport: RekordboxSyncReport?; let lastError: String?
+    let lastReport: RekordboxSyncReport?
 }
 extension LibraryStore {
     func rekordboxSnapshot() throws -> RekordboxLibrarySnapshot    // every root (available or not) and row
@@ -317,14 +317,11 @@ extension LibraryStore {
     func revokeRekordboxSync(rootID: UUID)
     func applyRekordbox(_ plan: RekordboxImportPlan, fileName: String, stamp: RekordboxFileStamp,
                         token: RekordboxSyncToken) throws
-    func recordRekordboxFailure(fileName: String, stamp: RekordboxFileStamp, message: String,
-                                token: RekordboxSyncToken) throws
     func markRekordboxSourceAbsent(rootID: UUID) throws           // no-op when there is no source or it is already absent
 }
 ```
 
-- `applyRekordbox`, in one `commit(nil)`: check the token equals the active one for its root (else `.revokedToken`) and the root exists (else `.unknownRoot`). Write each `RekordboxRowWrite`'s values, and set `camelotKey = musicalKey.flatMap(CamelotKey.from)`. Upsert the root's `RekordboxSource`: `fileName`, `isPresent = true`, the stamp, `lastImportAt = now()`, `lastReport` (JSON), `lastError = nil`. Publish `.rowsChanged(rootID:)` once per affected root, and `.rekordboxSourcesChanged`. Writes for a row that no longer exists are skipped.
-- `recordRekordboxFailure` upserts the source with `fileName`, `isPresent = true`, the stamp and `lastError`, leaving `lastImportAt` and `lastReport` as they were. Same token rule.
+- `applyRekordbox`, in one `commit(nil)`: check the token equals the active one for its root (else `.revokedToken`) and the root exists (else `.unknownRoot`). Write each `RekordboxRowWrite`'s values, and set `camelotKey = musicalKey.flatMap(CamelotKey.from)`. Upsert the root's `RekordboxSource`: `fileName`, `isPresent = true`, the stamp, `lastImportAt = now()`, `lastReport` (JSON). Publish `.rowsChanged(rootID:)` once per affected root, and `.rekordboxSourcesChanged`. Writes for a row that no longer exists are skipped.
 - `removeRoot` deletes the root's `RekordboxSource` in its own transaction, and `removeRoot` and `relocateRoot` call `revokeRekordboxSync(rootID:)` first.
 - `LibraryIndex` and `LibraryEngine.follow` treat `.rekordboxSourcesChanged` as a no-op.
 
@@ -333,7 +330,6 @@ extension LibraryStore {
   - `testApplyWritesValuesAndDerivesCamelot`, `testApplyUpsertsSourceWithStampAndReport`, `testApplyPublishesPerRootChanges` (a plan touching both roots → one `.rowsChanged` each, plus `.rekordboxSourcesChanged`).
   - `testRevokedTokenWritesNothing`, `testRemoveRootRevokesItsTokenOnly`, `testRelocateRootRevokesToken`.
   - `testRemoveRootDeletesSource`, `testMarkAbsentKeepsValuesAndReport`.
-  - `testFailureKeepsLastReport`.
   - `testApplySkipsDeletedRows`.
   - `testFailedSaveRollsBackRowsAndSource` (inject `saveContext` failure).
 - [ ] **Step 2: Run `LibraryStoreRekordboxTests`.** Expected FAIL.
@@ -365,7 +361,6 @@ enum RekordboxSyncStatus: Equatable, Sendable {
     case hidden                        // no present source
     case idle(lastSync: Date?)         // latest lastImportAt across present sources
     case syncing
-    case failed(rootID: UUID)          // a present source has lastError
 }
 struct RekordboxSyncState: Equatable, Sendable { let status: RekordboxSyncStatus; let sources: [RekordboxSourceSnapshot] }
 actor RekordboxSync {
@@ -384,9 +379,9 @@ Behaviour:
 - **Trigger:** on `ScanProgress.phase == .finished`, call `requestCheck(rootID:)`. `requestCheck` adds the root to a pending set; if no job is queued, it enqueues one `scanner.performExclusive` job. While a job runs, new requests stay pending and one follow-up job is enqueued when it ends.
 - **Job:** take the pending set. For each root, if it is still available: `topLevelFiles(in: root.url, pathExtension: "xml")` → keep files where `readPrefix(length: RekordboxCollectionParser.sniffLength)` passes `isCollectionExport` (a read error = skip) → pick the newest (tie: name ascending). Then order the roots by their chosen file's `modifiedAt`, oldest first, and handle each:
   - **None found:** `markRekordboxSourceAbsent(rootID:)`.
-  - **Unchanged:** same `fileName` and stamp as the stored source, no `lastError`, not `force` → nothing.
-  - **Otherwise:** `beginRekordboxSync(rootID:)` → `readAll` → parse → `rekordboxSnapshot()` → plan → `applyRekordbox`. A read error is treated as "none found". A parse error: if the stamp equals the one that failed last time for this root (kept in memory), `recordRekordboxFailure`; otherwise remember the stamp and write nothing. A `.revokedToken` or `.unknownRoot` error is swallowed.
-- **Logging:** everything silent above is logged at `.debug` only.
+  - **Unchanged:** same `fileName` and stamp as the stored source, not `force` → nothing.
+  - **Otherwise:** `beginRekordboxSync(rootID:)` → `readAll` → parse → `rekordboxSnapshot()` → plan → `applyRekordbox`. A read error is treated as "none found". A parse error writes nothing and is logged: `.error` if the stamp equals the one that failed last time for this root (kept in memory), otherwise `.info`, remembering the stamp. A `.revokedToken` or `.unknownRoot` error is swallowed.
+- **Logging:** as in *Global Constraints*. The sync keeps, per root in memory, the stamp that last failed to parse, only to choose `.info` or `.error`.
 - **Status:** `.syncing` while a job is between `beginRekordboxSync` and its end; otherwise derived from `rekordboxSources()` after each job and on `.rekordboxSourcesChanged`.
 - **Engine:** `LibraryEngine.open` creates the sync and calls `start()` **before** requesting the launch scans, so their `finished` events are seen. `stop()` stops the sync before the scanner.
 - The existing root scan already ignores non-audio files; do not change the walk.
@@ -400,8 +395,8 @@ Behaviour:
     - `testAddingRootImports` (add root → scan → rows have rekordbox BPM, source present, status `.idle`).
     - `testUnchangedStampSkipsParse`, `testChangedStampReimportsAfterScan`, `testForceReimportsUnchangedFile` (zero writes).
     - `testExportDisappearsSilently` (source `isPresent == false`, values kept, status `.hidden`).
-    - `testTruncatedThenCompleteFileSyncsWithoutWarning` (truncated stamp S1 → nothing, no `lastError`; complete stamp S2 → imported, never `.failed`).
-    - `testSameStampFailingTwiceShowsFailure` (→ `lastError` set, status `.failed`).
+    - `testTruncatedThenCompleteFileSyncs` (truncated stamp S1 → nothing written, status stays `.hidden`; complete stamp S2 → imported, `.idle`).
+    - `testRepeatedParseFailureChangesNoState` (same stamp fails twice → no writes, source unchanged, status unchanged).
     - `testZeroMatchesStoresReportSilently`.
     - `testChecksRunOldestExportFirst` (two roots whose exports share a track → the newer export's BPM wins).
     - `testRemovingRootDuringCheckWritesNothing`, `testOtherRootCheckSurvivesRemoval`.
@@ -427,7 +422,7 @@ extension LibraryFooterView {
     func update(/* existing params */, rekordbox: RekordboxSyncStatus)
     static func rekordboxText(_ status: RekordboxSyncStatus, now: Date, calendar: Calendar) -> String?
     // .hidden → nil; .idle(d) → "REKORDBOX HH:mm" when d is today, "REKORDBOX d MMM" otherwise, "REKORDBOX" when nil;
-    // .syncing → "REKORDBOX SYNCING"; .failed → "REKORDBOX ⚠"
+    // .syncing → "REKORDBOX SYNCING"
     var onRekordboxClick: () -> Void
 }
 struct LibraryRootsMenu.Actions { /* existing */ var viewRekordboxReport: (UUID) -> Void }
@@ -436,20 +431,20 @@ static func LibraryRootsMenu.rekordboxLine(_ source: RekordboxSourceSnapshot, no
     // "rekordbox: collection.xml · synced 14:30" | "… · synced 3 Sep" | "… · not synced"
 @MainActor final class LibraryRekordboxReportView: AmpXView {
     var onClose: () -> Void
-    func show(_ report: RekordboxSyncReport?, error: String?)
+    func show(_ report: RekordboxSyncReport)
     static func summary(_ report: RekordboxSyncReport) -> [String]
 }
 ```
 
 - **ROOTS menu:** in a root's submenu, only when it has a source with `isPresent`, after the status line: the disabled `rekordboxLine`, then **View rekordbox Report**.
-- **Footer:** the indicator is hidden for `.hidden`. A click opens the report of the most recently synced present source, or, for `.failed(rootID)`, of that root.
-- **Report overlay:** covers the track table's frame. Lines, in this order: the error (skin warning colour) when set; `"{fileName}"`; `"{matched} of {matched + unmatched + ambiguous} tracks matched"`; `"{updated} updated"`; then, when non-zero, `"{n} not in any library folder"`, `"{n} ambiguous"`, `"{n} rating conflicts"`, `"{n} no longer in rekordbox"`. Below, a scrollable list (`AmpXScrollbar`) of the entries grouped under those headings. One **Close** button; Esc and ↩ close.
+- **Footer:** the indicator is hidden for `.hidden`. A click opens the report of the most recently synced present source.
+- **Report overlay:** covers the track table's frame. Lines, in this order: `"{fileName}"`; `"{matched} of {matched + unmatched + ambiguous} tracks matched"`; `"{updated} updated"`; then, when non-zero, `"{n} not in any library folder"`, `"{n} ambiguous"`, `"{n} rating conflicts"`, `"{n} no longer in rekordbox"`. Below, a scrollable list (`AmpXScrollbar`) of the entries grouped under those headings. One **Close** button; Esc and ↩ close.
 - **Wiring:** `LibraryModuleContent` subscribes to `engine.rekordbox.states()` when it attaches a model, keeps the latest state for the footer and the ROOTS menu, and cancels on window close.
 
 - [ ] **Step 1: Write failing tests:**
-  - `LibraryChromeTests`: `testRekordboxIndicatorText` (every status, fixed calendar and dates), `testIndicatorHiddenWithoutSources`, `testReportSummaryLines`, `testReportShowsErrorFirst`, `testReportCloseOnEscape`.
+  - `LibraryChromeTests`: `testRekordboxIndicatorText` (every status, fixed calendar and dates), `testIndicatorHiddenWithoutSources`, `testReportSummaryLines`, `testReportCloseOnEscape`.
   - `LibraryRootsMenuTests`: `testRootWithoutSourceHasNoRekordboxItems`, `testRootWithSourceShowsLineAndReportItem`, `testAbsentSourceHidden`, `testRekordboxLineFormats`.
-  - `LibraryModuleContentTests` (engine over a fake file system with an export in the root): `testIndicatorAppearsAfterImport`, `testRootsItemOpensReport`, `testFailedIndicatorOpensThatRootsReport`, `testNoExportShowsNothing`.
+  - `LibraryModuleContentTests` (engine over a fake file system with an export in the root): `testIndicatorAppearsAfterImport`, `testRootsItemOpensReport`, `testIndicatorClickOpensLatestReport`, `testNoExportShowsNothing`, `testParseFailureShowsNothing`.
 - [ ] **Step 2: Run `LibraryChromeTests LibraryRootsMenuTests LibraryModuleContentTests`.** Expected FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run the same suites plus `AmpXLibraryWindowTests LibraryWiringTests`.** Expected PASS.
@@ -470,7 +465,8 @@ static func LibraryRootsMenu.rekordboxLine(_ source: RekordboxSourceSnapshot, no
 - [ ] **Step 2: Run it:** `TEST_RUNNER_AMPX_LIBRARY_GATE=1` with `-only-testing:AmpXTests/RekordboxCollectionGateTests`. Expected PASS. Record the numbers.
 - [ ] **Step 3: Manual checks:**
   - Success criterion 2: with AmpX open on the Library, change one track's BPM in rekordbox and re-export over `~/Music/DJ/collection.xml`; the new value shows within 5 s with no clicks. Note the time.
-  - Success criterion 3: add a library folder with no export; nothing rekordbox-related appears, and Console shows no AmpX error.
+  - Success criterion 3: add a library folder with no export; nothing rekordbox-related appears in the UI.
+  - Save a truncated copy as `collection.xml` in a test library folder: no popup or indicator; Console (`category:RekordboxSync`) shows the `.info` line.
 - [ ] **Step 4: Run the full suite** with `./scripts/run-tests.sh`. Expected: all pass; any failure outside the rekordbox and library code is re-run alone and reported.
 - [ ] **Step 5: Update the spec's status** to Implemented and add a *Verification* section with the gate numbers, the manual results and links to the Task 7 captures. Commit `test: verify rekordbox sync` (docs with `git add -f`).
 - [ ] **Step 6: Update PR #15's description** (`gh pr edit 15 -R ratovarius/ampx`): add a *rekordbox sync* subsection under Summary and its test-plan lines, and add "Direct `master.db` reading, on `experimental/rekordbox-db`" to *Known limitations and follow-ups*. Push `feature/music-library`.
@@ -491,7 +487,7 @@ static func LibraryRootsMenu.rekordboxLine(_ source: RekordboxSourceSnapshot, no
 | `applyRekordbox` one transaction, token, change publication; source removed with its root | 5 |
 | `RekordboxSync`: trigger, turn-taking, collapse, oldest first, stop | 6 |
 | UI: columns, search, CAMELOT sort, footer, ROOTS lines, report overlay | 3, 7 |
-| Error handling table | 6 (absent, disappeared, mid-write, unreadable, zero, revoked), 7 (⚠) |
+| Error handling table | 6 (absent, disappeared, mid-write, unreadable, zero, revoked, logging), 7 (nothing shown) |
 | Testing table and gate | 1–8 |
 | Success criteria 1–5 | 8 (1, 2, 3, 5), 2 (4), 5–6 (5) |
 | Future work: `experimental/rekordbox-db` | 8, step 6 (recorded in the PR; no code) |

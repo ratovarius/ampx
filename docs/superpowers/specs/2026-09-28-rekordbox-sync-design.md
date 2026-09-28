@@ -1,6 +1,6 @@
 # rekordbox Collection Sync
 
-**Date:** 2026-09-28 · **Revised:** 2026-09-28 (Revision 2: discovery in library folders replaces manual linking)
+**Date:** 2026-09-28 · **Revised:** 2026-09-28 (Revision 3: failures go to the console log only, never to the UI)
 **Status:** Proposed
 **Ships in:** PR #15 (`feature/music-library`), with library L1 and L2.
 **Takes over from:** [DJ mode](./2026-09-11-dj-mode-design.md) phase A: the rekordbox import, Camelot conversion, the `LibrarySchemaV2` migration and the scanner re-parse rule. Smart playlists, A-UI's MIXES WELL and phases B/B′ stay in DJ mode.
@@ -39,6 +39,7 @@ Path matching reaches 2,232 only when both sides are NFC-normalised (53 accented
 | Where the XML comes from | **Discovered**, not linked: any `.xml` directly inside a library folder (not in subfolders) that is a rekordbox collection export. No file picker, no manual link |
 | No XML found | **Silent.** No error, no warning, no indicator; the sync simply does not run for that folder |
 | Applying changes | Always silent, including the first discovery. The last report stays viewable |
+| Failures | Logged to the console (`Logger`, category `RekordboxSync`). Never a popup, alert or error indicator in the UI |
 | Imported data | BPM, key, Camelot key (derived), rating, beatgrid, label, remixer, composer, grouping, mix, play count |
 | Key display | Two columns: KEY (musical, `Am`) and CAMELOT (`8A`) |
 | Architecture | A separate `RekordboxSync` component driven by the existing root scans |
@@ -82,7 +83,7 @@ A lightweight migration from `LibrarySchemaV1` under the existing `LibraryMigrat
 A new model, `RekordboxSource`, holds at most one record per root:
 - `rootID` (unique), the chosen XML's `fileName`, and `isPresent`;
 - the file's `(size, modificationDate)` at the last successful import, and when that import happened;
-- the last report (see below), Codable, and the last error, if any.
+- the last report (see below), Codable.
 
 Removing a root deletes its `RekordboxSource`; the rows go with the root, as today.
 
@@ -144,9 +145,9 @@ In the Library window, custom-drawn like the rest of it. Nothing about rekordbox
   - CAMELOT sorts by number, then A before B, with empty values last.
   - Minimum widths keep the default set inside the 910 pt minimum window.
 - **Search** also matches label, remixer, composer, grouping and mix.
-- **Footer:** a rekordbox indicator next to the scan status, shown only while at least one present source exists. It reads `REKORDBOX 14:30` (latest sync), `REKORDBOX SYNCING` or `REKORDBOX ⚠`. Clicking it opens the report.
+- **Footer:** a rekordbox indicator next to the scan status, shown only while at least one present source exists. It reads `REKORDBOX 14:30` (latest sync) or `REKORDBOX SYNCING`. Clicking it opens the report. It never shows an error state.
 - **ROOTS menu:** in a root's submenu, only when it has a present source, a disabled line `rekordbox: collection.xml · synced 14:30`, and **View rekordbox Report**.
-- **Report overlay:** it is drawn over the table, with the counts and a scrollable list (`AmpXScrollbar`) of unmatched, ambiguous, rating-conflict and "no longer in rekordbox" entries, plus the error when there is one. It has one button, **Close**.
+- **Report overlay:** it is drawn over the table, with the counts and a scrollable list (`AmpXScrollbar`) of unmatched, ambiguous, rating-conflict and "no longer in rekordbox" entries from the last successful import. It has one button, **Close**.
 
 ## Error handling
 
@@ -154,8 +155,8 @@ In the Library window, custom-drawn like the rest of it. Nothing about rekordbox
 |---|---|
 | No `.xml`, or no rekordbox export, at a root's top level | Silent: no sync, no indicator, no message |
 | The export disappears later | Silent: the source is marked not present, values stay, the indicator goes away |
-| Export still being written, or malformed XML | The parse fails and nothing is written. The write's completion triggers another FSEvents batch, scan and check. Only if the same `(size, modificationDate)` fails twice does the footer show ⚠, and the report shows the parser error |
-| A qualifying file cannot be read (permission) | Treated like no file: silent |
+| Export still being written, or malformed XML | The parse fails, nothing is written, and the failure is logged (`.info` the first time for a given `(size, modificationDate)`, `.error` if the same file fails again). The write's completion triggers another FSEvents batch, scan and check. Nothing is shown in the UI |
+| A qualifying file cannot be read (permission) | Treated like no file; logged at `.info` |
 | Engine stopping, or the root removed or relocated, during a check | The token is revoked and nothing is written |
 | Track outside all library folders | Reported as unmatched |
 | Zero matches | Nothing written; report kept; silent |
@@ -170,7 +171,7 @@ In the Library window, custom-drawn like the rest of it. Nothing about rekordbox
 | `RekordboxImportPlannerTests` | Path match, the fallback, ambiguity, only-changed writes, a second run writing nothing, rating sources and conflicts, "no longer in rekordbox" scoped to the root, and zero matches writing nothing |
 | `LibraryMigrationTests` | A V1 store opens as V2 with every value kept and the new fields defaulted |
 | `LibraryScannerTests` (added cases) | After an import, a changed mtime re-parses tags without replacing rekordbox BPM and key; a `.fileTag` value is refreshed |
-| `RekordboxSyncTests` | Fake file system: no XML → nothing and no status; a non-rekordbox XML ignored; the newest of two exports chosen; an XML in a subfolder ignored; an unchanged file → no parse; a changed file applied after its root's scan; a disappearing file marks the source not present silently; a truncated file retried and ⚠ only after two failures of one stamp; turn-taking with scans; checks for several roots in modification order; a revoked token writes nothing |
+| `RekordboxSyncTests` | Fake file system: no XML → nothing and no status; a non-rekordbox XML ignored; the newest of two exports chosen; an XML in a subfolder ignored; an unchanged file → no parse; a changed file applied after its root's scan; a disappearing file marks the source not present silently; a truncated file retried, and repeated failures logged with no UI state; turn-taking with scans; checks for several roots in modification order; a revoked token writes nothing |
 | `LibraryColumnsTests`, `LibraryTrackTableViewTests`, `LibraryChromeTests`, `LibraryRootsMenuTests` (added cases) | The new columns and their defaults, CAMELOT sort, the footer indicator states and its absence, the ROOTS lines, the report overlay |
 | `RekordboxCollectionGateTests` (opt-in, `TEST_RUNNER_AMPX_LIBRARY_GATE=1`, skipped on CI) | Adding `~/Music/DJ` as a root discovers `collection.xml` and fills all 2,232 tracks; a re-check of the unchanged file parses nothing; a forced re-sync of the unchanged file writes nothing and takes < 2 s |
 
@@ -178,7 +179,7 @@ In the Library window, custom-drawn like the rest of it. Nothing about rekordbox
 
 1. Adding `~/Music/DJ` as a library folder fills BPM, KEY and CAMELOT for all 2,232 tracks, with no other step.
 2. A re-export from rekordbox into `~/Music/DJ` is reflected in AmpX within 5 s, with no clicks.
-3. A library folder without a rekordbox export shows nothing rekordbox-related, and logs no error.
+3. A library folder without a rekordbox export shows nothing rekordbox-related, and no error appears in the UI.
 4. Editing a file's tags in another app does not replace its imported BPM or key.
 5. A re-sync of an unchanged export writes nothing, and deleting the export loses no imported value.
 
