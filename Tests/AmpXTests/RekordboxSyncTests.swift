@@ -334,4 +334,78 @@ final class RekordboxSyncTests: XCTestCase {
         }
         XCTAssertEqual(seen, [.syncing, .idle(lastSync: T.fixedDate)])
     }
+
+    // MARK: - Final review fixes
+
+    func testFailedFirstExportNeverShowsSyncing() async throws {
+        _ = try self.seed(["a.mp3"])
+        let full = RekordboxXML.make([.init(path: self.root + "/a.mp3", bpm: 126)])
+        await self.h.fileSystem.setTopLevel(self.root + "/collection.xml", data: full.prefix(full.count - 40), modified: 100)
+        let log = EventLog()
+        let states = await self.sync.states()
+        let watcher = Task {
+            for await state in states {
+                log.append(String(describing: state.status))
+            }
+        }
+        await self.check()
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        watcher.cancel()
+        XCTAssertFalse(log.events.contains(String(describing: RekordboxSyncStatus.syncing)), "\(log.events)")
+    }
+
+    func testStopBeforeTokenWritesNothing() async throws {
+        let ids = try self.seed(["a.mp3"])
+        await self.export([.init(path: self.root + "/a.mp3", bpm: 126)])
+        let gate = await self.h.fileSystem.blockNextPrefixRead()
+        let sync = try XCTUnwrap(self.sync)
+        let rootID = self.h.rootID
+        let check = Task { await sync.requestCheck(rootID: rootID) }
+        await gate.started.wait()
+        let stop = Task { await sync.stop() }
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        await gate.release.open()
+        await check.value
+        await stop.value
+        XCTAssertNil(try self.track(ids[0]).bpm, "a check halted before its token writes nothing")
+        let sources = try await self.sources()
+        XCTAssertTrue(sources.isEmpty)
+    }
+
+    func testRelocateBeforeTokenWritesNothing() async throws {
+        let ids = try self.seed(["a.mp3"])
+        await self.export([.init(path: self.root + "/a.mp3", bpm: 126)])
+        let gate = await self.h.fileSystem.blockNextPrefixRead()
+        let sync = try XCTUnwrap(self.sync)
+        let rootID = self.h.rootID
+        let check = Task { await sync.requestCheck(rootID: rootID) }
+        await gate.started.wait()
+        try await self.h.store.relocateRoot(id: rootID, to: T.temporaryDirectory(self))
+        await gate.release.open()
+        await check.value
+        await sync.waitUntilIdle()
+        XCTAssertNil(try self.track(ids[0]).bpm)
+        let sources = try await self.sources()
+        XCTAssertTrue(sources.isEmpty)
+    }
+
+    func testRootAddedAfterImportReceivesUnchangedExport() async throws {
+        _ = try self.seed(["a.mp3"])
+        let second = try await self.addSecondRoot()
+        // The export lists a track under the second root, which has no rows yet: unmatched.
+        await self.export([.init(path: self.root + "/a.mp3", bpm: 120), .init(path: second.path + "/b.mp3", bpm: 99)])
+        await self.check()
+        let otherIDs = try self.seed(["b.mp3"], rootID: second.id)
+        XCTAssertNil(try self.track(otherIDs[0]).bpm)
+
+        // The second root's first scan after being added re-checks the unchanged export.
+        await self.sync.rootAdded(second.id)
+        await self.h.scanner.requestScan(rootID: second.id)
+
+        try await self.eventually { try self.track(otherIDs[0]).bpm == 99 }
+    }
 }

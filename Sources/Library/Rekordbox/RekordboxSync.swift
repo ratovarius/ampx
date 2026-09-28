@@ -30,7 +30,10 @@ actor RekordboxSync {
     private var listeners: [Task<Void, Never>] = []
     private var stopped = false
     private var syncing = false
-    private var currentRoot: UUID?
+    /// Tokens of the running job, taken before discovery so a stop, removal or relocation at any point revokes them.
+    private var jobTokens: [UUID: RekordboxSyncToken] = [:]
+    /// Roots whose next finished scan re-checks every present export: their rows are new to the library.
+    private var refreshOnScan: Set<UUID> = []
     /// Per root, the stamp whose parse failed last, to log a repeat at `.error`.
     private var failedStamps: [UUID: RekordboxFileStamp] = [:]
     private var lastState = RekordboxSyncState(status: .hidden, sources: [])
@@ -49,7 +52,7 @@ actor RekordboxSync {
         self.listeners = [
             Task { [weak self] in
                 for await event in progress where event.phase == .finished {
-                    await self?.requestCheck(rootID: event.rootID)
+                    await self?.scanFinished(rootID: event.rootID)
                 }
             },
             Task { [weak self] in
@@ -79,8 +82,8 @@ actor RekordboxSync {
         self.listeners.forEach { $0.cancel() }
         self.listeners.removeAll()
         self.pending.removeAll()
-        if let root = self.currentRoot {
-            await self.store.revokeRekordboxSync(rootID: root)
+        for rootID in self.jobTokens.keys {
+            await self.store.revokeRekordboxSync(rootID: rootID)
         }
     }
 
@@ -91,6 +94,23 @@ actor RekordboxSync {
             self.forced.insert(rootID)
         }
         self.enqueueJobIfIdle()
+    }
+
+    /// A root was added or relocated. After its next scan, every present export is checked again even if unchanged,
+    /// so rows that only now joined the library receive its values.
+    func rootAdded(_ rootID: UUID) {
+        self.refreshOnScan.insert(rootID)
+    }
+
+    private func scanFinished(rootID: UUID) async {
+        guard self.refreshOnScan.remove(rootID) != nil else {
+            self.requestCheck(rootID: rootID)
+            return
+        }
+        self.requestCheck(rootID: rootID, force: true)
+        for source in await (try? self.store.rekordboxSources()) ?? [] where source.isPresent {
+            self.requestCheck(rootID: source.rootID, force: true)
+        }
     }
 
     func state() -> RekordboxSyncState {
@@ -137,9 +157,14 @@ actor RekordboxSync {
         self.pending.removeAll()
         self.forced.removeAll()
         guard !self.stopped, let roots = try? await self.store.roots() else { return }
+        defer { self.jobTokens.removeAll() }
+        for root in roots where requested.contains(root.id) && root.isAvailable {
+            self.jobTokens[root.id] = try? await self.store.beginRekordboxSync(rootID: root.id)
+        }
+        guard !self.stopped else { return }
 
         var due: [(root: LibraryRootSnapshot, file: LibraryTopLevelFile)] = []
-        for root in roots where requested.contains(root.id) && root.isAvailable {
+        for root in roots where self.jobTokens[root.id] != nil {
             if let file = await self.discover(in: root.url) {
                 due.append((root, file))
             } else {
@@ -156,7 +181,8 @@ actor RekordboxSync {
             if unchanged, !forced.contains(root.id) {
                 continue
             }
-            await self.importExport(file, root: root, roots: roots)
+            guard let token = self.jobTokens[root.id] else { continue }
+            await self.importExport(file, root: root, roots: roots, token: token)
         }
         await self.publishState()
     }
@@ -186,16 +212,14 @@ actor RekordboxSync {
         }
     }
 
-    private func importExport(_ file: LibraryTopLevelFile, root: LibraryRootSnapshot, roots: [LibraryRootSnapshot]) async {
-        self.currentRoot = root.id
-        self.syncing = true
-        await self.publishState()
-        defer {
-            self.currentRoot = nil
-            self.syncing = false
-        }
+    private func importExport(
+        _ file: LibraryTopLevelFile,
+        root: LibraryRootSnapshot,
+        roots: [LibraryRootSnapshot],
+        token: RekordboxSyncToken
+    ) async {
+        defer { self.syncing = false }
         do {
-            let token = try await self.store.beginRekordboxSync(rootID: root.id)
             let data: Data
             do {
                 data = try await self.fileSystem.readAll(of: file.url)
@@ -211,6 +235,10 @@ actor RekordboxSync {
             async let snapshot = self.store.rekordboxSnapshot(caseSensitivity: caseSensitivity)
             let collection = try await Task.detached(priority: .utility) { try RekordboxCollectionParser.parse(data) }.value
             let library = try await snapshot
+            guard !self.stopped, !Task.isCancelled else { return }
+            // Only a parsed export shows as syncing: failures never reach the UI.
+            self.syncing = true
+            await self.publishState()
             let name = file.name, rootID = root.id
             let plan = await Task.detached(priority: .utility) {
                 RekordboxImportPlanner.plan(collection, fileName: name, sourceRootID: rootID, library: library)

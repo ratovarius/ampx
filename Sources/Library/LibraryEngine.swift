@@ -113,6 +113,7 @@ actor LibraryEngine {
 
     func addRoot(url: URL) async throws -> UUID {
         let id = try await self.store.addRoot(url: url)
+        await self.rekordbox.rootAdded(id)
         try await self.syncWatch(id)
         await self.scanner.requestScan(rootID: id)
         return id
@@ -121,6 +122,7 @@ actor LibraryEngine {
     func relocateRoot(id: UUID, to url: URL) async throws {
         await self.scanner.cancelScans(rootID: id)
         try await self.store.relocateRoot(id: id, to: url)
+        await self.rekordbox.rootAdded(id)
         try await self.syncWatch(id)
         await self.scanner.requestScan(rootID: id)
     }

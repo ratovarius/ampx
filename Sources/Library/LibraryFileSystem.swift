@@ -111,7 +111,8 @@ struct FoundationLibraryFileSystem: LibraryFileSystem {
     }
 
     func readAll(of url: URL) async throws -> Data {
-        try await Task.detached(priority: .utility) { try Data(contentsOf: url, options: .mappedIfSafe) }.value
+        // Copied, not mapped: rekordbox may rewrite the export in place while it is parsed.
+        try await Task.detached(priority: .utility) { try Data(contentsOf: url) }.value
     }
 
     // MARK: - Enumeration

@@ -88,6 +88,7 @@ actor FakeLibraryFileSystem: LibraryFileSystem {
     private var topLevel: [String: (data: Data, stamp: RekordboxFileStamp)] = [:]
     private var unreadable: Set<String> = []
     var readBarrier: (started: TestBarrier, release: TestBarrier)?
+    var prefixBarrier: (started: TestBarrier, release: TestBarrier)?
     private(set) var fullReads = 0
 
     /// `path` is absolute; only files directly inside a queried root are listed.
@@ -101,6 +102,13 @@ actor FakeLibraryFileSystem: LibraryFileSystem {
 
     func setUnreadable(_ path: String) {
         self.unreadable.insert(path)
+    }
+
+    /// Blocks discovery (the 4 KB sniff), which runs before a check takes its token.
+    func blockNextPrefixRead() -> (started: TestBarrier, release: TestBarrier) {
+        let pair = (TestBarrier(), TestBarrier())
+        self.prefixBarrier = pair
+        return pair
     }
 
     func blockNextRead() -> (started: TestBarrier, release: TestBarrier) {
@@ -121,6 +129,11 @@ actor FakeLibraryFileSystem: LibraryFileSystem {
     }
 
     func readPrefix(of url: URL, length: Int) async throws -> Data {
+        if let barrier = self.prefixBarrier {
+            self.prefixBarrier = nil
+            await barrier.started.open()
+            await barrier.release.wait()
+        }
         guard !self.unreadable.contains(url.path), let file = self.topLevel[url.path] else { throw CocoaError(.fileReadNoPermission) }
         return file.data.prefix(length)
     }

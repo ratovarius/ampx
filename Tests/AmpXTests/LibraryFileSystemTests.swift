@@ -177,4 +177,15 @@ final class LibraryFileSystemTests: XCTestCase {
         let all = try await self.fileSystem.readAll(of: url)
         XCTAssertEqual(all.count, 10000)
     }
+
+    func testReadAllSurvivesTruncationAfterRead() async throws {
+        let url = self.root.appendingPathComponent("collection.xml")
+        try Data(repeating: 65, count: 8 << 20).write(to: url)
+        let data = try await self.fileSystem.readAll(of: url)
+        // rekordbox may rewrite the export in place; a mapped read would fault on the truncated pages.
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.truncate(atOffset: 0)
+        try handle.close()
+        XCTAssertEqual(data.reduce(0) { $0 &+ Int($1) }, 65 * (8 << 20))
+    }
 }
