@@ -352,4 +352,79 @@ final class LibraryModuleContentTests: XCTestCase {
         XCTAssertNil(content.model)
         XCTAssertNotNil(controller.engine)
     }
+
+    // MARK: - rekordbox
+
+    private func rekordboxContent() async -> (LibraryModuleContent, AsyncStream<RekordboxSyncState>.Continuation, LibraryRootSnapshot) {
+        let root = LibraryRootSnapshot(
+            id: UUID(), url: URL(fileURLWithPath: "/Music/DJ", isDirectory: true), displayPath: "/Music/DJ",
+            isAvailable: true, unreadableFolderCount: 0, lastCompletedScanAt: nil
+        )
+        let services = LibraryBrowserServices(
+            query: { query, generation in query.evaluate(rows: [], snapshotVersion: 0, generation: generation) },
+            rows: { _ in [] },
+            versions: { AsyncStream { _ in } },
+            progress: { AsyncStream { _ in } },
+            roots: { [root] }
+        )
+        let content = self.makeContent(controller: nil)
+        content.attach(model: LibraryBrowserModel(services: services, playlist: self.playlist, bookmarkStore: .shared, beep: {}))
+        await self.eventually { content.model?.roots.count == 1 }
+        let (stream, continuation) = AsyncStream.makeStream(of: RekordboxSyncState.self)
+        content.attachRekordbox(stream)
+        return (content, continuation, root)
+    }
+
+    private func syncedState(_ root: LibraryRootSnapshot, matched: Int = 5) -> RekordboxSyncState {
+        var report = RekordboxSyncReport(fileName: "collection.xml")
+        report.matched = matched
+        let source = RekordboxSourceSnapshot(
+            rootID: root.id, fileName: "collection.xml", isPresent: true,
+            stamp: RekordboxFileStamp(size: 1, modifiedAt: .distantPast), lastImportAt: Date(), lastReport: report
+        )
+        return RekordboxSyncState(status: .idle(lastSync: source.lastImportAt), sources: [source])
+    }
+
+    func testIndicatorAppearsAfterImport() async {
+        let (content, states, root) = await self.rekordboxContent()
+        XCTAssertTrue(content.footer.rekordboxButton.isHidden)
+        states.yield(self.syncedState(root))
+        await self.eventually { !content.footer.rekordboxButton.isHidden }
+        XCTAssertTrue(content.footer.rekordboxButton.label?.hasPrefix("REKORDBOX ") == true)
+    }
+
+    func testRootsItemOpensReport() async throws {
+        let (content, states, root) = await self.rekordboxContent()
+        states.yield(self.syncedState(root, matched: 7))
+        await self.eventually { content.rekordboxState.sources.count == 1 }
+        let submenu = try XCTUnwrap(content.rootsMenu().items.first { $0.submenu != nil }?.submenu)
+        let index = try XCTUnwrap(submenu.items.firstIndex { $0.title == "View rekordbox Report" })
+        submenu.performActionForItem(at: index)
+        XCTAssertFalse(content.reportView.isHidden)
+        XCTAssertEqual(content.reportView.report?.matched, 7)
+        content.reportView.closeButton.action?()
+        XCTAssertTrue(content.reportView.isHidden)
+    }
+
+    func testIndicatorClickOpensLatestReport() async {
+        let (content, states, root) = await self.rekordboxContent()
+        states.yield(self.syncedState(root, matched: 3))
+        await self.eventually { !content.footer.rekordboxButton.isHidden }
+        content.footer.rekordboxButton.action?()
+        XCTAssertFalse(content.reportView.isHidden)
+        XCTAssertEqual(content.reportView.report?.matched, 3)
+    }
+
+    func testNoExportShowsNothing() async throws {
+        let (content, states, _) = await self.rekordboxContent()
+        states.yield(RekordboxSyncState(status: .hidden, sources: []))
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        XCTAssertTrue(content.footer.rekordboxButton.isHidden)
+        XCTAssertTrue(content.reportView.isHidden)
+        let submenu = try XCTUnwrap(content.rootsMenu().items.first { $0.submenu != nil }?.submenu)
+        XCTAssertFalse(submenu.items.contains { $0.title.hasPrefix("rekordbox") || $0.title == "View rekordbox Report" })
+        XCTAssertTrue(self.panels.errors.isEmpty)
+    }
 }

@@ -57,7 +57,10 @@ final class LibraryModuleContent: AmpXModuleContent {
     let sidebar: LibraryMixesSidebarView
     let footer: LibraryFooterView
     let resizeHandle: PlaylistResizeHandleView
+    let reportView: LibraryRekordboxReportView
     private let emptyButton: AmpXButton
+    private(set) var rekordboxState = RekordboxSyncState(status: .hidden, sources: [])
+    private var rekordboxTask: Task<Void, Never>?
 
     private(set) var filter = LibraryFilterState()
     private(set) var model: LibraryBrowserModel?
@@ -94,6 +97,7 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.sidebar = LibraryMixesSidebarView(skin: skin)
         self.footer = LibraryFooterView(skin: skin)
         self.resizeHandle = PlaylistResizeHandleView(skin: skin)
+        self.reportView = LibraryRekordboxReportView(skin: skin)
         self.emptyButton = AmpXButton(skin: skin)
         self.controller = controller
         self.playlist = playlist
@@ -111,6 +115,7 @@ final class LibraryModuleContent: AmpXModuleContent {
             self.sidebar,
             self.footer,
             self.emptyButton,
+            self.reportView,
             self.resizeHandle,
         ] as [NSView] {
             addSubview(view)
@@ -119,6 +124,9 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.emptyButton.applyKeyLabelStyle()
         self.emptyButton.isHidden = true
         self.emptyButton.action = { [weak self] in self?.startTask { await $0.addFolder() } }
+        self.reportView.isHidden = true
+        self.reportView.onClose = { [weak self] in self?.reportView.isHidden = true }
+        self.footer.onRekordboxClick = { [weak self] in self?.showLatestRekordboxReport() }
 
         self.table.columns = self.preferences.columns
         self.filter.restoreSort(self.preferences.sort, ascending: self.preferences.ascending)
@@ -158,6 +166,9 @@ final class LibraryModuleContent: AmpXModuleContent {
             self.errorMessage = nil
             if self.model == nil, let playlist = self.playlist, let model = self.controller?.makeBrowserModel(playlist: playlist) {
                 self.attach(model: model)
+                if let engine = self.controller?.engine {
+                    self.startTask { await $0.attachRekordbox(engine.rekordbox.states()) }
+                }
             }
         case let .failed(message):
             self.errorMessage = message
@@ -202,6 +213,8 @@ final class LibraryModuleContent: AmpXModuleContent {
 
     /// Window closed: stop the browser model only; the engine keeps scanning and watching.
     func windowDidClose() {
+        self.rekordboxTask?.cancel()
+        self.rekordboxTask = nil
         self.model?.stop()
         self.model = nil
         self.modelObservations.removeAll()
@@ -229,7 +242,8 @@ final class LibraryModuleContent: AmpXModuleContent {
             totalDuration: rows.reduce(0) { $0 + $1.duration },
             progress: Self.displayedProgress(self.model?.progress),
             missing: self.model?.unavailableTotal ?? 0,
-            showingMissing: self.filter.showMissing
+            showingMissing: self.filter.showMissing,
+            rekordbox: self.rekordboxState.status
         )
     }
 
@@ -246,6 +260,34 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.emptyButton.isHidden = !self.isShowingEmptyState
         self.table.placeholderIsError = self.errorMessage != nil
         self.table.placeholder = self.errorMessage ?? (self.isShowingEmptyState ? Self.emptyMessage : nil)
+    }
+
+    // MARK: - rekordbox
+
+    /// Follows the sync's state (also the test seam). Nothing is shown while no folder has an export.
+    func attachRekordbox(_ states: AsyncStream<RekordboxSyncState>) {
+        self.rekordboxTask?.cancel()
+        self.rekordboxTask = Task { [weak self] in
+            for await state in states {
+                self?.rekordboxState = state
+                self?.updateFooter()
+            }
+        }
+    }
+
+    func showRekordboxReport(rootID: UUID) {
+        guard let report = self.rekordboxState.sources.first(where: { $0.rootID == rootID })?.lastReport else { return }
+        self.reportView.show(report)
+        self.reportView.isHidden = false
+    }
+
+    private func showLatestRekordboxReport() {
+        let latest = self.rekordboxState.sources.filter(\.isPresent).max {
+            ($0.lastImportAt ?? .distantPast) < ($1.lastImportAt ?? .distantPast)
+        }
+        if let latest {
+            self.showRekordboxReport(rootID: latest.rootID)
+        }
     }
 
     // MARK: - Wiring
@@ -390,6 +432,9 @@ final class LibraryModuleContent: AmpXModuleContent {
     /// Keys `AmpXKeyRouter` routes here (`.library`): ↑↓ Home End PageUp PageDown (± ⇧) move the table's
     /// focus, ↩ replaces and plays, ⌘↩ appends, ⌘A selects all and ⌘F focuses search.
     func handleKey(_ event: NSEvent) -> Bool {
+        if !self.reportView.isHidden, self.reportView.handleKey(event) {
+            return true
+        }
         let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
         if let facet = window?.firstResponder as? LibraryFacetListView, facet === self.genreList || facet === self.artistList,
            facet.handleKey(event)
@@ -429,10 +474,12 @@ final class LibraryModuleContent: AmpXModuleContent {
     func rootsMenu() -> NSMenu {
         LibraryRootsMenu.make(
             roots: self.model?.roots ?? [],
+            rekordboxSources: Dictionary(self.rekordboxState.sources.map { ($0.rootID, $0) }, uniquingKeysWith: { first, _ in first }),
             actions: .init(
                 add: { [weak self] in self?.startTask { await $0.addFolder() } },
                 relocate: { [weak self] id in self?.startTask { await $0.relocateRoot(id) } },
-                remove: { [weak self] id in self?.startTask { await $0.removeRoot(id) } }
+                remove: { [weak self] id in self?.startTask { await $0.removeRoot(id) } },
+                viewRekordboxReport: { [weak self] id in self?.showRekordboxReport(rootID: id) }
             )
         )
     }
@@ -493,6 +540,7 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.sidebar.frame = frames.sidebar
         self.footer.frame = frames.footer
         self.emptyButton.frame = CGRect(x: frames.table.midX - 70, y: frames.table.midY + 8, width: 140, height: 28)
+        self.reportView.frame = frames.table
         self.resizeHandle.frame = bounds
     }
 

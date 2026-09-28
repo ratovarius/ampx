@@ -7,9 +7,10 @@ enum LibraryRootsMenu {
         var add: () -> Void
         var relocate: (UUID) -> Void
         var remove: (UUID) -> Void
+        var viewRekordboxReport: (UUID) -> Void = { _ in }
     }
 
-    static func make(roots: [LibraryRootSnapshot], actions: Actions) -> NSMenu {
+    static func make(roots: [LibraryRootSnapshot], rekordboxSources: [UUID: RekordboxSourceSnapshot] = [:], actions: Actions) -> NSMenu {
         let menu = NSMenu(title: "Roots")
         menu.autoenablesItems = false
         menu.addItem(ClosureMenuItem(title: "Add Folder…", action: actions.add))
@@ -25,6 +26,13 @@ enum LibraryRootsMenu {
             let status = NSMenuItem(title: self.status(of: root), action: nil, keyEquivalent: "")
             status.isEnabled = false
             submenu.addItem(status)
+            // Only a present export shows anything (rekordbox sync spec § UI).
+            if let source = rekordboxSources[root.id], source.isPresent {
+                let line = NSMenuItem(title: self.rekordboxLine(source), action: nil, keyEquivalent: "")
+                line.isEnabled = false
+                submenu.addItem(line)
+                submenu.addItem(ClosureMenuItem(title: "View rekordbox Report") { actions.viewRekordboxReport(root.id) })
+            }
             submenu.addItem(.separator())
             submenu.addItem(ClosureMenuItem(title: "Relocate…") { actions.relocate(root.id) })
             submenu.addItem(ClosureMenuItem(title: "Remove…") { actions.remove(root.id) })
@@ -32,6 +40,12 @@ enum LibraryRootsMenu {
             menu.addItem(item)
         }
         return menu
+    }
+
+    /// "rekordbox: collection.xml · synced 14:30" (today), "… · synced 3 Sep", or "… · not synced".
+    static func rekordboxLine(_ source: RekordboxSourceSnapshot, now: Date = Date(), calendar: Calendar = .current) -> String {
+        let synced = source.lastImportAt.map { "synced " + LibraryFormatting.syncTime($0, now: now, calendar: calendar) }
+        return "rekordbox: \(source.fileName) · \(synced ?? "not synced")"
     }
 
     static func status(of root: LibraryRootSnapshot) -> String {
@@ -86,6 +100,15 @@ enum LibraryFormatting {
 
     static func grouped(_ value: Int) -> String {
         self.groupedFormatter.string(from: NSNumber(value: value)) ?? String(value)
+    }
+
+    /// "14:30" on the same day as `now`, otherwise "3 Sep".
+    static func syncTime(_ date: Date, now: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = calendar.isDate(date, inSameDayAs: now) ? "HH:mm" : "d MMM"
+        return formatter.string(from: date)
     }
 
     /// h:mm:ss with unbounded hours.

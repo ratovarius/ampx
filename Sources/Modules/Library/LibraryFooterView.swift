@@ -7,7 +7,10 @@ final class LibraryFooterView: AmpXDrawingView {
     let missingButton: AmpXButton
     let rootsButton: AmpXButton
     let enqueueButton: AmpXButton
+    /// rekordbox sync indicator; hidden unless a library folder has a rekordbox export.
+    let rekordboxButton: AmpXButton
     var onToggleMissing: (() -> Void)?
+    var onRekordboxClick: (() -> Void)?
     var onEnqueue: (() -> Void)?
 
     private(set) var summaryText = "0 TRACKS · 0:00:00"
@@ -18,18 +21,21 @@ final class LibraryFooterView: AmpXDrawingView {
         self.missingButton = AmpXButton(skin: skin)
         self.rootsButton = AmpXButton(skin: skin)
         self.enqueueButton = AmpXButton(skin: skin)
+        self.rekordboxButton = AmpXButton(skin: skin)
         super.init(skin: skin)
+        self.rekordboxButton.isHidden = true
         self.rootsButton.label = "ROOTS"
         self.rootsButton.style = .menu
         self.enqueueButton.label = "ENQUEUE"
         self.missingButton.showsActiveIndicator = true
         self.missingButton.isHidden = true
-        for button in [self.missingButton, self.rootsButton, self.enqueueButton] {
+        for button in [self.missingButton, self.rekordboxButton, self.rootsButton, self.enqueueButton] {
             button.applyKeyLabelStyle()
             addSubview(button)
         }
         self.missingButton.action = { [weak self] in self?.onToggleMissing?() }
         self.enqueueButton.action = { [weak self] in self?.onEnqueue?() }
+        self.rekordboxButton.action = { [weak self] in self?.onRekordboxClick?() }
         setAccessibilityElement(false)
     }
 
@@ -38,7 +44,28 @@ final class LibraryFooterView: AmpXDrawingView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(trackCount: Int, totalDuration: Double, progress: ScanProgress?, missing: Int, showingMissing: Bool) {
+    /// nil hides the indicator: `.hidden` means no library folder has a rekordbox export.
+    static func rekordboxText(_ status: RekordboxSyncStatus, now: Date = Date(), calendar: Calendar = .current) -> String? {
+        switch status {
+        case .hidden: nil
+        case .syncing: "REKORDBOX SYNCING"
+        case let .idle(lastSync):
+            lastSync.map { "REKORDBOX " + LibraryFormatting.syncTime($0, now: now, calendar: calendar).uppercased() } ?? "REKORDBOX"
+        }
+    }
+
+    func update(
+        trackCount: Int,
+        totalDuration: Double,
+        progress: ScanProgress?,
+        missing: Int,
+        showingMissing: Bool,
+        rekordbox: RekordboxSyncStatus = .hidden
+    ) {
+        let rekordboxText = Self.rekordboxText(rekordbox)
+        self.rekordboxButton.isHidden = rekordboxText == nil
+        self.rekordboxButton.label = rekordboxText ?? ""
+        needsLayout = true
         let noun = trackCount == 1 ? "TRACK" : "TRACKS"
         self.summaryText = "\(LibraryFormatting.grouped(trackCount)) \(noun) · \(LibraryFormatting.longDuration(totalDuration))"
         if let progress {
@@ -57,7 +84,7 @@ final class LibraryFooterView: AmpXDrawingView {
     }
 
     private var summaryRect: CGRect {
-        CGRect(x: 0, y: 3, width: max(0, bounds.width * 0.38), height: bounds.height - 6)
+        CGRect(x: 0, y: 3, width: max(0, bounds.width * 0.32), height: bounds.height - 6)
     }
 
     override func layout() {
@@ -65,7 +92,8 @@ final class LibraryFooterView: AmpXDrawingView {
         let height: CGFloat = 28
         let y = (bounds.height - height) / 2
         var x = bounds.width
-        for (button, width) in [(self.enqueueButton, CGFloat(96)), (self.rootsButton, 96), (self.missingButton, 120)] {
+        let buttons = [(self.enqueueButton, CGFloat(96)), (self.rootsButton, 96), (self.rekordboxButton, 150), (self.missingButton, 120)]
+        for (button, width) in buttons where !button.isHidden {
             x -= width
             button.frame = CGRect(x: x, y: y, width: width, height: height)
             x -= 6
@@ -87,7 +115,11 @@ final class LibraryFooterView: AmpXDrawingView {
         let led = CGRect(x: ledX, y: bounds.midY - 4, width: 8, height: 8)
         context.setFillColor((self.isScanning ? skin.orange : skin.green).cgColor)
         context.fill(led)
-        AmpXLabel(text: self.statusText, color: skin.text, fontSize: 12, weight: .medium)
+        // The status yields to the buttons at narrow widths (rekordbox indicator plus MISSING at 910 pt).
+        let buttonsStart = [self.missingButton, self.rekordboxButton, self.rootsButton, self.enqueueButton]
+            .filter { !$0.isHidden }.map(\.frame.minX).min() ?? bounds.width
+        let status = LibraryTrackTableView.fittedText(self.statusText, width: max(0, buttonsStart - led.maxX - 16), skin: skin)
+        AmpXLabel(text: status, color: skin.text, fontSize: 12, weight: .medium)
             .draw(x: led.maxX + 8, baseline: bounds.midY + 4, context: context, skin: skin)
     }
 }

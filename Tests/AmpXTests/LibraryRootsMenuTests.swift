@@ -53,4 +53,82 @@ final class LibraryRootsMenuTests: XCTestCase {
             "Its 1 track and its rating and play count will be removed. The file is not deleted."
         )
     }
+
+    // MARK: - rekordbox
+
+    private var utc: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }
+
+    private func source(_ rootID: UUID, present: Bool = true, lastImport: Date? = Date(timeIntervalSince1970: 1_790_000_000))
+        -> RekordboxSourceSnapshot
+    {
+        RekordboxSourceSnapshot(
+            rootID: rootID, fileName: "collection.xml", isPresent: present,
+            stamp: RekordboxFileStamp(size: 1, modifiedAt: .distantPast), lastImportAt: lastImport,
+            lastReport: RekordboxSyncReport(fileName: "collection.xml")
+        )
+    }
+
+    private func actions(viewed: @escaping (UUID) -> Void = { _ in }) -> LibraryRootsMenu.Actions {
+        .init(add: {}, relocate: { _ in }, remove: { _ in }, viewRekordboxReport: viewed)
+    }
+
+    func testRootWithoutSourceHasNoRekordboxItems() throws {
+        let dj = self.root("/Users/me/Music/DJ")
+        let menu = LibraryRootsMenu.make(roots: [dj], rekordboxSources: [:], actions: self.actions())
+        XCTAssertEqual(
+            try XCTUnwrap(menu.items[2].submenu).items.map(\.title),
+            ["/Users/me/Music/DJ", "Available", "", "Relocate…", "Remove…"]
+        )
+    }
+
+    func testRootWithSourceShowsLineAndReportItem() throws {
+        let dj = self.root("/Users/me/Music/DJ")
+        var viewed: [UUID] = []
+        let menu = LibraryRootsMenu.make(
+            roots: [dj], rekordboxSources: [dj.id: self.source(dj.id)], actions: self.actions { viewed.append($0) }
+        )
+        let submenu = try XCTUnwrap(menu.items[2].submenu)
+        XCTAssertEqual(
+            submenu.items.map(\.title).prefix(4),
+            ["/Users/me/Music/DJ", "Available", LibraryRootsMenu.rekordboxLine(self.source(dj.id)), "View rekordbox Report"]
+        )
+        XCTAssertFalse(submenu.items[2].isEnabled)
+        submenu.performActionForItem(at: 3)
+        XCTAssertEqual(viewed, [dj.id])
+    }
+
+    func testAbsentSourceHidden() throws {
+        let dj = self.root("/Users/me/Music/DJ")
+        let menu = LibraryRootsMenu.make(
+            roots: [dj],
+            rekordboxSources: [dj.id: self.source(dj.id, present: false)],
+            actions: self.actions()
+        )
+        XCTAssertFalse(try XCTUnwrap(menu.items[2].submenu).items.map(\.title).contains("View rekordbox Report"))
+    }
+
+    func testRekordboxLineFormats() {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let id = UUID()
+        XCTAssertEqual(
+            LibraryRootsMenu.rekordboxLine(self.source(id, lastImport: now.addingTimeInterval(-60)), now: now, calendar: self.utc),
+            "rekordbox: collection.xml · synced 14:12"
+        )
+        XCTAssertEqual(
+            LibraryRootsMenu.rekordboxLine(
+                self.source(id, lastImport: Date(timeIntervalSince1970: 1_788_400_000)),
+                now: now,
+                calendar: self.utc
+            ),
+            "rekordbox: collection.xml · synced 3 Sep"
+        )
+        XCTAssertEqual(
+            LibraryRootsMenu.rekordboxLine(self.source(id, lastImport: nil), now: now, calendar: self.utc),
+            "rekordbox: collection.xml · not synced"
+        )
+    }
 }

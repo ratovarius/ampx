@@ -124,4 +124,84 @@ final class LibraryChromeTests: XCTestCase {
         sidebar.playingButton.action?()
         XCTAssertEqual(modes, [true, false], "re-selecting the active mode reports nothing")
     }
+
+    // MARK: - rekordbox
+
+    private var utc: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }
+
+    private var report: RekordboxSyncReport {
+        var report = RekordboxSyncReport(fileName: "collection.xml")
+        report.matched = 2232
+        report.updated = 12
+        report.unmatched = ["/Music/MUSICA/a.mp3", "/Music/MUSICA/b.mp3"]
+        report.ambiguous = [.init(path: "/Music/x.mp3", candidates: ["/Music/DJ/x.mp3", "/Music/DJ/y.mp3"])]
+        report.noLongerInRekordbox = ["/Music/DJ/gone.mp3"]
+        return report
+    }
+
+    func testRekordboxIndicatorText() {
+        let now = Date(timeIntervalSince1970: 1_790_000_000) // 2026-09-21 14:13 UTC
+        let today = now.addingTimeInterval(-3600)
+        let earlier = Date(timeIntervalSince1970: 1_788_400_000) // 2026-09-03
+        XCTAssertNil(LibraryFooterView.rekordboxText(.hidden, now: now, calendar: self.utc))
+        XCTAssertEqual(LibraryFooterView.rekordboxText(.idle(lastSync: today), now: now, calendar: self.utc), "REKORDBOX 13:13")
+        XCTAssertEqual(LibraryFooterView.rekordboxText(.idle(lastSync: earlier), now: now, calendar: self.utc), "REKORDBOX 3 SEP")
+        XCTAssertEqual(LibraryFooterView.rekordboxText(.idle(lastSync: nil), now: now, calendar: self.utc), "REKORDBOX")
+        XCTAssertEqual(LibraryFooterView.rekordboxText(.syncing, now: now, calendar: self.utc), "REKORDBOX SYNCING")
+    }
+
+    func testIndicatorHiddenWithoutSources() {
+        let footer = LibraryFooterView(skin: self.skin)
+        footer.update(trackCount: 1, totalDuration: 60, progress: nil, missing: 0, showingMissing: false)
+        XCTAssertTrue(footer.rekordboxButton.isHidden)
+        footer.update(trackCount: 1, totalDuration: 60, progress: nil, missing: 0, showingMissing: false, rekordbox: .syncing)
+        XCTAssertFalse(footer.rekordboxButton.isHidden)
+        XCTAssertEqual(footer.rekordboxButton.label, "REKORDBOX SYNCING")
+        var clicks = 0
+        footer.onRekordboxClick = { clicks += 1 }
+        footer.rekordboxButton.action?()
+        XCTAssertEqual(clicks, 1)
+    }
+
+    func testReportSummaryLines() {
+        XCTAssertEqual(LibraryRekordboxReportView.summary(self.report), [
+            "collection.xml",
+            "2,232 of 2,235 tracks matched",
+            "12 updated",
+            "2 not in any library folder",
+            "1 ambiguous",
+            "1 no longer in rekordbox",
+        ])
+        var quiet = RekordboxSyncReport(fileName: "x.xml")
+        quiet.matched = 1
+        XCTAssertEqual(LibraryRekordboxReportView.summary(quiet), ["x.xml", "1 of 1 tracks matched", "0 updated"])
+    }
+
+    func testReportListsEntriesUnderHeadings() {
+        let view = LibraryRekordboxReportView(skin: self.skin)
+        view.show(self.report)
+        XCTAssertEqual(view.entryLines, [
+            "NOT IN ANY LIBRARY FOLDER", "/Music/MUSICA/a.mp3", "/Music/MUSICA/b.mp3",
+            "AMBIGUOUS", "/Music/x.mp3",
+            "NO LONGER IN REKORDBOX", "/Music/DJ/gone.mp3",
+        ])
+    }
+
+    func testReportCloseOnEscape() throws {
+        let view = LibraryRekordboxReportView(skin: self.skin)
+        var closes = 0
+        view.onClose = { closes += 1 }
+        view.show(self.report)
+        view.closeButton.action?()
+        let escape = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53
+        ))
+        XCTAssertTrue(view.handleKey(escape))
+        XCTAssertEqual(closes, 2)
+    }
 }
