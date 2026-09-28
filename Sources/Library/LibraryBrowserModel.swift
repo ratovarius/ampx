@@ -33,6 +33,8 @@ final class LibraryBrowserModel: ObservableObject {
     @Published var focusedID: UUID?
     @Published private(set) var progress: ScanProgress?
     @Published private(set) var roots: [LibraryRootSnapshot] = []
+    /// Unavailable rows in the whole library (the footer's n MISSING), whatever the query filters.
+    @Published private(set) var unavailableTotal = 0
 
     private let services: LibraryBrowserServices
     private let playlist: PlaylistManager
@@ -141,11 +143,17 @@ final class LibraryBrowserModel: ObservableObject {
     private func apply(_ result: LibraryResult) {
         self.rows = result.rows
         self.facets = result.facets
+        self.unavailableTotal = result.unavailableTotal
         let present = Set(result.rows.map(\.id))
         self.selection.formIntersection(present)
         if let focused = self.focusedID, !present.contains(focused) {
             self.focusedID = nil
         }
+    }
+
+    /// Loads the root list now, e.g. when a browser opens before any library change has been published.
+    func reloadRoots() async {
+        await self.refreshRoots()
     }
 
     private func refreshRoots() async {

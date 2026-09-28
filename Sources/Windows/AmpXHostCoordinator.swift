@@ -15,6 +15,9 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     let pinnedScreen: NSScreen?
     private let audioPlayer: AudioPlayer
     private let playlistManager: PlaylistManager
+    /// The app's library engine owner; nil (tests, pre-launch) shows the Library's empty state.
+    let libraryController: LibraryController?
+    private var libraryResizeStart: CGSize?
     private let playerPresentationState = AmpXPlayerPresentationState()
     /// Closing the Player quits AmpX, as in Winamp. Injectable so tests can observe it.
     private let terminate: () -> Void
@@ -58,6 +61,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         audioPlayer: AudioPlayer = .shared,
         playlistManager: PlaylistManager = .shared,
         entheaEnabled: Bool = AmpXFeatures.entheaEnabled,
+        libraryController: LibraryController? = nil,
         terminate: @escaping () -> Void = { NSApp.terminate(nil) }
     ) {
         let resolvedScreen = screen ?? NSScreen.main ?? NSScreen.screens.first!
@@ -72,6 +76,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         self.pinnedScreen = screen
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
+        self.libraryController = libraryController
         self.terminate = terminate
         self.layoutStore = layoutStore ?? AmpXLayoutStore(defaults: .standard, screen: resolvedScreen)
 
@@ -149,6 +154,10 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         }
         if id == .enthea {
             (self.moduleViews[id]?.content as? EntheaModuleContent)?.closeHost()
+        }
+        if id == .library {
+            // Stops the browser model only; the engine keeps scanning and watching (Library Module spec).
+            (self.moduleViews[id]?.content as? LibraryModuleContent)?.windowDidClose()
         }
         self.state.close(id)
         self.focusModule(nextFocus)
@@ -531,7 +540,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
                 onToggleTheater: { [weak self] in self?.toggleTheater() }
             )
         case .library:
-            LibraryModuleContent(skin: self.skin)
+            self.makeLibraryContent()
         }
     }
 
@@ -545,6 +554,38 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             self?.handlePlaylistResize(phase)
         }
         return content
+    }
+
+    private func makeLibraryContent() -> LibraryModuleContent {
+        let content = LibraryModuleContent(
+            skin: self.skin,
+            controller: self.libraryController,
+            playlist: self.playlistManager,
+            audioPlayer: self.audioPlayer
+        )
+        content.onResizeViewport = { [weak self] phase in
+            self?.handleLibraryResize(phase)
+        }
+        return content
+    }
+
+    /// Library resize-handle drags (the Playlist's strips and grip); saves once when the drag ends.
+    func handleLibraryResize(_ phase: PlaylistResizeHandleView.Phase) {
+        switch phase {
+        case .began:
+            self.libraryResizeStart = self.librarySize
+        case let .changed(delta):
+            guard let start = self.libraryResizeStart else { return }
+            self.librarySize = CGSize(
+                width: max(AmpXMetrics.minimumLibrarySize.width, start.width + delta.width),
+                height: max(AmpXMetrics.minimumLibrarySize.height, start.height + delta.height)
+            )
+            self.resizeKeepingAttachments([.library])
+        case .ended:
+            guard self.libraryResizeStart != nil else { return }
+            self.libraryResizeStart = nil
+            self.persistLayout()
+        }
     }
 
     private func toggleModuleVisibility(_ id: AmpXModuleID) {
