@@ -327,7 +327,7 @@ final class PlaylistManagerTests: XCTestCase {
             alertPresenter: SilentPlaylistAlertPresenter()
         )
 
-        waitForMainQueue(after: 0.5)
+        waitForMainQueue(until: { !manager.tracks.isEmpty && self.mockPlayer.loadTrackCalls.count == 1 })
 
         XCTAssertEqual(manager.tracks.count, 1)
         XCTAssertEqual(manager.currentIndex, 0)
@@ -378,7 +378,7 @@ final class PlaylistManagerTests: XCTestCase {
         )
 
         // Bookmark resolution is async; wait until the restored track lands.
-        waitForMainQueue(after: 0.5)
+        waitForMainQueue(until: { !manager.tracks.isEmpty })
         XCTAssertFalse(manager.tracks.isEmpty)
         XCTAssertFalse(manager.shouldPlayStartupSoundOnLaunch)
     }
@@ -413,7 +413,7 @@ final class PlaylistManagerTests: XCTestCase {
             alertPresenter: SilentPlaylistAlertPresenter()
         )
 
-        waitForMainQueue(after: 0.5)
+        waitForMainQueue(until: { !manager.tracks.isEmpty })
 
         XCTAssertEqual(manager.tracks.count, 1)
         XCTAssertEqual(manager.tracks.first?.url?.path, fileURL.path)
@@ -481,7 +481,7 @@ final class PlaylistManagerTests: XCTestCase {
             alertPresenter: SilentPlaylistAlertPresenter()
         )
 
-        waitForMainQueue(after: 0.5)
+        waitForMainQueue(until: { !manager.tracks.isEmpty })
 
         XCTAssertEqual(manager.tracks.count, 1)
         XCTAssertEqual(stateStore.loadState()?.trackPaths, [fileURL.path])

@@ -289,14 +289,18 @@ final class LibraryWiringTests: XCTestCase {
 
     func testLaunchWithFlagOnOpensEngine() async throws {
         let first = self.makeController()
-        let engine = try await first.ensureEngine()
-        _ = try await engine.addRoot(url: T.temporaryDirectory(self))
-        await first.stop()
+        let folder = try T.temporaryDirectory(self)
+        // Each step is bounded, so a hang on CI names the step instead of timing the test out.
+        guard await self.awaitStep("first open and add folder", {
+            let engine = try? await first.ensureEngine()
+            _ = try? await engine?.addRoot(url: folder)
+        }) else { return }
+        guard await self.awaitStep("first stop", { await first.stop() }) else { return }
 
         let controller = self.makeController()
         let application = self.makeApplication(controller: controller)
         application.start()
-        await application.libraryStartTask?.value
+        guard await self.awaitStep("launch start", { await application.libraryStartTask?.value }) else { return }
         XCTAssertEqual(controller.state, .ready)
     }
 
