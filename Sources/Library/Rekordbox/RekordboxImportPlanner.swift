@@ -220,9 +220,6 @@ enum RekordboxImportPlanner {
     }
 
     private static func encode(_ grid: [RekordboxBeat]) -> Data? {
-        guard !grid.isEmpty else { return nil }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .sortedKeys
-        return try? encoder.encode(grid)
+        grid.isEmpty ? nil : RekordboxBeatGrid.pack(grid)
     }
 }

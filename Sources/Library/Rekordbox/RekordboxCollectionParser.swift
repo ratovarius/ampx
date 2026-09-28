@@ -61,7 +61,9 @@ enum RekordboxCollectionParser {
         var tracks: [RekordboxTrack] = []
         var dropped = 0
 
-        private var path: [String] = []
+        // Depths instead of a path stack: the export has half a million elements.
+        private var depth = 0
+        private var inCollection = false
         private var current: [String: String]?
         private var beats: [RekordboxBeat] = []
 
@@ -72,17 +74,18 @@ enum RekordboxCollectionParser {
             qualifiedName _: String?,
             attributes: [String: String] = [:]
         ) {
-            let parent = self.path.last
-            self.path.append(name)
-            switch (parent, name) {
-            case (nil, "DJ_PLAYLISTS"):
+            self.depth += 1
+            switch (self.depth, name) {
+            case (1, "DJ_PLAYLISTS"):
                 self.sawRoot = true
-            case ("DJ_PLAYLISTS", "PRODUCT"):
+            case (2, "PRODUCT") where self.sawRoot:
                 self.productVersion = attributes["Version"]
-            case ("COLLECTION", "TRACK"):
+            case (2, "COLLECTION") where self.sawRoot:
+                self.inCollection = true
+            case (3, "TRACK") where self.inCollection:
                 self.current = attributes
                 self.beats = []
-            case ("TRACK", "TEMPO") where self.current != nil:
+            case (4, "TEMPO") where self.current != nil:
                 if let start = Double(attributes["Inizio"] ?? ""), let bpm = Double(attributes["Bpm"] ?? "") {
                     self.beats.append(RekordboxBeat(
                         start: start, bpm: bpm, meter: attributes["Metro"] ?? "", beat: Int(attributes["Battito"] ?? "") ?? 0
@@ -94,8 +97,11 @@ enum RekordboxCollectionParser {
         }
 
         func parser(_: XMLParser, didEndElement name: String, namespaceURI _: String?, qualifiedName _: String?) {
-            self.path.removeLast()
-            guard name == "TRACK", self.path.last == "COLLECTION", let attributes = self.current else { return }
+            defer { self.depth -= 1 }
+            if self.depth == 2, name == "COLLECTION" {
+                self.inCollection = false
+            }
+            guard self.depth == 3, name == "TRACK", let attributes = self.current else { return }
             self.current = nil
             guard let path = attributes["Location"].flatMap(RekordboxCollectionParser.path(fromLocation:)) else {
                 self.dropped += 1

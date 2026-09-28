@@ -203,13 +203,18 @@ actor RekordboxSync {
                 syncLogger.info("Cannot read \(file.url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
                 return
             }
-            let collection = try RekordboxCollectionParser.parse(data)
             var caseSensitivity: [UUID: Bool] = [:]
             for candidate in roots where candidate.isAvailable {
                 caseSensitivity[candidate.id] = try? await self.fileSystem.volume(at: candidate.url).caseSensitive
             }
-            let snapshot = try await self.store.rekordboxSnapshot(caseSensitivity: caseSensitivity)
-            let plan = RekordboxImportPlanner.plan(collection, fileName: file.name, sourceRootID: root.id, library: snapshot)
+            // Parse (about 1.5 s for a 40 MB export) and plan off this actor, while the store builds the snapshot.
+            async let snapshot = self.store.rekordboxSnapshot(caseSensitivity: caseSensitivity)
+            let collection = try await Task.detached(priority: .utility) { try RekordboxCollectionParser.parse(data) }.value
+            let library = try await snapshot
+            let name = file.name, rootID = root.id
+            let plan = await Task.detached(priority: .utility) {
+                RekordboxImportPlanner.plan(collection, fileName: name, sourceRootID: rootID, library: library)
+            }.value
             try await self.store.applyRekordbox(plan, fileName: file.name, stamp: file.stamp, token: token)
             self.failedStamps[root.id] = nil
             syncLogger.info("Imported \(file.name, privacy: .public): \(plan.report.matched) matched, \(plan.report.updated) updated")

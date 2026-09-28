@@ -206,9 +206,22 @@ final class RekordboxImportPlannerTests: XCTestCase {
         let first = try XCTUnwrap(self.plan([self.track("/Music/DJ/a.mp3", beatGrid: grid)], rows: [self.row(1, "a.mp3")]).writes.first)
         let second = try XCTUnwrap(self.plan([self.track("/Music/DJ/a.mp3", beatGrid: grid)], rows: [self.row(1, "a.mp3")]).writes.first)
         XCTAssertEqual(first.values.beatGrid, second.values.beatGrid)
-        XCTAssertEqual(try JSONDecoder().decode([RekordboxBeat].self, from: XCTUnwrap(first.values.beatGrid)), grid)
+        XCTAssertEqual(RekordboxBeatGrid.unpack(try XCTUnwrap(first.values.beatGrid)), grid)
         let empty = try XCTUnwrap(self.plan([self.track("/Music/DJ/a.mp3")], rows: [self.row(1, "a.mp3")]).writes.first)
         XCTAssertNil(empty.values.beatGrid)
+    }
+
+    func testBeatGridPackRoundTrip() {
+        let grid = [
+            RekordboxBeat(start: 0.38, bpm: 117, meter: "4/4", beat: 1),
+            RekordboxBeat(start: 1.2345678, bpm: 127.99, meter: "3/4", beat: 4),
+            RekordboxBeat(start: 600.5, bpm: 140.25, meter: "", beat: 0),
+        ]
+        let packed = RekordboxBeatGrid.pack(grid)
+        XCTAssertEqual(RekordboxBeatGrid.unpack(packed), grid)
+        XCTAssertEqual(RekordboxBeatGrid.pack(grid), packed)
+        XCTAssertNil(RekordboxBeatGrid.unpack(Data([9, 9, 9])))
+        XCTAssertNil(RekordboxBeatGrid.unpack(packed.dropLast()))
     }
 
     func testSecondPlanOfSameCollectionHasNoWrites() throws {
