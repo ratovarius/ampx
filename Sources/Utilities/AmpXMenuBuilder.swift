@@ -101,6 +101,11 @@ enum AmpXMenuBuilder {
                 shift: AmpXMenuCatalog.FileShortcut.addFolderUsesShift
             )
         )
+        menu.addItem(
+            titled: AmpXMenuCatalog.FileItem.addLibraryFolder.rawValue,
+            action: #selector(AmpXApplicationController.addLibraryFolder(_:)),
+            target: application
+        )
         menu.addItem(.separator())
         menu.addItem(
             titled: AmpXMenuCatalog.FileItem.loadPlaylist.rawValue,
@@ -211,6 +216,13 @@ enum AmpXMenuBuilder {
             titled: "AmpX",
             action: #selector(AmpXApplicationController.showAmpX(_:)),
             target: application
+        )
+        menu.addItem(
+            titled: AmpXMenuCatalog.ViewPanel.library.rawValue,
+            action: #selector(AmpXApplicationController.toggleLibrary(_:)),
+            target: application,
+            keyEquivalent: "l",
+            modifiers: .command
         )
         menu.addItem(.separator())
         menu.addItem(

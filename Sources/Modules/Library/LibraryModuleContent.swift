@@ -360,6 +360,40 @@ final class LibraryModuleContent: AmpXModuleContent {
         window?.makeFirstResponder(self.toolbar.search)
     }
 
+    /// Keys `AmpXKeyRouter` routes here (`.library`): ↑↓ Home End PageUp PageDown (± ⇧) move the table's
+    /// focus, ↩ replaces and plays, ⌘↩ appends, ⌘A selects all and ⌘F focuses search.
+    func handleKey(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let extend = flags.contains(.shift)
+        let order = self.table.rows.map(\.id)
+        var selection = self.table.selection
+        switch event.keyCode {
+        case 125, 126:
+            selection.moveFocus(by: event.keyCode == 125 ? 1 : -1, extend: extend, order: order)
+        case 116, 121:
+            let page = self.table.visibleRowCount
+            selection.moveFocus(by: event.keyCode == 121 ? page : -page, extend: extend, order: order)
+        case 115, 119:
+            selection.moveFocusToEdge(end: event.keyCode == 119, extend: extend, order: order)
+        case 36, 76:
+            let append = flags.contains(.command)
+            self.startTask { await $0.enqueueSelection(append: append) }
+            return true
+        case 0:
+            self.selectAllRows()
+            return true
+        case 3:
+            self.focusSearch()
+            return true
+        default:
+            return false
+        }
+        self.table.selection = selection
+        self.table.scrollToFocused()
+        self.syncSelectionToModel(selection)
+        return true
+    }
+
     func rootsMenu() -> NSMenu {
         LibraryRootsMenu.make(
             roots: self.model?.roots ?? [],

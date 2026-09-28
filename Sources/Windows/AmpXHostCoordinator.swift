@@ -17,6 +17,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     private let playlistManager: PlaylistManager
     /// The app's library engine owner; nil (tests, pre-launch) shows the Library's empty state.
     let libraryController: LibraryController?
+    private let libraryPanels: LibraryPanelPresenting
     private var libraryResizeStart: CGSize?
     private let playerPresentationState = AmpXPlayerPresentationState()
     /// Closing the Player quits AmpX, as in Winamp. Injectable so tests can observe it.
@@ -62,6 +63,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         playlistManager: PlaylistManager = .shared,
         entheaEnabled: Bool = AmpXFeatures.entheaEnabled,
         libraryController: LibraryController? = nil,
+        libraryPanels: LibraryPanelPresenting = AppKitLibraryPanels(),
         terminate: @escaping () -> Void = { NSApp.terminate(nil) }
     ) {
         let resolvedScreen = screen ?? NSScreen.main ?? NSScreen.screens.first!
@@ -77,6 +79,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
         self.libraryController = libraryController
+        self.libraryPanels = libraryPanels
         self.terminate = terminate
         self.layoutStore = layoutStore ?? AmpXLayoutStore(defaults: .standard, screen: resolvedScreen)
 
@@ -561,7 +564,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             skin: self.skin,
             controller: self.libraryController,
             playlist: self.playlistManager,
-            audioPlayer: self.audioPlayer
+            audioPlayer: self.audioPlayer,
+            panels: self.libraryPanels
         )
         content.onResizeViewport = { [weak self] phase in
             self?.handleLibraryResize(phase)
