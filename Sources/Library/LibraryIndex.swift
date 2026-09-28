@@ -114,6 +114,8 @@ actor LibraryIndex {
             }
         case let .rowsChanged(rootID):
             self.throttledRefetch(rootID)
+        case .rekordboxSourcesChanged:
+            break
         }
     }
 

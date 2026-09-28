@@ -110,6 +110,8 @@ enum LibraryChange: Sendable, Equatable {
     case rootsChanged(rootID: UUID)
     case rootRemoved(rootID: UUID)
     case rowsChanged(rootID: UUID)
+    /// A root's `RekordboxSource` was created, updated or removed.
+    case rekordboxSourcesChanged
 }
 
 struct ScanProgress: Sendable, Equatable {

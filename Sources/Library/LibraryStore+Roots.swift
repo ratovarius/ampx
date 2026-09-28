@@ -31,6 +31,7 @@ extension LibraryStore {
         try self.checkOverlap(target, excluding: id)
         guard try self.root(id) != nil else { throw LibraryStoreError.unknownRoot }
         self.revokeScan(rootID: id)
+        self.revokeRekordboxSync(rootID: id)
         let bookmark = try self.dependencies.bookmarks.make(target)
         try self.commit(nil) {
             guard let root = try self.root(id) else { throw LibraryStoreError.unknownRoot }
@@ -45,13 +46,16 @@ extension LibraryStore {
     /// Deletes the root and its rows in one save; clears the start-up flag only after the last root's save.
     func removeRoot(id: UUID) throws {
         self.revokeScan(rootID: id)
+        self.revokeRekordboxSync(rootID: id)
         try self.commit(nil) {
             guard let root = try self.root(id) else { throw LibraryStoreError.unknownRoot }
             for track in try self.tracks(id) {
                 self.modelContext.delete(track)
             }
             self.modelContext.delete(root)
-            return [.rootRemoved(rootID: id)]
+            guard let source = try self.rekordboxSource(id) else { return [.rootRemoved(rootID: id)] }
+            self.modelContext.delete(source)
+            return [.rootRemoved(rootID: id), .rekordboxSourcesChanged]
         }
         self.stopScope(id)
         _ = try self.clearStartupFlagIfEmpty()

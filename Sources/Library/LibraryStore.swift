@@ -84,6 +84,8 @@ actor LibraryStore: ModelActor {
     // Internal (not private) so the roots extension in `LibraryStore+Roots.swift` can use them.
     let dependencies: LibraryStoreDependencies
     var activeTokens: [UUID: LibraryScanToken] = [:]
+    /// One live rekordbox sync per root (`LibraryStore+Rekordbox.swift`).
+    var rekordboxTokens: [UUID: RekordboxSyncToken] = [:]
     var subscribers: [UUID: AsyncStream<LibraryChange>.Continuation] = [:]
     /// Security scopes held per available root (spec: "Access lifetime").
     var activeScopes: [UUID: URL] = [:]

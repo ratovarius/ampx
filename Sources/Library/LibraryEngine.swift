@@ -191,7 +191,7 @@ actor LibraryEngine {
             try? await self.syncWatch(rootID)
         case let .rootRemoved(rootID):
             self.unwatch(rootID)
-        case .rowsChanged:
+        case .rowsChanged, .rekordboxSourcesChanged:
             break
         }
     }
