@@ -301,8 +301,13 @@ actor LibraryStore: ModelActor {
         row.sampleRate = metadata.sampleRate
         row.channels = metadata.channels
         row.codec = metadata.codec
-        row.bpm = metadata.bpm
-        row.musicalKey = metadata.musicalKey
+        // Imported rekordbox values survive re-parses (rekordbox sync spec § Scanner re-parse rule).
+        if row.analysisSource != .rekordbox {
+            row.bpm = metadata.bpm
+            row.musicalKey = metadata.musicalKey
+            row.analysisSource = metadata.bpm == nil && metadata.musicalKey == nil ? nil : .fileTag
+            row.camelotKey = metadata.musicalKey.flatMap(CamelotKey.from(musicalKey:))
+        }
         row.comment = metadata.comment
         row.isMissing = false
     }

@@ -33,6 +33,29 @@ final class LibraryScannerTests: XCTestCase {
         XCTAssertEqual(root.lastCompletedScanAt, T.fixedDate)
     }
 
+    func testRescanAfterImportKeepsRekordboxValues() async throws {
+        let h = try await ScanHarness.make(self)
+        let id = UUID()
+        try T.seedTrack(h.container, id: id, rootID: h.rootID, path: "crate/a.mp3", stat: T.stat(100, 1), fingerprint: Data([1]))
+        let context = ModelContext(h.container)
+        let seeded = try XCTUnwrap(try context.fetch(FetchDescriptor<LibraryTrack>()).first)
+        seeded.bpm = 126
+        seeded.musicalKey = "Fm"
+        seeded.camelotKey = "4A"
+        seeded.analysisSource = .rekordbox
+        try context.save()
+        await h.fileSystem.set("crate/a.mp3", stat: T.stat(100, 2), fingerprint: Data([1]))
+
+        _ = try await h.scanner.scanOnce(rootID: h.rootID)
+
+        XCTAssertEqual(h.loader.callCount, 1)
+        let track = try XCTUnwrap(try ModelContext(h.container).fetch(FetchDescriptor<LibraryTrack>()).first)
+        XCTAssertEqual(track.title, "a")
+        XCTAssertEqual(track.bpm, 126)
+        XCTAssertEqual(track.musicalKey, "Fm")
+        XCTAssertEqual(track.analysisSource, .rekordbox)
+    }
+
     func testNewFilesInsertedInBatchesOf200() async throws {
         let h = try await ScanHarness.make(self)
         for index in 0 ..< 450 {

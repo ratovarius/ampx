@@ -289,7 +289,7 @@ final class LibraryModuleContentTests: XCTestCase {
 
     func testEngineErrorShowsErrorState() async throws {
         try FileManager.default.createDirectory(at: self.storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        _ = try LibraryTestSchemaV2.makeContainer(url: self.storeURL)
+        _ = try LibraryTestSchemaV3.makeContainer(url: self.storeURL)
         self.flag.setHasRoots(true)
         let controller = self.makeController()
         let content = self.makeContent(controller: controller)

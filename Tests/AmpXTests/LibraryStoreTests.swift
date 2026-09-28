@@ -73,7 +73,69 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(track.codec, "flac")
         XCTAssertEqual(track.duration, 60)
         XCTAssertNil(track.contentFingerprint)
-        XCTAssertEqual(track.schemaVersion, 1)
+        XCTAssertEqual(track.schemaVersion, 2)
+        XCTAssertEqual(track.analysisSource, .fileTag)
+        XCTAssertEqual(track.camelotKey, "8A")
+    }
+
+    func testParsedWriteKeepsRekordboxBpmAndKey() async throws {
+        try self.seedImported(source: .rekordbox)
+        try await self.applyRetaggedWrite()
+
+        let track = try XCTUnwrap(try ModelContext(self.container).fetch(FetchDescriptor<LibraryTrack>()).first)
+        XCTAssertEqual(track.title, "Retitled")
+        XCTAssertEqual(track.bpm, 126)
+        XCTAssertEqual(track.musicalKey, "Fm")
+        XCTAssertEqual(track.camelotKey, "4A")
+        XCTAssertEqual(track.analysisSource, .rekordbox)
+    }
+
+    func testParsedWriteRefreshesFileTagValues() async throws {
+        try self.seedImported(source: .fileTag)
+        try await self.applyRetaggedWrite()
+
+        let track = try XCTUnwrap(try ModelContext(self.container).fetch(FetchDescriptor<LibraryTrack>()).first)
+        XCTAssertEqual(track.title, "Retitled")
+        XCTAssertEqual(track.bpm, 120)
+        XCTAssertEqual(track.musicalKey, "Am")
+        XCTAssertEqual(track.camelotKey, "8A")
+        XCTAssertEqual(track.analysisSource, .fileTag)
+    }
+
+    func testParsedWriteWithoutTagsClearsSource() async throws {
+        try self.seedImported(source: .fileTag)
+        let store = T.makeStore(self, container: self.container)
+        let token = try await store.beginScan(rootID: self.rootID)
+        try await store.applyParsed([T.parseWrite(id: self.a, insert: false, path: "A.mp3", title: "Plain")], token: token)
+
+        let track = try XCTUnwrap(try ModelContext(self.container).fetch(FetchDescriptor<LibraryTrack>()).first)
+        XCTAssertNil(track.bpm)
+        XCTAssertNil(track.analysisSource)
+        XCTAssertNil(track.camelotKey)
+    }
+
+    private func seedImported(source: AnalysisSource) throws {
+        try T.seedTrack(self.container, id: self.a, rootID: self.rootID, path: "A.mp3")
+        let context = ModelContext(self.container)
+        let track = try XCTUnwrap(try context.fetch(FetchDescriptor<LibraryTrack>()).first)
+        track.bpm = 126
+        track.musicalKey = "Fm"
+        track.camelotKey = "4A"
+        track.analysisSource = source
+        try context.save()
+    }
+
+    private func applyRetaggedWrite() async throws {
+        let store = T.makeStore(self, container: self.container)
+        let token = try await store.beginScan(rootID: self.rootID)
+        let base = T.parseWrite(id: self.a, insert: false, path: "A.mp3", title: "Retitled")
+        var metadata = base.metadata
+        metadata.bpm = 120
+        metadata.musicalKey = "Am"
+        let write = LibraryParseWrite(
+            id: base.id, isInsert: false, relativePath: base.relativePath, stat: base.stat, metadata: metadata, fingerprint: nil
+        )
+        try await store.applyParsed([write], token: token)
     }
 
     func testApplyParsedRejectsMoreThan200() async throws {

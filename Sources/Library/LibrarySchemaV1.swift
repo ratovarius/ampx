@@ -100,16 +100,13 @@ enum LibrarySchemaV1: VersionedSchema {
     }
 }
 
-typealias LibraryRoot = LibrarySchemaV1.LibraryRoot
-typealias LibraryTrack = LibrarySchemaV1.LibraryTrack
-
 enum LibraryMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [LibrarySchemaV1.self]
+        [LibrarySchemaV1.self, LibrarySchemaV2.self]
     }
 
     static var stages: [MigrationStage] {
-        []
+        [LibrarySchemaV2.migrateFromV1]
     }
 }
 
@@ -122,7 +119,7 @@ enum LibraryContainerFactory {
     /// `nil` URL keeps the store in memory (tests). Always applies `LibraryMigrationPlan`.
     /// An open failure propagates; the store is never deleted or replaced to recover.
     static func make(url: URL?) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LibrarySchemaV1.self)
+        let schema = Schema(versionedSchema: LibrarySchemaV2.self)
         let configuration: ModelConfiguration
         if let url {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
