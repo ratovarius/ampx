@@ -14,16 +14,22 @@ final class LibraryQueryTests: XCTestCase {
         bpm: Double? = nil,
         key: String? = nil,
         bitrate: Int = 0,
-        available: Bool = true
+        available: Bool = true,
+        camelot: String? = nil,
+        label: String? = nil,
+        remixer: String? = nil
     ) -> LibraryRow {
         LibraryRow(
             id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", id))!,
             rootID: UUID(), url: URL(fileURLWithPath: "/Music/\(id).mp3"),
             title: title, artist: artist, album: album, albumArtist: "",
             genre: genre, trackNumber: trackNumber, duration: duration, fileSize: 1000,
-            bpm: bpm, musicalKey: key, bitrate: bitrate, bitrateIsDerived: false, codec: "mp3",
+            bpm: bpm, musicalKey: key, camelotKey: camelot, label: label, remixer: remixer,
+            bitrate: bitrate, bitrateIsDerived: false, codec: "mp3",
             isAvailable: available,
-            searchKey: LibraryRow.makeSearchKey(title: title, artist: artist, album: album, albumArtist: "")
+            searchKey: LibraryRow.makeSearchKey(
+                title: title, artist: artist, album: album, albumArtist: "", extras: [label, remixer]
+            )
         )
     }
 
@@ -201,5 +207,49 @@ final class LibraryQueryTests: XCTestCase {
         query.onlyUnavailable = true
         let decoded = try JSONDecoder().decode(LibraryQuery.self, from: JSONEncoder().encode(query))
         XCTAssertEqual(decoded, query)
+    }
+
+    func testSearchMatchesLabelAndRemixer() {
+        let rows = [self.row(1, label: "Denature Records"), self.row(2, remixer: "Âme"), self.row(3)]
+        XCTAssertEqual(
+            LibraryQuery(search: "denature").evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id),
+            [rows[0].id]
+        )
+        XCTAssertEqual(LibraryQuery(search: "ame").evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id), [rows[1].id])
+    }
+
+    func testCamelotSortOrder() {
+        let rows = [
+            self.row(1, camelot: "12B"),
+            self.row(2, camelot: nil),
+            self.row(3, camelot: "8A"),
+            self.row(4, camelot: "1B"),
+            self.row(5, camelot: "1A"),
+        ]
+        var query = LibraryQuery()
+        query.sort = .camelotKey
+        XCTAssertEqual(
+            query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id),
+            [5, 4, 3, 1, 2].map { rows[$0 - 1].id }
+        )
+        query.ascending = false
+        XCTAssertEqual(
+            query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id),
+            [1, 3, 4, 5, 2].map { rows[$0 - 1].id }
+        )
+    }
+
+    func testCamelotSortPutsUnknownLast() {
+        let rows = [self.row(1, camelot: "zz"), self.row(2, camelot: "3A")]
+        var query = LibraryQuery()
+        query.sort = .camelotKey
+        XCTAssertEqual(query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id), [rows[1].id, rows[0].id])
+    }
+
+    func testLabelSortNilLast() {
+        let rows = [self.row(1), self.row(2, label: "zeta"), self.row(3, label: "Alpha")]
+        var query = LibraryQuery()
+        query.sort = .label
+        XCTAssertEqual(query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id), [rows[2].id, rows[1].id, rows[0].id])
     }
 }

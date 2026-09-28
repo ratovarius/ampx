@@ -14,14 +14,17 @@ final class LibraryTrackTableViewTests: XCTestCase {
         key: String? = "Am",
         bitrate: Int = 320_000,
         derived: Bool = false,
-        available: Bool = true
+        available: Bool = true,
+        camelot: String? = nil,
+        label: String? = nil
     ) -> LibraryRow {
         LibraryRow(
             id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", id))!,
             rootID: self.rootID, url: URL(fileURLWithPath: "/Music/DJ/\(id).mp3"),
             title: title, artist: "Artist \(id)", album: "", albumArtist: "",
             genre: "Techno", trackNumber: nil, duration: 402, fileSize: 1000,
-            bpm: bpm, musicalKey: key, bitrate: bitrate, bitrateIsDerived: derived, codec: "mp3",
+            bpm: bpm, musicalKey: key, camelotKey: camelot, label: label,
+            bitrate: bitrate, bitrateIsDerived: derived, codec: "mp3",
             isAvailable: available, searchKey: ""
         )
     }
@@ -59,7 +62,10 @@ final class LibraryTrackTableViewTests: XCTestCase {
         var changed: LibraryColumnSet?
         table.onColumnsChange = { changed = $0 }
         let menu = table.headerMenu()
-        XCTAssertEqual(menu.items.map(\.title), ["#", "ARTIST", "GENRE", "TIME", "BPM", "KEY", "KBPS", "FORMAT"])
+        XCTAssertEqual(
+            menu.items.map(\.title),
+            ["#", "ARTIST", "GENRE", "TIME", "BPM", "KEY", "CAMELOT", "KBPS", "FORMAT", "LABEL", "REMIXER", "COMPOSER", "GROUPING", "MIX"]
+        )
         XCTAssertEqual(menu.items.first?.state, .off)
         XCTAssertEqual(menu.items[1].state, .on)
         menu.performActionForItem(at: 0)
@@ -136,5 +142,18 @@ final class LibraryTrackTableViewTests: XCTestCase {
         children[2].setAccessibilitySelected(true)
         XCTAssertEqual(reported?.ids, [table.rows[2].id])
         XCTAssertEqual(children[2].isAccessibilitySelected(), true)
+    }
+
+    func testCamelotAndLabelCellsDrawValues() {
+        let table = self.makeTable(rows: 0)
+        let row = self.row(1, camelot: "8A", label: "Denature Records")
+        XCTAssertEqual(table.cellText(.camelot, row: row, index: 0), "8A")
+        XCTAssertEqual(table.cellText(.label, row: row, index: 0), "Denature Records")
+    }
+
+    func testEmptyCamelotDrawsBlank() {
+        let table = self.makeTable(rows: 0)
+        XCTAssertEqual(table.cellText(.camelot, row: self.row(1), index: 0), "—")
+        XCTAssertEqual(table.cellText(.remixer, row: self.row(1), index: 0), "")
     }
 }

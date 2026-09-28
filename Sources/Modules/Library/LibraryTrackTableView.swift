@@ -178,11 +178,17 @@ final class LibraryTrackTableView: AmpXControlView, NSDraggingSource {
             guard let bpm = row.bpm else { return "—" }
             return bpm.rounded() == bpm ? String(Int(bpm)) : String(format: "%.1f", bpm)
         case .key: return row.musicalKey ?? "—"
+        case .camelot: return row.camelotKey ?? "—"
         case .kbps:
             guard row.bitrate > 0 else { return "—" }
             let kbps = String(Int((Double(row.bitrate) / 1000).rounded()))
             return row.bitrateIsDerived ? "~" + kbps : kbps
         case .format: return row.codec.uppercased()
+        case .label: return row.label ?? ""
+        case .remixer: return row.remixer ?? ""
+        case .composer: return row.composer ?? ""
+        case .grouping: return row.grouping ?? ""
+        case .mix: return row.mix ?? ""
         }
     }
 

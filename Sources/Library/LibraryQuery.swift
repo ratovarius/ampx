@@ -8,6 +8,7 @@ enum LibraryFacetValue: Hashable, Codable, Sendable {
 
 enum LibrarySortColumn: String, Codable, Sendable {
     case artist, title, genre, duration, bpm, musicalKey, bitrate
+    case camelotKey, label, remixer, composer, grouping, mix
 }
 
 struct LibraryFacetCounts: Sendable, Equatable {
@@ -124,9 +125,15 @@ struct LibraryQuery: Codable, Sendable, Equatable {
         case .bitrate: Self.compare(lhs.bitrate, rhs.bitrate)
         case .bpm: Self.compareOptional(lhs.bpm, rhs.bpm, ascending: self.ascending)
         case .musicalKey: Self.compareOptional(lhs.musicalKey, rhs.musicalKey, ascending: self.ascending)
+        case .camelotKey: Self.compareOptional(Self.camelotOrder(lhs), Self.camelotOrder(rhs), ascending: self.ascending)
+        case .label: Self.compareOptional(Self.nonEmpty(lhs.label), Self.nonEmpty(rhs.label), ascending: self.ascending)
+        case .remixer: Self.compareOptional(Self.nonEmpty(lhs.remixer), Self.nonEmpty(rhs.remixer), ascending: self.ascending)
+        case .composer: Self.compareOptional(Self.nonEmpty(lhs.composer), Self.nonEmpty(rhs.composer), ascending: self.ascending)
+        case .grouping: Self.compareOptional(Self.nonEmpty(lhs.grouping), Self.nonEmpty(rhs.grouping), ascending: self.ascending)
+        case .mix: Self.compareOptional(Self.nonEmpty(lhs.mix), Self.nonEmpty(rhs.mix), ascending: self.ascending)
         }
         if primary != .orderedSame {
-            let isOptional = self.sort == .bpm || self.sort == .musicalKey || self.sort == .genre
+            let isOptional = ![.artist, .title, .duration, .bitrate].contains(self.sort)
             // Optional columns already folded the direction in, so nil stays last.
             return isOptional || self.ascending ? primary == .orderedAscending : primary == .orderedDescending
         }
@@ -139,6 +146,17 @@ struct LibraryQuery: Codable, Sendable, Equatable {
             return result == .orderedAscending
         }
         return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    /// Wheel position; an unknown code sorts with the missing ones, last.
+    private static func camelotOrder(_ row: LibraryRow) -> Int? {
+        let order = CamelotKey.sortOrder(row.camelotKey)
+        return order == Int.max ? nil : order
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     /// An empty genre tag sorts with the untagged rows, last.
@@ -190,8 +208,10 @@ extension LibraryQuery {
 }
 
 extension LibraryRow {
-    /// Space-joined title, artist, album and album artist, folded once per snapshot.
-    static func makeSearchKey(title: String, artist: String, album: String, albumArtist: String) -> String {
-        [title, artist, album, albumArtist].joined(separator: " ").folding(options: LibraryQuery.foldOptions, locale: nil)
+    /// Space-joined title, artist, album, album artist and any present extras (the rekordbox text fields),
+    /// folded once per snapshot.
+    static func makeSearchKey(title: String, artist: String, album: String, albumArtist: String, extras: [String?] = []) -> String {
+        ([title, artist, album, albumArtist] + extras.compactMap { $0 }).joined(separator: " ")
+            .folding(options: LibraryQuery.foldOptions, locale: nil)
     }
 }

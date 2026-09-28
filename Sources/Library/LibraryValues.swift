@@ -7,7 +7,7 @@ import Foundation
 struct LibraryRow: Identifiable, Hashable, Sendable {
     let id: UUID
     let rootID: UUID
-    let url: URL
+    var url: URL
     let title, artist, album, albumArtist: String
     let genre: String?
     let trackNumber: Int?
@@ -15,10 +15,16 @@ struct LibraryRow: Identifiable, Hashable, Sendable {
     let fileSize: Int64
     let bpm: Double?
     let musicalKey: String?
+    var camelotKey: String?
+    var label: String?
+    var remixer: String?
+    var composer: String?
+    var grouping: String?
+    var mix: String?
     let bitrate: Int
     let bitrateIsDerived: Bool
     let codec: String
-    let isAvailable: Bool
+    var isAvailable: Bool
     let searchKey: String
 
     /// A new playback occurrence each call: enqueuing the same row twice yields two playlist entries.

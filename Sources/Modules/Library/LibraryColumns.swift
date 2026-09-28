@@ -2,7 +2,11 @@ import CoreGraphics
 
 /// Track-table columns (Library Module spec § Layout). Display order is `allCases` order.
 enum LibraryColumn: String, CaseIterable, Codable, Sendable {
-    case number, artist, title, genre, time, bpm, key, kbps, format
+    case number, artist, title, genre, time, bpm, key, camelot, kbps, format
+    case label, remixer, composer, grouping, mix
+
+    /// rekordbox text columns, hidden by default.
+    static let textColumns: Set<LibraryColumn> = [.label, .remixer, .composer, .grouping, .mix]
 
     var title: String {
         switch self {
@@ -13,8 +17,14 @@ enum LibraryColumn: String, CaseIterable, Codable, Sendable {
         case .time: "TIME"
         case .bpm: "BPM"
         case .key: "KEY"
+        case .camelot: "CAMELOT"
         case .kbps: "KBPS"
         case .format: "FORMAT"
+        case .label: "LABEL"
+        case .remixer: "REMIXER"
+        case .composer: "COMPOSER"
+        case .grouping: "GROUPING"
+        case .mix: "MIX"
         }
     }
 
@@ -27,8 +37,10 @@ enum LibraryColumn: String, CaseIterable, Codable, Sendable {
         case .time: 46
         case .bpm: 42
         case .key: 38
+        case .camelot: 58
         case .kbps: 48
         case .format: 58
+        case .label, .remixer, .composer, .grouping, .mix: 70
         }
     }
 
@@ -38,6 +50,7 @@ enum LibraryColumn: String, CaseIterable, Codable, Sendable {
         case .artist: 3
         case .title: 4
         case .genre: 2
+        case .label, .remixer, .composer, .grouping, .mix: 1
         default: 0
         }
     }
@@ -58,6 +71,12 @@ enum LibraryColumn: String, CaseIterable, Codable, Sendable {
         case .time: .duration
         case .bpm: .bpm
         case .key: .musicalKey
+        case .camelot: .camelotKey
+        case .label: .label
+        case .remixer: .remixer
+        case .composer: .composer
+        case .grouping: .grouping
+        case .mix: .mix
         case .kbps: .bitrate
         }
     }
@@ -74,7 +93,9 @@ enum LibraryColumn: String, CaseIterable, Codable, Sendable {
 struct LibraryColumnSet: Codable, Equatable, Sendable {
     private(set) var visible: [LibraryColumn]
 
-    static let `default` = LibraryColumnSet(visible: LibraryColumn.allCases.filter { $0 != .number })
+    static let `default` = LibraryColumnSet(
+        visible: LibraryColumn.allCases.filter { $0 != .number && !LibraryColumn.textColumns.contains($0) }
+    )
 
     /// Shows or hides `column`, keeping display order; TITLE is always visible.
     mutating func toggle(_ column: LibraryColumn) {
@@ -109,5 +130,30 @@ struct LibraryColumnSet: Codable, Equatable, Sendable {
             defer { x += columnWidth }
             return (column, CGRect(x: x, y: 0, width: columnWidth, height: 0))
         }
+    }
+}
+
+extension LibraryColumnSet {
+    private enum CodingKeys: String, CodingKey {
+        case visible, version
+    }
+
+    /// Version 2 added CAMELOT. A set saved before it (no `version`) gains CAMELOT in display order, once.
+    private static let currentVersion = 2
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        var visible = try container.decode([LibraryColumn].self, forKey: .visible)
+        if try container.decodeIfPresent(Int.self, forKey: .version) == nil, !visible.contains(.camelot) {
+            let set = Set(visible + [.camelot])
+            visible = LibraryColumn.allCases.filter(set.contains)
+        }
+        self.init(visible: visible)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.visible, forKey: .visible)
+        try container.encode(Self.currentVersion, forKey: .version)
     }
 }

@@ -174,13 +174,10 @@ actor LibraryIndex {
             let base = URL(fileURLWithPath: root.displayPath, isDirectory: true)
             self.rowsByRoot[rootID] = self.rowsByRoot[rootID]?.map { row in
                 guard let info = self.trackInfo[row.id] else { return row }
-                return LibraryRow(
-                    id: row.id, rootID: row.rootID, url: base.appendingPathComponent(info.relativePath),
-                    title: row.title, artist: row.artist, album: row.album, albumArtist: row.albumArtist,
-                    genre: row.genre, trackNumber: row.trackNumber, duration: row.duration, fileSize: row.fileSize,
-                    bpm: row.bpm, musicalKey: row.musicalKey, bitrate: row.bitrate, bitrateIsDerived: row.bitrateIsDerived,
-                    codec: row.codec, isAvailable: !info.isMissing && root.isAvailable, searchKey: row.searchKey
-                )
+                var refreshed = row
+                refreshed.url = base.appendingPathComponent(info.relativePath)
+                refreshed.isAvailable = !info.isMissing && root.isAvailable
+                return refreshed
             }
             if self.rowsByRoot[rootID] == nil {
                 // A root the snapshot has not seen yet (just added): load its rows.
@@ -253,12 +250,19 @@ actor LibraryIndex {
             fileSize: track.fileSize,
             bpm: track.bpm,
             musicalKey: track.musicalKey,
+            camelotKey: track.camelotKey,
+            label: track.label,
+            remixer: track.remixer,
+            composer: track.composer,
+            grouping: track.grouping,
+            mix: track.mix,
             bitrate: track.bitrate,
             bitrateIsDerived: track.bitrateIsDerived,
             codec: track.codec,
             isAvailable: !track.isMissing && root.isAvailable,
             searchKey: LibraryRow.makeSearchKey(
-                title: track.title, artist: track.artist, album: track.album, albumArtist: track.albumArtist
+                title: track.title, artist: track.artist, album: track.album, albumArtist: track.albumArtist,
+                extras: [track.label, track.remixer, track.composer, track.grouping, track.mix]
             )
         )
     }
