@@ -4,6 +4,9 @@ import os
 private let bookmarkLogger = Logger(subsystem: "com.ampx.macos", category: "SecurityScopedBookmarks")
 
 final class SecurityScopedBookmarkStore: @unchecked Sendable {
+    /// The app's store, shared by `PlaylistManager.shared` and the library (music library spec § Playlist continuity).
+    static let shared = SecurityScopedBookmarkStore()
+
     private struct State {
         var securityScopedRefCounts: [URL: Int] = [:]
         var localBookmarkURLs: Set<URL> = []

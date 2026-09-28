@@ -8,7 +8,8 @@ private let playlistLogger = Logger(subsystem: "com.ampx.macos", category: "Play
 
 @MainActor
 class PlaylistManager: ObservableObject {
-    static let shared = PlaylistManager()
+    /// Shares the app's one bookmark store with the library, so enqueued library tracks keep access after relaunch.
+    static let shared = PlaylistManager(bookmarkStore: .shared)
 
     @Published var tracks: [Track] = []
     @Published var currentIndex: Int = -1
