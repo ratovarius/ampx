@@ -461,6 +461,8 @@ Every enqueue registers the involved roots with the shared bookmark store (see *
 
 ### Browser module (L2)
 
+> **Superseded (2026-09-27)** by [Library Module](./2026-09-27-library-module-design.md). The approved L2 design uses its own snapping window, with GENRE/ARTIST facets, a BPM range filter, show/hide columns and a MIXES WELL sidebar reserved for DJ mode. It resolves amendment items 1–7 below; items 2 and 7 are void because the Library is not in the stack. The text below is kept as history.
+
 Built in the AmpX UI host as `Sources/Modules/Library/`, following that spec's contracts: `AmpXModuleContent` drawing, custom rows (no `NSTableView`/`NSScrollView`/`NSTextField`), one Combine subscription set to `LibraryBrowserModel`, and effective-visibility rules for any continuous drawing (scan progress).
 
 - **Layout at the 490 pt reference width** (whether Library also resizes horizontally like the Playlist is amendment item 5): header; a search well; a left facet column (~140 pt) with a Genre / Artist / Album selector and one value list with counts; a right track list with Artist – Title, Time, BPM, Key and kbps (22 pt rows, derived bitrates marked); a footer with scan progress and a **ROOTS** menu (Add Folder…, Remove, Relocate…, and a status line per root: unavailable, or *n folders unreadable*). Exact metrics are sampled in planning against the module reference idiom. Unavailable rows are drawn in `textDim`.

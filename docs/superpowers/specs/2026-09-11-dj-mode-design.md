@@ -16,7 +16,7 @@ This spec covers two bodies of work that share a goal but almost no code. They a
 | Phase | Scope | Depends on |
 |---|---|---|
 | **A — Knowing the collection** | rekordbox import, Camelot conversion, `LibrarySchemaV2` migration, scanner re-parse rule, smart-playlist evaluation and persistence | Library L1 |
-| **A-UI** | BPM/Key (Camelot) columns, smart-playlist list, import report, derived-bitrate marking in the Library module | Phase A **and** Library L2, and therefore the AmpX UI cutover |
+| **A-UI** | BPM/Key (Camelot) columns, smart-playlist list, import report, derived-bitrate marking in the Library module, and filling the Library's **MIXES WELL** sidebar: reference track per its PLAYING/SELECTED switch, BPM ±6% plus the *Key-compatible* rule, reason tags, and enabling + QUEUE (see [Library Module § DJ-mode handoff](./2026-09-27-library-module-design.md#dj-mode-handoff)) | Phase A **and** Library L2, and therefore the AmpX UI cutover |
 | **B — Playing it** | Two-deck `AudioGraph`, `MixScheduler`, crossfade, auto-mix, party queue | Phase A (auto-mix needs BPM) |
 | **B′ — Native analysis** | `TempoEstimator` / `KeyEstimator` / `AnalysisQueue`, tag write-back | Phase A; **optional**, may never ship |
 
