@@ -60,13 +60,14 @@ final class LibraryBrowserModel: ObservableObject {
         self.subscriptions = [
             Task { [weak self] in
                 for await _ in await versions() {
-                    guard let self else { return }
+                    // A cancelled stream still hands over an element buffered before `stop()`.
+                    guard let self, !Task.isCancelled else { return }
                     self.refresh()
                     await self.refreshRoots()
                 }
             },
             Task { [weak self] in
-                for await event in await progress() {
+                for await event in await progress() where !Task.isCancelled {
                     self?.progress = event
                 }
             },

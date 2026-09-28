@@ -171,6 +171,18 @@ final class LibraryBrowserModelTests: XCTestCase {
         XCTAssertTrue(model.rows.isEmpty)
     }
 
+    /// A version published right after `stop()` is still buffered in the stream when the cancelled
+    /// subscription reads it; it must not start a refresh (the CI flake of `testStopCancelsTasks`).
+    func testVersionBufferedAtStopStartsNoRefresh() async {
+        let model = self.makeModel(scripted: true)
+        model.stop()
+        self.versions.yield(1)
+        for _ in 0 ..< 50 {
+            await Task.yield()
+        }
+        XCTAssertEqual(self.scripted.requestCount, 0)
+    }
+
     // MARK: - Enqueue
 
     func testEnterReplacesAndPlaysFirstInDisplayedOrder() async {
