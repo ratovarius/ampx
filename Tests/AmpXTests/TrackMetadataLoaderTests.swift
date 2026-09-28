@@ -96,6 +96,22 @@ final class TrackMetadataLoaderTests: XCTestCase {
         }
     }
 
+    /// The playlist path (`Track.load`) reads only what a playlist row shows: the full extraction made
+    /// restoring a playlist and dropping many files several times slower (CI missed its waits).
+    func testBasicLoadAgreesWithFullLoadOnPlaylistFields() async throws {
+        for name in ["tagged-v23.mp3", "tagged.flac", "tagged.m4a", "tagged.aiff", "untagged/Library Song.mp3", "title-only.mp3"] {
+            let url = try self.fixture(name)
+            let full = await TrackMetadataLoader.load(from: url)
+            let basic = await TrackMetadataLoader.loadBasic(from: url)
+            XCTAssertEqual(basic.title, full.title, name)
+            XCTAssertEqual(basic.artist, full.artist, name)
+            XCTAssertEqual(basic.duration, full.duration, name)
+            XCTAssertEqual(basic.fileSize, full.fileSize, name)
+            XCTAssertEqual(basic.album, "", "basic load skips library-only fields: \(name)")
+            XCTAssertEqual(basic.sampleRate, 0, name)
+        }
+    }
+
     func testCodecFromExtension() async throws {
         let url = try self.copy("tagged.aiff", as: "Copy.aif")
         let metadata = await TrackMetadataLoader.load(from: url)

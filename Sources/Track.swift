@@ -22,7 +22,7 @@ struct Track: Identifiable, Equatable {
     }
 
     static func load(from url: URL) async -> Track {
-        let metadata = await TrackMetadataLoader.load(from: url)
+        let metadata = await TrackMetadataLoader.loadBasic(from: url)
         return Track(
             title: metadata.title,
             artist: metadata.artist,
@@ -89,58 +89,29 @@ enum TrackMetadataLoader {
         static let comment = ["id3/COMM", "vorb/COMMENT", "itsk/%A9cmt"]
     }
 
+    /// What a playlist row shows: title, artist, duration and size (`Track.load`). It skips the audio-track and
+    /// tag reads the library needs, which made restoring a playlist and large drops several times slower.
+    static func loadBasic(from url: URL) async -> Metadata {
+        let asset = AVURLAsset(url: url)
+        let commonMetadata = await (try? asset.load(.commonMetadata)) ?? []
+        // Vorbis TITLE/ARTIST exist only as format items; only FLAC needs the full tag read.
+        let values = self.codec(for: url) == "flac" ? await self.taggedValues(of: asset, commonMetadata: commonMetadata) : TaggedValues()
+        let (title, artist) = await self.titleAndArtist(url: url, commonMetadata: commonMetadata, values: values)
+        let (duration, readFailed) = await self.duration(of: asset)
+        var metadata = Metadata(title: title, artist: artist, duration: duration, fileSize: self.readFileSize(for: url))
+        metadata.codec = self.codec(for: url)
+        metadata.readFailed = readFailed
+        return metadata
+    }
+
     static func load(from url: URL) async -> Metadata {
         let asset = AVURLAsset(url: url)
-        var trackTitle = url.deletingPathExtension().lastPathComponent
-        var trackArtist = "Unknown Artist"
-        var hasID3Tags = false
-
         let commonMetadata = await (try? asset.load(.commonMetadata)) ?? []
-        for item in commonMetadata {
-            guard let key = item.commonKey?.rawValue else { continue }
-            switch key {
-            case "title":
-                if let title = try? await item.load(.stringValue) {
-                    trackTitle = title
-                    hasID3Tags = true
-                }
-            case "artist":
-                if let artist = try? await item.load(.stringValue) {
-                    trackArtist = artist
-                    hasID3Tags = true
-                }
-            default:
-                break
-            }
-        }
-
-        // FLAC: AVFoundation exposes Vorbis TITLE/ARTIST only as format items, not common metadata.
         let values = await self.taggedValues(of: asset, commonMetadata: commonMetadata)
-        if let title = values.strings[Field.vorbisTitle] {
-            trackTitle = title
-            hasID3Tags = true
-        }
-        if let artist = values.strings[Field.vorbisArtist] {
-            trackArtist = artist
-            hasID3Tags = true
-        }
-
-        if !hasID3Tags {
-            let parsed = TrackMetadataParser.parse(from: url)
-            trackTitle = parsed.title
-            trackArtist = parsed.artist
-        }
-
-        var readFailed = false
-        let durationTime: CMTime?
-        do {
-            durationTime = try await asset.load(.duration)
-        } catch {
-            durationTime = nil
-            readFailed = true
-        }
-        let rawDuration = durationTime.map { CMTimeGetSeconds($0) } ?? 0
-        let duration = rawDuration.isFinite && rawDuration > 0 ? rawDuration : 0
+        let (trackTitle, trackArtist) = await self.titleAndArtist(url: url, commonMetadata: commonMetadata, values: values)
+        let loadedDuration = await self.duration(of: asset)
+        let duration = loadedDuration.0
+        var readFailed = loadedDuration.1
         let fileSize = self.readFileSize(for: url)
 
         var metadata = Metadata(title: trackTitle, artist: trackArtist, duration: duration, fileSize: fileSize)
@@ -178,6 +149,56 @@ enum TrackMetadataLoader {
         metadata.musicalKey = self.first(Field.musicalKey, in: values).flatMap(self.normalizedKey)
         metadata.comment = self.first(Field.comment, in: values)
         return metadata
+    }
+
+    // MARK: - Shared reads
+
+    /// Common title/artist, then Vorbis TITLE/ARTIST, then the filename parser when the file has neither.
+    private static func titleAndArtist(url: URL, commonMetadata: [AVMetadataItem], values: TaggedValues) async -> (String, String) {
+        var trackTitle = url.deletingPathExtension().lastPathComponent
+        var trackArtist = "Unknown Artist"
+        var hasID3Tags = false
+        for item in commonMetadata {
+            guard let key = item.commonKey?.rawValue else { continue }
+            switch key {
+            case "title":
+                if let title = try? await item.load(.stringValue) {
+                    trackTitle = title
+                    hasID3Tags = true
+                }
+            case "artist":
+                if let artist = try? await item.load(.stringValue) {
+                    trackArtist = artist
+                    hasID3Tags = true
+                }
+            default:
+                break
+            }
+        }
+        if let title = values.strings[Field.vorbisTitle] {
+            trackTitle = title
+            hasID3Tags = true
+        }
+        if let artist = values.strings[Field.vorbisArtist] {
+            trackArtist = artist
+            hasID3Tags = true
+        }
+        if !hasID3Tags {
+            let parsed = TrackMetadataParser.parse(from: url)
+            trackTitle = parsed.title
+            trackArtist = parsed.artist
+        }
+        return (trackTitle, trackArtist)
+    }
+
+    /// Seconds (0 when unknown) and whether AVFoundation failed to load the duration.
+    private static func duration(of asset: AVURLAsset) async -> (TimeInterval, Bool) {
+        do {
+            let raw = try await CMTimeGetSeconds(asset.load(.duration))
+            return (raw.isFinite && raw > 0 ? raw : 0, false)
+        } catch {
+            return (0, true)
+        }
     }
 
     // MARK: - Tag values
