@@ -48,6 +48,7 @@ final class AppKitLibraryPanels: LibraryPanelPresenting {
 /// when the engine cannot open. Closing the window stops only the browser model.
 final class LibraryModuleContent: AmpXModuleContent {
     static let overlapMessage = "That folder overlaps a folder already in the library."
+    static let emptyMessage = "No library folders yet"
 
     let toolbar: LibraryToolbarView
     let genreList: LibraryFacetListView
@@ -238,7 +239,8 @@ final class LibraryModuleContent: AmpXModuleContent {
 
     private func refreshOverlay() {
         self.emptyButton.isHidden = !self.isShowingEmptyState
-        needsDisplay = true
+        self.table.placeholderIsError = self.errorMessage != nil
+        self.table.placeholder = self.errorMessage ?? (self.isShowingEmptyState ? Self.emptyMessage : nil)
     }
 
     // MARK: - Wiring
@@ -462,20 +464,6 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.footer.frame = frames.footer
         self.emptyButton.frame = CGRect(x: frames.table.midX - 70, y: frames.table.midY + 8, width: 140, height: 28)
         self.resizeHandle.frame = bounds
-    }
-
-    override func draw(_: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        let table = LibraryModuleLayout.frames(size: bounds.size).table
-        if let message = self.errorMessage {
-            context.setFillColor(skin.display.cgColor)
-            context.fill(table)
-            AmpXLabel(text: message, color: skin.orange, fontSize: 12)
-                .draw(in: table.insetBy(dx: 16, dy: table.height / 2 - 20), context: context, skin: skin)
-        } else if self.isShowingEmptyState {
-            AmpXLabel(text: "No library folders yet", color: skin.textDim, fontSize: 13, alignment: .center)
-                .draw(in: CGRect(x: table.minX, y: table.midY - 26, width: table.width, height: 20), context: context, skin: skin)
-        }
     }
 
     override func setEffectivelyVisible(_ visible: Bool) {

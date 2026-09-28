@@ -1,7 +1,7 @@
 # Library Module (Music Library L2)
 
 **Date:** 2026-09-27
-**Status:** Approved design (user, 2026-09-27) — pending written-spec review
+**Status:** Implemented on `feature/library-module` (2026-09-28). The manual checks below are still pending.
 **Implements:** phase L2 of [Music Library, Revision 7](./2026-09-11-music-library-design.md). This document replaces that spec's *Browser module (L2)* section, and its *Required amendment* items 1–7 are resolved here.
 **Amends:** [AmpX UI design, Revision 9](./2026-09-11-ampx-ui-design.md) — see *UI spec amendment* below.
 **Related:** [DJ mode](./2026-09-11-dj-mode-design.md) fills the MIXES WELL sidebar this module reserves.
@@ -207,3 +207,14 @@ The DJ-mode spec is updated to point here.
 6. MIXES WELL shows its placeholder and the switch persists; nothing else depends on DJ mode.
 7. Keyboard-only and VoiceOver can do everything above.
 8. Tracks enqueued from a root outside `~/Music` play after relaunch.
+
+## Verification (2026-09-28)
+
+- **Captures** (in `docs/superpowers/plans/library-module/`): [empty state at the default size](../plans/library-module/capture-empty-default.png), [910 × 420](../plans/library-module/capture-minimum-910x420.png) and [collapsed](../plans/library-module/capture-collapsed.png). The pane order, toolbar and footer match the mockup. Collapsed shows the header only.
+- **Found while capturing:** the empty-state and error text had been drawn under the opaque track table. The table now draws it as a placeholder.
+- **Automated:** the full suite passed except one test, `AmpXMiniVisualizerPerformanceTests`, which is load-sensitive and outside the Library code. It passed when run on its own.
+- **Pending (need a person at the Mac):**
+  - a capture while scanning `~/Music/DJ`;
+  - success criterion 8 (add a root outside `~/Music`, enqueue, relaunch, play);
+  - unplugging a drive (rows dim, ROOTS shows *Unavailable*);
+  - VoiceOver across the table, the facets and search.

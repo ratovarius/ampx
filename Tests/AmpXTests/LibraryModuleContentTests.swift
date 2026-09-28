@@ -267,12 +267,15 @@ final class LibraryModuleContentTests: XCTestCase {
         let content = self.makeContent(controller: controller)
         await controller.startIfConfigured()
         XCTAssertTrue(content.isShowingEmptyState)
+        // Drawn by the table: the content's own drawing sits under the opaque table.
+        await self.eventually { content.table.placeholder == "No library folders yet" }
         self.panels.folder = try self.folder("DJ")
         await content.addFolder()
         XCTAssertEqual(controller.state, .ready)
         let roots = try await controller.engine?.roots()
         XCTAssertEqual(roots?.count, 1)
         await self.eventually { content.table.rows.count == 3 && !content.isShowingEmptyState }
+        await self.eventually { content.table.placeholder == nil }
     }
 
     func testEngineErrorShowsErrorState() async throws {
@@ -284,6 +287,7 @@ final class LibraryModuleContentTests: XCTestCase {
         await controller.startIfConfigured()
         await self.eventually { content.errorMessage != nil }
         XCTAssertEqual(content.errorMessage, "This library was saved by a newer version of AmpX and was left untouched.")
+        await self.eventually { content.table.placeholder == content.errorMessage }
     }
 
     func testRemoveAsksAndRemoves() async throws {

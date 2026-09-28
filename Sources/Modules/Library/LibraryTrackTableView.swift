@@ -30,6 +30,13 @@ final class LibraryTrackTableView: AmpXControlView, NSDraggingSource {
     }
 
     var onSelectionChange: ((LibrarySelection) -> Void)?
+
+    /// Centred message over the empty rows area: the Library's empty state or its error.
+    var placeholder: String? {
+        didSet { needsDisplay = true }
+    }
+
+    var placeholderIsError = false
     var onSortClick: ((LibrarySortColumn) -> Void)?
     var onColumnsChange: ((LibraryColumnSet) -> Void)?
     var onActivate: ((UUID) -> Void)?
@@ -190,6 +197,15 @@ final class LibraryTrackTableView: AmpXControlView, NSDraggingSource {
         self.drawHeader(frames: frames, context: context)
 
         let viewport = self.rowsViewport
+        if let placeholder = self.placeholder {
+            let rect = CGRect(x: viewport.minX + 16, y: viewport.midY - 26, width: max(0, viewport.width - 32), height: 20)
+            AmpXLabel(
+                text: placeholder,
+                color: self.placeholderIsError ? skin.orange : skin.textDim,
+                fontSize: 13,
+                alignment: .center
+            ).draw(in: rect, context: context, skin: skin)
+        }
         context.saveGState()
         context.clip(to: viewport)
         for index in self.visibleRowRange {
