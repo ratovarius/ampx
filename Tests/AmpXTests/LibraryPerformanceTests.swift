@@ -179,8 +179,7 @@ final class LibraryPerformanceTests: XCTestCase {
     }
 
     func testNoChangeRescan11kUnderFiveSeconds() async throws {
-        // An 11,000-file first scan outlasts the default allowance on a CI runner.
-        self.executionTimeAllowance = 300
+        try AmpXTestEnvironment.skipOnCI("writes 11,000 files; on a runner it takes minutes and starves the parallel test worker")
         let root = try T.temporaryDirectory(self).appendingPathComponent("Archive", isDirectory: true)
         let payload = Data(repeating: 1, count: 1024)
         for folder in 0 ..< 110 {

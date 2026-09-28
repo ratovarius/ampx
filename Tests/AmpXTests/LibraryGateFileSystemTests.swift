@@ -58,6 +58,7 @@ final class LibraryGateFileSystemTests: XCTestCase {
     }
 
     func testSyntheticNoChangeWalk11k() throws {
+        try AmpXTestEnvironment.skipOnCI("writes 11,000 files; on a runner it takes minutes and starves the parallel test worker")
         let payload = Data(repeating: 1, count: 1024)
         for folder in 0 ..< 110 {
             let folderURL = self.directory.appendingPathComponent("crate-\(folder)", isDirectory: true)
