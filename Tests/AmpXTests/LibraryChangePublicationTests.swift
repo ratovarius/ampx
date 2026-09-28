@@ -172,6 +172,17 @@ final class LibraryChangePublicationTests: XCTestCase {
         XCTAssertEqual(rows.map(\.isAvailable), [false, false])
     }
 
+    func testUnavailableTotalIgnoresQueryFilters() async throws {
+        try await self.insert(["a.mp3", "b.mp3"])
+        _ = try await self.index.query(LibraryQuery(), generation: 1)
+        var versions = await self.index.versions().makeAsyncIterator()
+        try await self.store.markUnavailable(id: self.rootID)
+        _ = await versions.next()
+        let filtered = try await self.index.query(LibraryQuery(search: "no such track"), generation: 2)
+        XCTAssertTrue(filtered.rows.isEmpty)
+        XCTAssertEqual(filtered.unavailableTotal, 2)
+    }
+
     func testRejectedTokenBumpsNoVersion() async throws {
         _ = try await self.index.query(LibraryQuery(), generation: 1)
         let before = try await self.index.query(LibraryQuery(), generation: 2).snapshotVersion

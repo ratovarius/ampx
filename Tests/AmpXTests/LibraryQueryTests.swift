@@ -117,10 +117,88 @@ final class LibraryQueryTests: XCTestCase {
         XCTAssertEqual(query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.bpm), [128, 124, nil])
     }
 
+    func testBpmRangeFiltersAndHidesUntagged() {
+        let rows = [
+            self.row(1, bpm: 120),
+            self.row(2, bpm: 124),
+            self.row(3, bpm: 126),
+            self.row(4, bpm: 119),
+            self.row(5, bpm: 127),
+            self.row(6, bpm: nil),
+        ]
+        var query = LibraryQuery(sort: .bpm)
+        query.bpmRange = 120 ... 126
+        XCTAssertEqual(query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.bpm), [120, 124, 126])
+    }
+
+    func testBpmRangeAppliesToFacetCounts() {
+        let rows = [self.row(1, genre: "Techno", bpm: 128), self.row(2, genre: "Techno", bpm: 140), self.row(3, genre: "House", bpm: nil)]
+        var query = LibraryQuery()
+        query.bpmRange = 125 ... 130
+        XCTAssertEqual(query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).facets.genres, [.text("Techno"): 1])
+    }
+
+    func testOnlyUnavailableShowsMissingRows() {
+        let rows = [
+            self.row(1, genre: "Techno", available: false),
+            self.row(2, genre: "Techno"),
+            self.row(3, genre: "House", available: false),
+        ]
+        var query = LibraryQuery()
+        query.onlyUnavailable = true
+        let result = query.evaluate(rows: rows, snapshotVersion: 0, generation: 0)
+        XCTAssertEqual(Set(result.rows.map(\.id)), [rows[0].id, rows[2].id])
+        XCTAssertEqual(result.facets.genres, [.text("Techno"): 1, .text("House"): 1])
+    }
+
+    func testGenreSortNilLastWithTieBreakers() {
+        let rows = [
+            self.row(1, title: "B", genre: "Techno"),
+            self.row(2, genre: nil),
+            self.row(3, genre: "House"),
+            self.row(4, title: "A", genre: "Techno"),
+            self.row(5, genre: ""),
+        ]
+        var query = LibraryQuery(sort: .genre)
+        XCTAssertEqual(
+            query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id),
+            [rows[2].id, rows[3].id, rows[0].id, rows[1].id, rows[4].id]
+        )
+        query.ascending = false
+        XCTAssertEqual(
+            query.evaluate(rows: rows, snapshotVersion: 0, generation: 0).rows.map(\.id).prefix(3),
+            [rows[3].id, rows[0].id, rows[2].id]
+        )
+    }
+
+    func testDecodesQueryWithoutNewFields() throws {
+        let json = Data(#"{"search":"acid","genres":[],"artists":[],"albums":[],"sort":"bpm","ascending":false}"#.utf8)
+        let query = try JSONDecoder().decode(LibraryQuery.self, from: json)
+        XCTAssertEqual(query.search, "acid")
+        XCTAssertEqual(query.sort, .bpm)
+        XCTAssertFalse(query.ascending)
+        XCTAssertNil(query.bpmRange)
+        XCTAssertFalse(query.onlyUnavailable)
+        XCTAssertEqual(try JSONDecoder().decode(LibraryQuery.self, from: Data("{}".utf8)), LibraryQuery())
+    }
+
+    func testResultCarriesUnavailableTotalAndDuration() {
+        let rows = [
+            self.row(1, duration: 60, available: false),
+            self.row(2, duration: 90),
+            self.row(3, title: "Other", duration: 30, available: false),
+        ]
+        let result = LibraryQuery(search: "song").evaluate(rows: rows, snapshotVersion: 0, generation: 0)
+        XCTAssertEqual(result.unavailableTotal, 2, "counts the whole snapshot, not just the result")
+        XCTAssertEqual(result.totalDuration, 150)
+    }
+
     func testQueryCodableRoundTrip() throws {
         var query = LibraryQuery(search: "acid", sort: .musicalKey, ascending: false)
         query.genres = [.text("Techno"), .absent]
         query.albums = [.absent]
+        query.bpmRange = 120.5 ... 126
+        query.onlyUnavailable = true
         let decoded = try JSONDecoder().decode(LibraryQuery.self, from: JSONEncoder().encode(query))
         XCTAssertEqual(decoded, query)
     }

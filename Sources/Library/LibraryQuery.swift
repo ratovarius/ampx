@@ -7,7 +7,7 @@ enum LibraryFacetValue: Hashable, Codable, Sendable {
 }
 
 enum LibrarySortColumn: String, Codable, Sendable {
-    case artist, title, duration, bpm, musicalKey, bitrate
+    case artist, title, genre, duration, bpm, musicalKey, bitrate
 }
 
 struct LibraryFacetCounts: Sendable, Equatable {
@@ -21,6 +21,10 @@ struct LibraryResult: Sendable {
     let facets: LibraryFacetCounts
     let snapshotVersion: UInt64
     let generation: UInt64
+    /// Unavailable rows in the whole snapshot, whatever the query filters (the browser's MISSING button).
+    var unavailableTotal = 0
+    /// Sum of `rows` durations, in seconds.
+    var totalDuration: Double = 0
 }
 
 /// A browser request (spec: "Index and query semantics"). `Codable` so DJ-mode smart playlists can persist it.
@@ -31,6 +35,10 @@ struct LibraryQuery: Codable, Sendable, Equatable {
     var albums: Set<LibraryFacetValue> = []
     var sort: LibrarySortColumn = .artist
     var ascending = true
+    /// Inclusive BPM range (Library module spec). Rows without a BPM are excluded while it is set.
+    var bpmRange: ClosedRange<Double>?
+    /// The MISSING view: only rows that are not available.
+    var onlyUnavailable = false
 
     static let foldOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
 
@@ -47,7 +55,16 @@ struct LibraryQuery: Codable, Sendable, Equatable {
     func evaluate(sortedRows rows: [LibraryRow], snapshotVersion: UInt64, generation: UInt64) -> LibraryResult {
         let terms = self.search.folding(options: Self.foldOptions, locale: nil)
             .split(whereSeparator: \.isWhitespace).map(String.init)
-        let searched = terms.isEmpty ? rows : rows.filter { row in terms.allSatisfy { row.searchKey.contains($0) } }
+        // BPM range and the MISSING view act like facets: they filter rows and every facet's counts.
+        let searched = rows.filter { row in
+            if self.onlyUnavailable, row.isAvailable {
+                return false
+            }
+            if let range = self.bpmRange {
+                guard let bpm = row.bpm, range.contains(bpm) else { return false }
+            }
+            return terms.isEmpty || terms.allSatisfy { row.searchKey.contains($0) }
+        }
 
         // Each facet counts rows matching the search and every *other* facet's selection.
         let facets = LibraryFacetCounts(
@@ -60,7 +77,9 @@ struct LibraryQuery: Codable, Sendable, Equatable {
             rows: matched,
             facets: facets,
             snapshotVersion: snapshotVersion,
-            generation: generation
+            generation: generation,
+            unavailableTotal: rows.reduce(0) { $0 + ($1.isAvailable ? 0 : 1) },
+            totalDuration: matched.reduce(0) { $0 + $1.duration }
         )
     }
 
@@ -100,13 +119,14 @@ struct LibraryQuery: Codable, Sendable, Equatable {
         let primary: ComparisonResult = switch self.sort {
         case .artist: Self.compare(lhs.artist, rhs.artist)
         case .title: Self.compare(lhs.title, rhs.title)
+        case .genre: Self.compareOptional(Self.sortableGenre(lhs), Self.sortableGenre(rhs), ascending: self.ascending)
         case .duration: Self.compare(lhs.duration, rhs.duration)
         case .bitrate: Self.compare(lhs.bitrate, rhs.bitrate)
         case .bpm: Self.compareOptional(lhs.bpm, rhs.bpm, ascending: self.ascending)
         case .musicalKey: Self.compareOptional(lhs.musicalKey, rhs.musicalKey, ascending: self.ascending)
         }
         if primary != .orderedSame {
-            let isOptional = self.sort == .bpm || self.sort == .musicalKey
+            let isOptional = self.sort == .bpm || self.sort == .musicalKey || self.sort == .genre
             // Optional columns already folded the direction in, so nil stays last.
             return isOptional || self.ascending ? primary == .orderedAscending : primary == .orderedDescending
         }
@@ -119,6 +139,12 @@ struct LibraryQuery: Codable, Sendable, Equatable {
             return result == .orderedAscending
         }
         return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    /// An empty genre tag sorts with the untagged rows, last.
+    private static func sortableGenre(_ row: LibraryRow) -> String? {
+        guard let genre = row.genre, !genre.isEmpty else { return nil }
+        return genre
     }
 
     private static func compare(_ lhs: String, _ rhs: String) -> ComparisonResult {
@@ -144,6 +170,22 @@ struct LibraryQuery: Codable, Sendable, Equatable {
             guard !ascending else { return result }
             return result == .orderedAscending ? .orderedDescending : result == .orderedDescending ? .orderedAscending : .orderedSame
         }
+    }
+}
+
+extension LibraryQuery {
+    /// Every field is optional on decode, so queries saved by earlier versions keep loading.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init()
+        self.search = try container.decodeIfPresent(String.self, forKey: .search) ?? self.search
+        self.genres = try container.decodeIfPresent(Set<LibraryFacetValue>.self, forKey: .genres) ?? self.genres
+        self.artists = try container.decodeIfPresent(Set<LibraryFacetValue>.self, forKey: .artists) ?? self.artists
+        self.albums = try container.decodeIfPresent(Set<LibraryFacetValue>.self, forKey: .albums) ?? self.albums
+        self.sort = try container.decodeIfPresent(LibrarySortColumn.self, forKey: .sort) ?? self.sort
+        self.ascending = try container.decodeIfPresent(Bool.self, forKey: .ascending) ?? self.ascending
+        self.bpmRange = try container.decodeIfPresent(ClosedRange<Double>.self, forKey: .bpmRange)
+        self.onlyUnavailable = try container.decodeIfPresent(Bool.self, forKey: .onlyUnavailable) ?? self.onlyUnavailable
     }
 }
 
