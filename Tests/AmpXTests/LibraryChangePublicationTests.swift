@@ -54,6 +54,24 @@ final class LibraryChangePublicationTests: XCTestCase {
         XCTAssertEqual(refetchesBefore, 0)
     }
 
+    func testRowCarriesTempoSpreadAndPhrases() async throws {
+        try await self.insert(["a.mp3", "b.mp3"])
+        let context = ModelContext(self.container)
+        let a = try XCTUnwrap(try context.fetch(FetchDescriptor<LibraryTrack>()).first { $0.relativePath == "a.mp3" })
+        a.tempoSpread = 1.2
+        a.phrases = Data([1])
+        try context.save()
+
+        let rows = try await self.index.query(LibraryQuery(), generation: 1).rows
+        let rowA = try XCTUnwrap(rows.first { $0.url.lastPathComponent == "a.mp3" })
+        let rowB = try XCTUnwrap(rows.first { $0.url.lastPathComponent == "b.mp3" })
+        XCTAssertEqual(rowA.tempoSpread, 1.2)
+        XCTAssertTrue(rowA.hasPhrases)
+        XCTAssertEqual(rowA.trackClass, .drifting)
+        XCTAssertNil(rowB.tempoSpread)
+        XCTAssertFalse(rowB.hasPhrases)
+    }
+
     func testSaveBeforeFirstQueryIsNotLost() async throws {
         try await self.insert(["a.mp3"]) // published before any snapshot exists
         let result = try await self.index.query(LibraryQuery(), generation: 1)
