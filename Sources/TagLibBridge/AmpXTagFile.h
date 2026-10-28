@@ -16,6 +16,9 @@ typedef NS_ERROR_ENUM(AmpXTagFileErrorDomain, AmpXTagFileError) {
 @interface AmpXTagFile : NSObject
 
 + (nullable NSDictionary<NSString *, NSString *> *)readFieldsAtPath:(NSString *)path error:(NSError **)error;
+/// Every tag item other than the managed fields, one entry per item (ID3 frame IDs, Xiph field names, MP4 item
+/// keys, plus `PICTURE`, `ID3v1`, `APE` and `INFO` markers), so a write can check nothing else disappeared.
++ (nullable NSArray<NSString *> *)otherKeysAtPath:(NSString *)path error:(NSError **)error;
 + (BOOL)writeFields:(NSDictionary<NSString *, NSString *> *)fields toPath:(NSString *)path error:(NSError **)error;
 
 @end

@@ -18,7 +18,7 @@ from pathlib import Path
 import lameenc
 from mutagen.aiff import AIFF
 from mutagen.flac import FLAC
-from mutagen.id3 import APIC, COMM, ID3, TALB, TBPM, TCON, TDRC, TIT2, TKEY, TPE1, TPE2, TRCK
+from mutagen.id3 import APIC, COMM, ID3, RVAD, TALB, TBPM, TCON, TDRC, TIT2, TKEY, TPE1, TPE2, TRCK
 from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 from mutagen.wave import WAVE
 from PIL import Image
@@ -152,6 +152,17 @@ def cover_png() -> bytes:
     return buffer.getvalue()
 
 
+def id3v22_tag() -> bytes:
+    """A hand-built ID3v2.2 tag (mutagen and TagLib write only v2.3/v2.4): title, artist, BPM and key."""
+    frames = b""
+    for frame_id, text in (("TT2", TAGS["title"]), ("TP1", TAGS["artist"]), ("TBP", str(TAGS["bpm"])), ("TKE", TAGS["musicalKey"])):
+        data = b"\x00" + text.encode("latin-1")
+        frames += frame_id.encode("ascii") + len(data).to_bytes(3, "big") + data
+    size = len(frames)
+    syncsafe = bytes([(size >> 21) & 0x7F, (size >> 14) & 0x7F, (size >> 7) & 0x7F, size & 0x7F])
+    return b"ID3\x02\x00\x00" + syncsafe + frames
+
+
 def write_library_fixtures(fixtures_dir: Path) -> Path:
     """Write every library fixture plus manifest.json under `fixtures_dir / "Library"`."""
     root = fixtures_dir / "Library"
@@ -186,6 +197,20 @@ def write_library_fixtures(fixtures_dir: Path) -> Path:
     artwork_tags.add(APIC(encoding=3, mime="image/png", type=3, desc="Cover", data=cover_png()))
     save_id3(artwork_tags, root / "artwork-v24.mp3", 4)
     record("artwork-v24.mp3", "mp3-id3v2.4", TAGS)
+
+    # ID3v2.3 frames TagLib drops when it rewrites a v2.3 tag (RVAD), next to artwork: a write must refuse it.
+    write_mp3(root / "rvad-v23.mp3", pcm)
+    rvad_tags = id3_frames()
+    rvad_tags.add(APIC(encoding=3, mime="image/png", type=3, desc="Cover", data=cover_png()))
+    rvad_tags.update_to_v23()
+    # Added after the conversion, which would turn it into RVA2 and then drop it.
+    rvad_tags.add(RVAD(adjustments=[100, 100]))
+    rvad_tags.save(str(root / "rvad-v23.mp3"), v2_version=3)
+    record("rvad-v23.mp3", "mp3-id3v2.3", TAGS)
+
+    write_mp3(root / "tagged-v22.mp3", pcm)
+    (root / "tagged-v22.mp3").write_bytes(id3v22_tag() + (root / "tagged-v22.mp3").read_bytes())
+    record("tagged-v22.mp3", "mp3-id3v2.2", {"title": TAGS["title"], "artist": TAGS["artist"]})
 
     write_wav(root / "tagged.wav", pcm)
     tag_id3_file(WAVE(str(root / "tagged.wav")), 3)

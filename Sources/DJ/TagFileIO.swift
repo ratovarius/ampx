@@ -12,6 +12,11 @@ enum TagFileIO {
         return Dictionary(uniqueKeysWithValues: fields.compactMap { key, value in TagField(rawValue: key).map { ($0, value) } })
     }
 
+    /// Every other tag item in the file, one entry per item (see `AmpXTagFile.otherKeys`).
+    static func otherKeys(_ url: URL) throws -> [String] {
+        try AmpXTagFile.otherKeys(atPath: url.path)
+    }
+
     static func write(_ fields: [TagField: String], to url: URL) throws {
         try AmpXTagFile.writeFields(Dictionary(uniqueKeysWithValues: fields.map { ($0.key.rawValue, $0.value) }), toPath: url.path)
     }

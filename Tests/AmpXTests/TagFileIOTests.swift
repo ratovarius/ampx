@@ -69,6 +69,29 @@ final class TagFileIOTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: v24)[3], 4)
     }
 
+    func testID3v22BecomesV23() throws {
+        let url = try self.copy("tagged-v22.mp3")
+        XCTAssertEqual(try Data(contentsOf: url)[3], 2)
+        try TagFileIO.write(self.values, to: url)
+        XCTAssertEqual(try Data(contentsOf: url)[3], 3, "TagLib cannot write v2.2; v2.3 is the closer, more compatible version")
+        XCTAssertEqual(try TagFileIO.read(url), self.values)
+    }
+
+    func testOtherKeysListEverythingButTheWrittenFields() throws {
+        let url = try self.copy("rvad-v23.mp3")
+        let keys = try TagFileIO.otherKeys(url)
+        XCTAssertTrue(keys.contains("RVAD"), "\(keys)")
+        XCTAssertTrue(keys.contains("APIC"), "\(keys)")
+        XCTAssertFalse(keys.contains("TBPM"))
+        XCTAssertFalse(keys.contains("TKEY"))
+        XCTAssertTrue(try TagFileIO.otherKeys(self.copy("artwork.m4a")).contains("covr"))
+        XCTAssertTrue(try TagFileIO.otherKeys(self.copy("tagged.flac")).contains("TITLE"))
+
+        // TagLib drops RVAD when it rewrites a v2.3 tag: the writer must notice.
+        try TagFileIO.write(self.values, to: url)
+        XCTAssertFalse(try TagFileIO.otherKeys(url).contains("RVAD"))
+    }
+
     func testUnsupportedExtensionThrows() throws {
         let url = try LibraryTestSupport.temporaryDirectory(self).appendingPathComponent("a.ogg")
         try Data([0, 1, 2]).write(to: url)

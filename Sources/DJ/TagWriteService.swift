@@ -11,6 +11,8 @@ struct TagFileAccess: Sendable {
     /// Audio duration in seconds.
     var duration: @Sendable (URL) throws -> Double
     var isWritable: @Sendable (URL) -> Bool
+    /// Every other tag item, one entry per item; a write must not lose any.
+    var otherKeys: @Sendable (URL) throws -> [String] = { _ in [] }
 
     static let live = TagFileAccess(
         read: { try TagFileIO.read($0) },
@@ -22,7 +24,8 @@ struct TagFileAccess: Sendable {
         isWritable: { url in
             FileManager.default.isWritableFile(atPath: url.path)
                 && FileManager.default.isWritableFile(atPath: url.deletingLastPathComponent().path)
-        }
+        },
+        otherKeys: { try TagFileIO.otherKeys($0) }
     )
 }
 
@@ -188,6 +191,7 @@ actor TagWriteService: TagWriting {
         var hashes: [UUID: Data] = [:]
         defer { self.runReport = report }
         let rows = await (try? self.store.tagWriteRows(rowIDs: rowIDs)) ?? []
+        self.removeStaleCopies(in: Set(rows.map { $0.url.deletingLastPathComponent() }))
         for row in rows {
             guard !self.isHalted, !Task.isCancelled else { break }
             if onlyDue, !TagWritePlanner.isDue(row) {
@@ -234,17 +238,36 @@ actor TagWriteService: TagWriting {
         writerLogger.info("Tag write: \(report.written) written, \(report.failed.count) failed, \(report.skippedReadOnly.count) read-only")
     }
 
+    static let temporaryMarker = ".ampx-tagwrite."
+
+    /// Removes hidden copies an interrupted run left behind (a crash, power loss or an unmounted volume mid-write).
+    private func removeStaleCopies(in folders: Set<URL>) {
+        let manager = FileManager.default
+        for folder in folders {
+            guard let names = try? manager.contentsOfDirectory(atPath: folder.path) else { continue }
+            for name in names where name.hasPrefix(".") && name.contains(Self.temporaryMarker) {
+                try? manager.removeItem(at: folder.appendingPathComponent(name))
+            }
+        }
+    }
+
     /// Copy, write the copy, read it back and check it, then replace the original. The extension is kept so the
     /// copy is opened as the same container.
     private func writeAtomically(_ changes: [TagField: String], to url: URL) -> Outcome {
         let manager = FileManager.default
         let name = url.deletingPathExtension().lastPathComponent
-        let temp = url.deletingLastPathComponent().appendingPathComponent(".\(name).ampx-tagwrite.\(url.pathExtension)")
+        let temp = url.deletingLastPathComponent().appendingPathComponent(".\(name)\(Self.temporaryMarker)\(url.pathExtension)")
         defer { try? manager.removeItem(at: temp) }
         do {
             try? manager.removeItem(at: temp)
+            let keysBefore = try self.files.otherKeys(url)
             try manager.copyItem(at: url, to: temp)
             try self.files.write(changes, temp)
+            let lost = Self.missing(keysBefore, from: try self.files.otherKeys(temp))
+            guard lost.isEmpty else {
+                writerLogger.error("Writing \(url.path, privacy: .public) would drop \(lost.joined(separator: ", "), privacy: .public); original kept")
+                return .failed
+            }
             let readBack = try self.files.read(temp)
             guard changes.allSatisfy({ Self.matches(readBack[$0.key], $0.value, field: $0.key) }) else {
                 writerLogger.error("Read-back of \(url.path, privacy: .public) did not match; original kept")
@@ -261,6 +284,23 @@ actor TagWriteService: TagWriting {
             writerLogger.error("Writing tags to \(url.path, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             return .failed
         }
+    }
+
+    /// Items of `before` that `after` has fewer of.
+    private static func missing(_ before: [String], from after: [String]) -> [String] {
+        var counts: [String: Int] = [:]
+        for key in after {
+            counts[key, default: 0] += 1
+        }
+        var lost: [String] = []
+        for key in before {
+            if counts[key, default: 0] > 0 {
+                counts[key]! -= 1
+            } else {
+                lost.append(key)
+            }
+        }
+        return lost
     }
 
     private static func matches(_ found: String?, _ expected: String, field: TagField) -> Bool {

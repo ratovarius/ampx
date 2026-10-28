@@ -1,6 +1,7 @@
 #import "AmpXTagFile.h"
 
 #include <map>
+#include <set>
 #include <string>
 
 #include "aifffile.h"
@@ -74,6 +75,21 @@ void readID3(TagLib::ID3v2::Tag *tag, NSMutableDictionary *fields) {
     }
 }
 
+std::set<std::string> managedKeys(const char *FieldNames::*member) {
+    std::set<std::string> keys;
+    for (const auto &[field, names] : fieldNames()) keys.insert(names.*member);
+    return keys;
+}
+
+void otherID3(TagLib::ID3v2::Tag *tag, NSMutableArray<NSString *> *keys) {
+    if (!tag) return;
+    const auto managed = managedKeys(&FieldNames::id3);
+    for (const auto *frame : tag->frameList()) {
+        std::string id(frame->frameID().data(), frame->frameID().size());
+        if (!managed.count(id)) [keys addObject:@(id.c_str())];
+    }
+}
+
 void writeID3(TagLib::ID3v2::Tag *tag, NSDictionary<NSString *, NSString *> *fields) {
     for (NSString *field in fields) {
         auto names = fieldNames().find(field.UTF8String);
@@ -85,14 +101,79 @@ void writeID3(TagLib::ID3v2::Tag *tag, NSDictionary<NSString *, NSString *> *fie
     }
 }
 
-/// The ID3v2 version a file already uses; a new tag is ID3v2.4.
+/// The ID3v2 version a file already uses; a new tag is ID3v2.4. TagLib cannot write v2.2, so a v2.2 tag becomes
+/// v2.3, the closer and more widely read version.
 TagLib::ID3v2::Version versionOf(TagLib::ID3v2::Tag *tag, bool hadTag) {
-    return hadTag && tag->header()->majorVersion() == 3 ? TagLib::ID3v2::v3 : TagLib::ID3v2::v4;
+    if (!hadTag) return TagLib::ID3v2::v4;
+    return tag->header()->majorVersion() == 4 ? TagLib::ID3v2::v4 : TagLib::ID3v2::v3;
 }
 
 }  // namespace
 
 @implementation AmpXTagFile
+
++ (nullable NSArray<NSString *> *)otherKeysAtPath:(NSString *)path error:(NSError **)error {
+    NSMutableArray<NSString *> *keys = [NSMutableArray array];
+    const char *file = path.fileSystemRepresentation;
+    switch (containerFor(path)) {
+    case Container::id3MPEG: {
+        TagLib::MPEG::File mpeg(file, false);
+        if (!mpeg.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path) ? nil : nil;
+        if (mpeg.hasID3v2Tag()) otherID3(mpeg.ID3v2Tag(false), keys);
+        if (mpeg.hasID3v1Tag()) [keys addObject:@"ID3v1"];
+        if (mpeg.hasAPETag()) [keys addObject:@"APE"];
+        break;
+    }
+    case Container::id3WAV: {
+        TagLib::RIFF::WAV::File wav(file, false);
+        if (!wav.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path) ? nil : nil;
+        if (wav.hasID3v2Tag()) otherID3(wav.ID3v2Tag(), keys);
+        if (wav.hasInfoTag()) [keys addObject:@"INFO"];
+        break;
+    }
+    case Container::id3AIFF: {
+        TagLib::RIFF::AIFF::File aiff(file, false);
+        if (!aiff.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path) ? nil : nil;
+        if (aiff.hasID3v2Tag()) otherID3(aiff.tag(), keys);
+        break;
+    }
+    case Container::flac: {
+        TagLib::FLAC::File flac(file, false);
+        if (!flac.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path) ? nil : nil;
+        const auto managed = managedKeys(&FieldNames::xiph);
+        if (auto *comment = flac.xiphComment(false)) {
+            for (const auto &[name, values] : comment->fieldListMap()) {
+                std::string key = name.to8Bit(true);
+                if (managed.count(key)) continue;
+                for (unsigned int i = 0; i < values.size(); i++) [keys addObject:@(key.c_str())];
+            }
+        }
+        for (unsigned int i = 0; i < flac.pictureList().size(); i++) [keys addObject:@"PICTURE"];
+        if (flac.hasID3v2Tag()) otherID3(flac.ID3v2Tag(false), keys);
+        break;
+    }
+    case Container::mp4: {
+        TagLib::MP4::File mp4(file, false);
+        if (!mp4.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path) ? nil : nil;
+        const auto managed = managedKeys(&FieldNames::mp4);
+        if (auto *tag = mp4.tag()) {
+            for (const auto &[name, item] : tag->itemMap()) {
+                std::string key = name.to8Bit(false);
+                if (managed.count(key)) continue;
+                if (key == "covr") {
+                    for (unsigned int i = 0; i < item.toCoverArtList().size(); i++) [keys addObject:@"covr"];
+                } else {
+                    [keys addObject:@(name.to8Bit(true).c_str())];
+                }
+            }
+        }
+        break;
+    }
+    case Container::unsupported:
+        return fail(error, AmpXTagFileErrorUnsupported, path) ? nil : nil;
+    }
+    return keys;
+}
 
 + (nullable NSDictionary<NSString *, NSString *> *)readFieldsAtPath:(NSString *)path error:(NSError **)error {
     NSMutableDictionary<NSString *, NSString *> *fields = [NSMutableDictionary dictionary];

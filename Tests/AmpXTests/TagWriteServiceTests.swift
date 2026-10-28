@@ -218,6 +218,38 @@ final class TagWriteServiceTests: XCTestCase {
         XCTAssertEqual(try FakeFiles.fields(at: url)[.bpm], "128")
     }
 
+    func testLiveWriteRefusedWhenOtherFramesWouldBeLost() async throws {
+        let fixtures = try XCTUnwrap(Bundle(for: Self.self).resourceURL).appendingPathComponent("Library")
+        let (id, url) = try self.seed("rvad.mp3", key: "F#m")
+        try FileManager.default.removeItem(at: url)
+        try FileManager.default.copyItem(at: fixtures.appendingPathComponent("rvad-v23.mp3"), to: url)
+        let before = try Data(contentsOf: url)
+        let live = TagWriteService(store: self.h.store, scanner: self.h.scanner, files: .live, settings: TagWriteSettings(defaults: self.defaults))
+
+        let report = await live.write(rowIDs: [id], onlyDue: false)
+
+        XCTAssertEqual(report.failed, [url.path])
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertNil(try self.hash(id))
+    }
+
+    func testStaleTemporaryCopyIsRemoved() async throws {
+        let (_, url) = try self.seed("a.mp3", fileTags: [.bpm: "120"])
+        let stale = url.deletingLastPathComponent().appendingPathComponent(".old.ampx-tagwrite.mp3")
+        try Data([1, 2, 3]).write(to: stale)
+        _ = await self.service.write(rowIDs: nil, onlyDue: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path))
+    }
+
+    func testFailedWriteAfterCopyLeavesNoTemp() async throws {
+        let (_, url) = try self.seed("a.mp3", fileTags: [.bpm: "120"])
+        var access = self.files.access
+        access.write = { _, _ in throw CocoaError(.fileWriteUnknown) }
+        let failing = TagWriteService(store: self.h.store, scanner: self.h.scanner, files: access, settings: nil)
+        let report = await failing.write(rowIDs: nil, onlyDue: false)
+        XCTAssertEqual(report.failed, [url.path])
+    }
+
     func testLiveWriteOnRealMP3() async throws {
         let fixtures = try XCTUnwrap(Bundle(for: Self.self).resourceURL).appendingPathComponent("Library")
         let (id, url) = try self.seed("live.mp3", key: "F#m")
