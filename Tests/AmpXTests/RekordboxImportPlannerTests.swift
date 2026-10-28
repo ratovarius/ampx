@@ -261,4 +261,19 @@ final class RekordboxImportPlannerTests: XCTestCase {
         let plan = self.plan([], rows: rows)
         XCTAssertEqual(plan.report.noLongerInRekordbox, ["/Music/DJ/gone.mp3"])
     }
+
+    func testCuesWrittenPackedAndStable() throws {
+        let cues = [RekordboxCue(number: 0, type: 0, start: 0.165, end: nil, name: "")]
+        var withCues = self.track("/Music/DJ/a.mp3")
+        withCues.cues = cues
+        let write = try XCTUnwrap(self.plan([withCues], rows: [self.row(1, "a.mp3")]).writes.first)
+        XCTAssertEqual(write.values.cues, RekordboxCues.pack(cues))
+
+        var applied = self.row(1, "a.mp3", bpm: 124, key: "Am", source: .rekordbox, ratingSource: .rekordbox)
+        applied.cues = write.values.cues
+        XCTAssertTrue(self.plan([withCues], rows: [applied]).writes.isEmpty)
+
+        let without = try XCTUnwrap(self.plan([self.track("/Music/DJ/a.mp3")], rows: [self.row(1, "a.mp3")]).writes.first)
+        XCTAssertNil(without.values.cues)
+    }
 }

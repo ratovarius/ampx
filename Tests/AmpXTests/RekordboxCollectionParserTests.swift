@@ -119,4 +119,31 @@ final class RekordboxCollectionParserTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(RekordboxBeatGrid.tempoSpread(grid)), 2.0 / 128 * 100, accuracy: 1e-9)
         XCTAssertNil(RekordboxBeatGrid.tempoSpread([]))
     }
+
+    func testParsesPositionMarks() throws {
+        let collection = try self.parsedFixture()
+        XCTAssertEqual(
+            try self.track(named: "#DESCONOCIDO", in: collection).cues,
+            [RekordboxCue(number: 0, type: 0, start: 1.494, end: nil, name: "1.1Bars")]
+        )
+        XCTAssertEqual(try self.track(named: "Magie", in: collection).cues, [
+            RekordboxCue(number: 0, type: 0, start: 1.668, end: nil, name: "1.1Bars"),
+            RekordboxCue(number: -1, type: 0, start: 64.2, end: nil, name: "Drop"),
+            RekordboxCue(number: 1, type: 4, start: 96.0, end: 99.75, name: "Loop"),
+        ])
+        XCTAssertEqual(try self.track(named: "Glimmer", in: collection).cues, [])
+    }
+
+    func testCuesRoundTrip() {
+        let cues = [
+            RekordboxCue(number: 0, type: 0, start: 0.165, end: nil, name: ""),
+            RekordboxCue(number: -1, type: 0, start: 64.2, end: nil, name: "Drop ¡ya!"),
+            RekordboxCue(number: 7, type: 4, start: 96.0, end: 99.75, name: "Loop"),
+        ]
+        let packed = RekordboxCues.pack(cues)
+        XCTAssertEqual(RekordboxCues.unpack(packed), cues)
+        XCTAssertEqual(RekordboxCues.unpack(RekordboxCues.pack([])), [])
+        XCTAssertNil(RekordboxCues.unpack(Data([9]) + packed.dropFirst()))
+        XCTAssertNil(RekordboxCues.unpack(packed.dropLast()))
+    }
 }

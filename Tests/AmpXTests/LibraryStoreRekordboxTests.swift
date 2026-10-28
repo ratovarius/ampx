@@ -257,4 +257,37 @@ final class LibraryStoreRekordboxTests: XCTestCase {
             XCTAssertEqual(error as? LibraryStoreError, .unknownRoot)
         }
     }
+
+    func testApplyWritesCuesAndTempoSpread() async throws {
+        let store = T.makeStore(self, container: self.container)
+        let token = try await store.beginRekordboxSync(rootID: self.dj)
+        var values = self.values()
+        values.cues = Data([1, 2])
+        values.beatGrid = RekordboxBeatGrid.pack([128.0, 128, 130].map { RekordboxBeat(start: 0, bpm: $0, meter: "4/4", beat: 1) })
+
+        try await store.applyRekordbox(
+            self.plan([RekordboxRowWrite(rowID: self.a, rootID: self.dj, values: values)]),
+            fileName: "collection.xml", stamp: self.stamp, token: token
+        )
+
+        let track = try self.track(self.a)
+        XCTAssertEqual(track.cues, Data([1, 2]))
+        XCTAssertEqual(try XCTUnwrap(track.tempoSpread), 2.0 / 128 * 100, accuracy: 1e-9)
+        let snapshot = try await store.rekordboxSnapshot()
+        XCTAssertEqual(snapshot.rows.first { $0.id == self.a }?.cues, Data([1, 2]))
+    }
+
+    func testApplyWithoutGridClearsTempoSpread() async throws {
+        let store = T.makeStore(self, container: self.container)
+        let token = try await store.beginRekordboxSync(rootID: self.dj)
+        var values = self.values()
+        values.beatGrid = nil
+
+        try await store.applyRekordbox(
+            self.plan([RekordboxRowWrite(rowID: self.a, rootID: self.dj, values: values)]),
+            fileName: "collection.xml", stamp: self.stamp, token: token
+        )
+
+        XCTAssertNil(try self.track(self.a).tempoSpread)
+    }
 }

@@ -47,7 +47,7 @@ extension LibraryStore {
                 bpm: $0.bpm, musicalKey: $0.musicalKey, analysisSource: $0.analysisSource,
                 rating: $0.rating, ratingSource: $0.ratingSource, rekordboxPlayCount: $0.rekordboxPlayCount,
                 label: $0.label, remixer: $0.remixer, composer: $0.composer, grouping: $0.grouping, mix: $0.mix,
-                beatGrid: $0.beatGrid
+                beatGrid: $0.beatGrid, cues: $0.cues
             )
         }
         return RekordboxLibrarySnapshot(roots: roots, rows: rows)
@@ -154,5 +154,7 @@ extension LibraryStore {
         row.grouping = values.grouping
         row.mix = values.mix
         row.beatGrid = values.beatGrid
+        row.tempoSpread = values.beatGrid.flatMap(RekordboxBeatGrid.unpack).flatMap(RekordboxBeatGrid.tempoSpread)
+        row.cues = values.cues
     }
 }

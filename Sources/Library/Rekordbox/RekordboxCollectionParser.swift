@@ -66,6 +66,7 @@ enum RekordboxCollectionParser {
         private var inCollection = false
         private var current: [String: String]?
         private var beats: [RekordboxBeat] = []
+        private var cues: [RekordboxCue] = []
 
         func parser(
             _: XMLParser,
@@ -85,10 +86,21 @@ enum RekordboxCollectionParser {
             case (3, "TRACK") where self.inCollection:
                 self.current = attributes
                 self.beats = []
+                self.cues = []
             case (4, "TEMPO") where self.current != nil:
                 if let start = Double(attributes["Inizio"] ?? ""), let bpm = Double(attributes["Bpm"] ?? "") {
                     self.beats.append(RekordboxBeat(
                         start: start, bpm: bpm, meter: attributes["Metro"] ?? "", beat: Int(attributes["Battito"] ?? "") ?? 0
+                    ))
+                }
+            case (4, "POSITION_MARK") where self.current != nil:
+                if let start = Double(attributes["Start"] ?? "") {
+                    self.cues.append(RekordboxCue(
+                        number: Int(attributes["Num"] ?? "") ?? -1,
+                        type: Int(attributes["Type"] ?? "") ?? 0,
+                        start: start,
+                        end: attributes["End"].flatMap { Double($0) },
+                        name: attributes["Name"] ?? ""
                     ))
                 }
             default:
@@ -120,7 +132,8 @@ enum RekordboxCollectionParser {
                 composer: Self.text(attributes["Composer"]),
                 grouping: Self.text(attributes["Grouping"]),
                 mix: Self.text(attributes["Mix"]),
-                beatGrid: self.beats
+                beatGrid: self.beats,
+                cues: self.cues
             ))
         }
 

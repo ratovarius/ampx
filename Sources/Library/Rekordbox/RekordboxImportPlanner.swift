@@ -22,6 +22,7 @@ struct RekordboxRowSnapshot: Sendable, Equatable {
     let rekordboxPlayCount: Int
     let label, remixer, composer, grouping, mix: String?
     let beatGrid: Data?
+    var cues: Data? = nil
 }
 
 struct RekordboxLibrarySnapshot: Sendable {
@@ -39,6 +40,7 @@ struct RekordboxRowValues: Sendable, Equatable {
     var rekordboxPlayCount: Int
     var label, remixer, composer, grouping, mix: String?
     var beatGrid: Data?
+    var cues: Data? = nil
 }
 
 struct RekordboxRowWrite: Sendable, Equatable {
@@ -183,7 +185,7 @@ enum RekordboxImportPlanner {
             bpm: row.bpm, musicalKey: row.musicalKey, analysisSource: row.analysisSource,
             rating: row.rating, ratingSource: row.ratingSource, rekordboxPlayCount: row.rekordboxPlayCount,
             label: row.label, remixer: row.remixer, composer: row.composer, grouping: row.grouping, mix: row.mix,
-            beatGrid: row.beatGrid
+            beatGrid: row.beatGrid, cues: row.cues
         )
     }
 
@@ -216,6 +218,7 @@ enum RekordboxImportPlanner {
         values.grouping = track.grouping
         values.mix = track.mix
         values.beatGrid = self.encode(track.beatGrid)
+        values.cues = track.cues.isEmpty ? nil : RekordboxCues.pack(track.cues)
         return values
     }
 

@@ -49,6 +49,8 @@
       <TEMPO Inizio="0.283" Bpm="130.00" Metro="4/4" Battito="2"/>
       <POSITION_MARK Name="1.1Bars" Type="0" Start="1.668" Num="0" Red="255" Green="55"
                      Blue="111"/>
+      <POSITION_MARK Name="Drop" Type="0" Start="64.200" Num="-1"/>
+      <POSITION_MARK Name="Loop" Type="4" Start="96.000" End="99.750" Num="1"/>
     </TRACK>
     <TRACK TrackID="116668301" Name="John Acquaviva - 10 - Colored" Artist="John Acquaviva - Skills"
            Composer="" Album="" Grouping="" Genre="Techno Classics" Kind="MP3 File"
@@ -1427,8 +1429,6 @@
       <TEMPO Inizio="0.201" Bpm="129.00" Metro="4/4" Battito="1"/>
       <TEMPO Inizio="134.155" Bpm="129.00" Metro="4/4" Battito="1"/>
       <TEMPO Inizio="288.109" Bpm="129.00" Metro="4/4" Battito="4"/>
-      <POSITION_MARK Name="1.1Bars" Type="0" Start="0.201" Num="0" Red="255" Green="55"
-                     Blue="111"/>
     </TRACK>
     <TRACK TrackID="262995030" Name="Ladies And Gentlemen" Artist="69" Composer=""
            Album="The Legendary Adventures Of A Filter King" Grouping=""
