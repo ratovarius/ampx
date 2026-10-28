@@ -33,6 +33,7 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
             bookmarkStore: .shared
         )
         libraryConfiguration.analysisSource = LibraryEngineConfiguration.liveAnalysisSource
+        libraryConfiguration.tagWriteSettings = TagWriteSettings(defaults: .standard)
         let libraryController = LibraryController(configuration: libraryConfiguration)
         let hosts = AmpXHostCoordinator(
             state: saved.state,

@@ -114,6 +114,19 @@ final class LibraryEngineTests: XCTestCase {
         XCTAssertEqual(asked.events, ["source"])
     }
 
+    func testTagWritingOffWithoutSettings() async throws {
+        let engine = try await self.open()
+        XCTAssertFalse(engine.tagWriter.isEnabled, "only the app passes the user's settings")
+        var configuration = self.configuration()
+        let defaults = T.isolatedDefaults(self)
+        defaults.set(true, forKey: TagWriteSettings.enabledKey)
+        configuration.tagWriteSettings = TagWriteSettings(defaults: defaults)
+        configuration.storeURL = nil
+        let enabled = try await LibraryEngine.open(configuration)
+        self.engines.append(enabled)
+        XCTAssertTrue(enabled.tagWriter.isEnabled)
+    }
+
     func testAddScansAndPublishes() async throws {
         let engine = try await self.open()
         let versions = await engine.index.versions()

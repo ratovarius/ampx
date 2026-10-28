@@ -146,6 +146,38 @@ extension LibraryStore {
         }
     }
 
+    /// Rows with rekordbox values in available roots, not missing; limited to `rowIDs` when given (tag writing).
+    func tagWriteRows(rowIDs: Set<UUID>?) throws -> [TagWriteRow] {
+        let roots = try Dictionary(self.roots().filter(\.isAvailable).map { ($0.id, $0.url) }, uniquingKeysWith: { first, _ in first })
+        return try self.modelContext.fetch(FetchDescriptor<LibraryTrack>())
+            .filter { track in
+                track.analysisSource == .rekordbox && !track.isMissing && (rowIDs?.contains(track.id) ?? true)
+            }
+            .compactMap { track in
+                roots[track.rootID].map { root in
+                    TagWriteRow(
+                        rowID: track.id, rootID: track.rootID, url: root.appendingPathComponent(track.relativePath),
+                        bpm: track.bpm, musicalKey: track.musicalKey, label: track.label, remixer: track.remixer,
+                        composer: track.composer, grouping: track.grouping, tagsWrittenHash: track.tagsWrittenHash
+                    )
+                }
+            }
+            .sorted { $0.url.path < $1.url.path }
+    }
+
+    /// Records what was written to, or confirmed in, each file. Nothing displayed changes, so nothing is published.
+    func markTagsWritten(_ hashes: [UUID: Data]) throws {
+        guard !hashes.isEmpty else { return }
+        try self.commit(nil) {
+            for track in try self.modelContext.fetch(FetchDescriptor<LibraryTrack>()) {
+                if let hash = hashes[track.id] {
+                    track.tagsWrittenHash = hash
+                }
+            }
+            return []
+        }
+    }
+
     /// The export is gone: keep its values, stamp and report, and mark it not present.
     func markRekordboxSourceAbsent(rootID: UUID) throws {
         try self.commit(nil) {
