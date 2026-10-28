@@ -6,6 +6,7 @@ with `mutagen`. No FFmpeg, so CI can generate them on a stock macOS runner.
 
 from __future__ import annotations
 
+import io
 import json
 import math
 import struct
@@ -17,9 +18,10 @@ from pathlib import Path
 import lameenc
 from mutagen.aiff import AIFF
 from mutagen.flac import FLAC
-from mutagen.id3 import COMM, ID3, TALB, TBPM, TCON, TDRC, TIT2, TKEY, TPE1, TPE2, TRCK
-from mutagen.mp4 import MP4, MP4FreeForm
+from mutagen.id3 import APIC, COMM, ID3, TALB, TBPM, TCON, TDRC, TIT2, TKEY, TPE1, TPE2, TRCK
+from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 from mutagen.wave import WAVE
+from PIL import Image
 
 SAMPLE_RATE = 44100
 CHANNELS = 2
@@ -143,6 +145,13 @@ def tag_m4a(path: Path) -> None:
     mp4.save()
 
 
+def cover_png() -> bytes:
+    """A 1×1 PNG used as embedded artwork."""
+    buffer = io.BytesIO()
+    Image.new("RGB", (1, 1), (255, 0, 0)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 def write_library_fixtures(fixtures_dir: Path) -> Path:
     """Write every library fixture plus manifest.json under `fixtures_dir / "Library"`."""
     root = fixtures_dir / "Library"
@@ -171,6 +180,13 @@ def write_library_fixtures(fixtures_dir: Path) -> Path:
         write_mp3(root / name, pcm)
         record(name, "mp3-untagged", {})
 
+    # Tag writing must keep artwork (DJ mode tag writing).
+    write_mp3(root / "artwork-v24.mp3", pcm)
+    artwork_tags = id3_frames()
+    artwork_tags.add(APIC(encoding=3, mime="image/png", type=3, desc="Cover", data=cover_png()))
+    save_id3(artwork_tags, root / "artwork-v24.mp3", 4)
+    record("artwork-v24.mp3", "mp3-id3v2.4", TAGS)
+
     write_wav(root / "tagged.wav", pcm)
     tag_id3_file(WAVE(str(root / "tagged.wav")), 3)
     record("tagged.wav", "wav-id3v2.3", TAGS)
@@ -190,6 +206,13 @@ def write_library_fixtures(fixtures_dir: Path) -> Path:
         afconvert(base, root / "tagged.m4a", "m4af", "aac")
         tag_m4a(root / "tagged.m4a")
         record("tagged.m4a", "m4a-itunes", TAGS)
+
+        afconvert(base, root / "artwork.m4a", "m4af", "aac")
+        tag_m4a(root / "artwork.m4a")
+        mp4 = MP4(str(root / "artwork.m4a"))
+        mp4["covr"] = [MP4Cover(cover_png(), imageformat=MP4Cover.FORMAT_PNG)]
+        mp4.save()
+        record("artwork.m4a", "m4a-itunes", TAGS)
 
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return root
