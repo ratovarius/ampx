@@ -6,6 +6,9 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     let audioPlayer: AudioPlayer
     let playlistManager: PlaylistManager
     let hosts: AmpXHostCoordinator
+    let libraryController: LibraryController?
+    /// Launch-time `startIfConfigured()`; opens the engine only when the library has roots.
+    private(set) var libraryStartTask: Task<Void, Never>?
 
     private let playsStartupSound: Bool
     private var playbackCoordinationBound = false
@@ -14,11 +17,13 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         audioPlayer: AudioPlayer,
         playlistManager: PlaylistManager,
         hosts: AmpXHostCoordinator,
+        libraryController: LibraryController? = nil,
         playsStartupSound: Bool? = nil
     ) {
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
         self.hosts = hosts
+        self.libraryController = libraryController
         self.playsStartupSound = playsStartupSound ?? !Self.isRunningUnderTest
         super.init()
     }
@@ -28,11 +33,35 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         self.loadStartupSoundIfNeeded()
         self.wirePlayerMenuButton()
         self.hosts.showAll()
+        if let libraryController = self.libraryController {
+            self.libraryStartTask = Task(priority: .utility) {
+                await libraryController.startIfConfigured()
+            }
+        }
     }
 
     func terminate() {
         self.hosts.flushLayoutPersistence()
         self.hosts.theaterController.handleApplicationTermination()
+    }
+
+    /// Runs before `terminate()`, from `applicationShouldTerminate`: AppKit exits right after
+    /// `applicationWillTerminate`, so the library's tokens and saves must be settled first. Returns after
+    /// `timeout` even if the engine is still stopping, so a stuck scan never blocks Quit.
+    func shutDownLibrary(timeout: Duration = .seconds(3)) async {
+        guard let libraryController = self.libraryController else { return }
+        let gate = ShutdownGate()
+        await withCheckedContinuation { continuation in
+            gate.continuation = continuation
+            Task { @MainActor in
+                await libraryController.stop()
+                gate.open()
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                gate.open()
+            }
+        }
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -50,6 +79,9 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
             return true
         case #selector(self.togglePlaylist(_:)):
             menuItem.state = self.hosts.state.closed.contains(.playlist) ? .off : .on
+            return true
+        case #selector(self.toggleLibrary(_:)):
+            menuItem.state = self.hosts.state.closed.contains(.library) ? .off : .on
             return true
         case #selector(self.toggleVisualizer(_:)):
             menuItem.state = self.hosts.state.closed.contains(.enthea) ? .off : .on
@@ -69,6 +101,15 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
 
     @objc func addFolder(_: Any?) {
         self.playlistManager.showFolderPicker()
+    }
+
+    /// Opens the Library window, then its Add Folder flow (which opens the engine on first use).
+    @objc func addLibraryFolder(_: Any?) {
+        if self.hosts.state.closed.contains(.library) {
+            self.hosts.reopenModule(.library)
+        }
+        guard let content = self.hosts.moduleView(for: .library)?.content as? LibraryModuleContent else { return }
+        Task { await content.addFolder() }
     }
 
     @objc func loadPlaylist(_: Any?) {
@@ -129,6 +170,10 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
 
     // MARK: - Window
 
+    @objc func toggleLibrary(_: Any?) {
+        self.toggleModule(.library)
+    }
+
     @objc func showAmpX(_: Any?) {
         self.hosts.showAll()
     }
@@ -165,9 +210,10 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     }
 
     private func loadStartupSoundIfNeeded() {
-        guard self.playsStartupSound else { return }
-        guard self.playlistManager.shouldPlayStartupSoundOnLaunch else { return }
-        guard let startupURL = Bundle.main.url(forResource: "startup", withExtension: "mp3") else {
+        guard self.playsStartupSound, self.playlistManager.shouldPlayStartupSoundOnLaunch, let startupURL = Bundle.main.url(
+            forResource: "startup",
+            withExtension: "mp3"
+        ) else {
             return
         }
 
@@ -202,6 +248,17 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     private static var isRunningUnderTest: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || NSClassFromString("XCTestCase") != nil
+    }
+}
+
+/// Resumes `shutDownLibrary` once, whichever of the engine stop and the timeout comes first.
+@MainActor
+private final class ShutdownGate {
+    var continuation: CheckedContinuation<Void, Never>?
+
+    func open() {
+        self.continuation?.resume()
+        self.continuation = nil
     }
 }
 

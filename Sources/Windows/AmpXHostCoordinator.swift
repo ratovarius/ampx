@@ -15,6 +15,10 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     let pinnedScreen: NSScreen?
     private let audioPlayer: AudioPlayer
     private let playlistManager: PlaylistManager
+    /// The app's library engine owner; nil (tests, pre-launch) shows the Library's empty state.
+    let libraryController: LibraryController?
+    private let libraryPanels: LibraryPanelPresenting
+    private var libraryResizeStart: CGSize?
     private let playerPresentationState = AmpXPlayerPresentationState()
     /// Closing the Player quits AmpX, as in Winamp. Injectable so tests can observe it.
     private let terminate: () -> Void
@@ -25,6 +29,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     private var frames: [AmpXModuleID: CGRect]
     private var playlistViewportHeight: CGFloat
     private var playlistWidth: CGFloat
+    /// Expanded Library window size (Library Module spec); resized like any window edge.
+    private(set) var librarySize: CGSize
     private var playlistResizeStart: (width: CGFloat, height: CGFloat)?
     /// Open frames when a live window resize began; attached windows reflow from this snapshot.
     private var liveResizeSnapshot: [AmpXModuleID: CGRect]?
@@ -56,6 +62,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         audioPlayer: AudioPlayer = .shared,
         playlistManager: PlaylistManager = .shared,
         entheaEnabled: Bool = AmpXFeatures.entheaEnabled,
+        libraryController: LibraryController? = nil,
+        libraryPanels: LibraryPanelPresenting = AppKitLibraryPanels(),
         terminate: @escaping () -> Void = { NSApp.terminate(nil) }
     ) {
         let resolvedScreen = screen ?? NSScreen.main ?? NSScreen.screens.first!
@@ -70,6 +78,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         self.pinnedScreen = screen
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
+        self.libraryController = libraryController
+        self.libraryPanels = libraryPanels
         self.terminate = terminate
         self.layoutStore = layoutStore ?? AmpXLayoutStore(defaults: .standard, screen: resolvedScreen)
 
@@ -77,6 +87,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         self.frames = saved.frames
         self.playlistViewportHeight = saved.playlistViewportHeight
         self.playlistWidth = saved.playlistWidth
+        self.librarySize = saved.librarySize
 
         self.createModuleViews()
     }
@@ -147,6 +158,10 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         if id == .enthea {
             (self.moduleViews[id]?.content as? EntheaModuleContent)?.closeHost()
         }
+        if id == .library {
+            // Stops the browser model only; the engine keeps scanning and watching (Library Module spec).
+            (self.moduleViews[id]?.content as? LibraryModuleContent)?.windowDidClose()
+        }
         self.state.close(id)
         self.focusModule(nextFocus)
         self.refreshEffectiveVisibility()
@@ -158,6 +173,10 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         guard id != .enthea || self.isEntheaEnabled else { return }
         self.state.reopen(id)
         self.showWindow(for: id)
+        // A reopened window with nothing focused starts at its preferred view (the Library's table).
+        if let view = self.moduleViews[id], let window = self.window(for: id), window.firstResponder === window {
+            window.makeFirstResponder(view.preferredFocusView)
+        }
         if id == .enthea {
             (self.moduleViews[id]?.content as? EntheaModuleContent)?.reopenHost()
         }
@@ -303,8 +322,14 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     /// Live edge-resize of the Playlist window: size follows the window and attached windows
     /// follow the edge they touch.
     func moduleWindowDidLiveResize(_ id: AmpXModuleID, frame: CGRect) {
-        guard id == .playlist, let snapshot = self.liveResizeSnapshot else { return }
-        if !self.state.collapsed.contains(.playlist) {
+        guard id == .playlist || id == .library, let snapshot = self.liveResizeSnapshot else { return }
+        if id == .library, !self.state.collapsed.contains(.library) {
+            self.librarySize = CGSize(
+                width: max(AmpXMetrics.minimumLibrarySize.width, frame.width),
+                height: max(AmpXMetrics.minimumLibrarySize.height, frame.height)
+            )
+        }
+        if id == .playlist, !self.state.collapsed.contains(.playlist) {
             self.playlistWidth = max(AmpXMetrics.minimumPlaylistWidth, frame.width)
             self.playlistViewportHeight = max(
                 AmpXMetrics.minimumPlaylistViewportHeight,
@@ -324,8 +349,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         for (other, frame) in self.openFrames() {
             self.frames[other] = frame
         }
-        if id == .playlist {
-            self.resizeKeepingAttachments([.playlist])
+        if id == .playlist || id == .library {
+            self.resizeKeepingAttachments([id])
         }
         self.persistLayout()
     }
@@ -406,7 +431,13 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     }
 
     private func windowSize(for id: AmpXModuleID) -> CGSize {
-        AmpXLayout.moduleSize(id, state: self.state, playlistViewportHeight: self.playlistViewportHeight, playlistWidth: self.playlistWidth)
+        AmpXLayout.moduleSize(
+            id,
+            state: self.state,
+            playlistViewportHeight: self.playlistViewportHeight,
+            playlistWidth: self.playlistWidth,
+            librarySize: self.librarySize
+        )
     }
 
     /// Creates the module's window on first use and shows it at its saved frame, sized for the
@@ -423,7 +454,11 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
         controller.install(view, size: size, playlistViewportHeight: self.playlistViewportHeight)
         controller.applyFrame(frame)
         self.frames[id] = frame
+        // Without an initial first responder AppKit rebuilds the key-view loop on first display,
+        // discarding the module's own Tab order.
+        controller.window?.initialFirstResponder = view.preferredFocusView
         controller.showWindow(nil)
+        view.wireFocusTraversal()
     }
 
     /// Resizes `ids` to their current window sizes, keeping each top-left corner, and moves the
@@ -515,6 +550,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
                 isTheater: { [weak self] in self?.theaterController.isActive ?? false },
                 onToggleTheater: { [weak self] in self?.toggleTheater() }
             )
+        case .library:
+            self.makeLibraryContent()
         }
     }
 
@@ -528,6 +565,39 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             self?.handlePlaylistResize(phase)
         }
         return content
+    }
+
+    private func makeLibraryContent() -> LibraryModuleContent {
+        let content = LibraryModuleContent(
+            skin: self.skin,
+            controller: self.libraryController,
+            playlist: self.playlistManager,
+            audioPlayer: self.audioPlayer,
+            panels: self.libraryPanels
+        )
+        content.onResizeViewport = { [weak self] phase in
+            self?.handleLibraryResize(phase)
+        }
+        return content
+    }
+
+    /// Library resize-handle drags (the Playlist's strips and grip); saves once when the drag ends.
+    func handleLibraryResize(_ phase: PlaylistResizeHandleView.Phase) {
+        switch phase {
+        case .began:
+            self.libraryResizeStart = self.librarySize
+        case let .changed(delta):
+            guard let start = self.libraryResizeStart else { return }
+            self.librarySize = CGSize(
+                width: max(AmpXMetrics.minimumLibrarySize.width, start.width + delta.width),
+                height: max(AmpXMetrics.minimumLibrarySize.height, start.height + delta.height)
+            )
+            self.resizeKeepingAttachments([.library])
+        case .ended:
+            guard self.libraryResizeStart != nil else { return }
+            self.libraryResizeStart = nil
+            self.persistLayout()
+        }
     }
 
     private func toggleModuleVisibility(_ id: AmpXModuleID) {
@@ -582,7 +652,8 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             state: persistedState,
             frames: self.frames,
             playlistViewportHeight: self.playlistViewportHeight,
-            playlistWidth: self.playlistWidth
+            playlistWidth: self.playlistWidth,
+            librarySize: self.librarySize
         ))
     }
 }

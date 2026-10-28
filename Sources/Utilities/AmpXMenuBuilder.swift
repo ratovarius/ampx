@@ -101,6 +101,11 @@ enum AmpXMenuBuilder {
                 shift: AmpXMenuCatalog.FileShortcut.addFolderUsesShift
             )
         )
+        menu.addItem(
+            titled: AmpXMenuCatalog.FileItem.addLibraryFolder.rawValue,
+            action: #selector(AmpXApplicationController.addLibraryFolder(_:)),
+            target: application
+        )
         menu.addItem(.separator())
         menu.addItem(
             titled: AmpXMenuCatalog.FileItem.loadPlaylist.rawValue,
@@ -121,6 +126,15 @@ enum AmpXMenuBuilder {
     @MainActor
     private static func makeEditMenu() -> NSMenuItem {
         let menu = NSMenu(title: "Edit")
+        // Nil targets: the first responder (the Library search box) handles them.
+        for (title, action, key) in [
+            ("Cut", #selector(NSText.cut(_:)), "x"),
+            ("Copy", #selector(NSText.copy(_:)), "c"),
+            ("Paste", #selector(NSText.paste(_:)), "v"),
+            ("Select All", #selector(NSResponder.selectAll(_:)), "a"),
+        ] {
+            menu.addItem(NSMenuItem(title: title, action: action, keyEquivalent: key))
+        }
         return self.titled("Edit", submenu: menu)
     }
 
@@ -211,6 +225,13 @@ enum AmpXMenuBuilder {
             titled: "AmpX",
             action: #selector(AmpXApplicationController.showAmpX(_:)),
             target: application
+        )
+        menu.addItem(
+            titled: AmpXMenuCatalog.ViewPanel.library.rawValue,
+            action: #selector(AmpXApplicationController.toggleLibrary(_:)),
+            target: application,
+            keyEquivalent: "l",
+            modifiers: .command
         )
         menu.addItem(.separator())
         menu.addItem(

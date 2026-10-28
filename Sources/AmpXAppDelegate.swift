@@ -28,17 +28,23 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
         let playlistManager = PlaylistManager.shared
         let layoutStore = AmpXLayoutStore(defaults: .standard)
         let saved = layoutStore.load()
+        let libraryController = LibraryController(configuration: LibraryEngineConfiguration(
+            startupFlag: UserDefaultsLibraryStartupFlag(defaults: .standard),
+            bookmarkStore: .shared
+        ))
         let hosts = AmpXHostCoordinator(
             state: saved.state,
             skin: ClassicModernSkin(),
             layoutStore: layoutStore,
             audioPlayer: audioPlayer,
-            playlistManager: playlistManager
+            playlistManager: playlistManager,
+            libraryController: libraryController
         )
         let application = AmpXApplicationController(
             audioPlayer: audioPlayer,
             playlistManager: playlistManager,
-            hosts: hosts
+            hosts: hosts,
+            libraryController: libraryController
         )
         self.applicationController = application
 
@@ -56,6 +62,16 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false
+    }
+
+    /// Stops the library before AppKit exits, so its scan and import tokens are revoked and saves drained.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let controller = self.applicationController else { return .terminateNow }
+        Task { @MainActor in
+            await controller.shutDownLibrary()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_: Notification) {

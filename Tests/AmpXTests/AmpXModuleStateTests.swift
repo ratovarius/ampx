@@ -4,7 +4,7 @@ import XCTest
 final class AmpXModuleStateTests: XCTestCase {
     func testDefaultStateHasEntheaClosed() {
         let state = AmpXModuleState()
-        XCTAssertEqual(state.closed, [.enthea])
+        XCTAssertEqual(state.closed, [.enthea, .library])
         XCTAssertTrue(state.collapsed.isEmpty)
     }
 

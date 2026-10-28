@@ -15,6 +15,11 @@ class AmpXModuleContent: AmpXDrawingView {
         }
     }
 
+    /// Where keyboard focus goes when the module opens; nil means the module header.
+    var preferredFocusView: NSView? {
+        nil
+    }
+
     func focusableControls() -> [NSView] {
         subviews
             .filter { view in
@@ -44,6 +49,8 @@ class AmpXModuleContent: AmpXDrawingView {
             preconditionFailure("Playlist module content must be constructed by AmpXHostCoordinator")
         case .enthea:
             preconditionFailure("Enthea module content must be constructed by AmpXHostCoordinator")
+        case .library:
+            preconditionFailure("Library module content must be constructed by AmpXHostCoordinator")
         }
     }
 }

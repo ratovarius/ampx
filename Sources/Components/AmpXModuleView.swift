@@ -150,9 +150,9 @@ final class AmpXModuleView: NSView {
         width > 0 ? width / AmpXMetrics.compositionWidth : 1
     }
 
-    /// Only the Playlist keeps 1:1 content points at any width.
+    /// The Playlist and the Library keep 1:1 content points at any width.
     static func stretchesHorizontally(_ moduleID: AmpXModuleID) -> Bool {
-        moduleID == .playlist
+        moduleID == .playlist || moduleID == .library
     }
 
     func setContentCollapsed(_ collapsed: Bool) {
@@ -195,6 +195,9 @@ final class AmpXModuleView: NSView {
         if self.isContentCollapsed, let compactContent {
             return compactContent.expandButton
         }
+        if !self.isContentCollapsed, let view = self.content.preferredFocusView {
+            return view
+        }
         return self.header
     }
 
@@ -228,6 +231,7 @@ final class AmpXModuleView: NSView {
         case .equalizer: "Equalizer"
         case .playlist: "Playlist"
         case .enthea: "ENTHEA"
+        case .library: "Library"
         }
     }
 }

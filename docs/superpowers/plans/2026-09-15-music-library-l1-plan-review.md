@@ -3,7 +3,7 @@
 **Date:** 2026-09-15
 **Reviewed:** [Music Library L1 Implementation Plan](./2026-09-15-music-library-l1.md) against [Music Library spec, Revision 5](../specs/2026-09-11-music-library-design.md)
 **Method:** superpowers:writing-plans self-review checklist (spec coverage, placeholder scan, type consistency, task sizing) plus source checks against `develop` (`5562af8`) and `feature/ampx-ui` (`086e577`)
-**Status:** Open. Items 1–5 block execution; item 3 needs a user decision.
+**Status:** Resolved 2026-09-27 — plan and spec (Revision 6) revised; see *Resolution* at the end.
 
 ## Does the plan include the Library UI?
 
@@ -72,8 +72,35 @@ Strengths: global constraints; the Revision 5 ambiguity basis is encoded in the 
 
 The design is sound. The plan is **ready to execute after items 1–5 are fixed**; items 6–8 can go in the same edit.
 
+## Re-check against `develop` (2026-09-27, `e7dc082`)
+
+- **Item 1 is resolved by the merge.** `feature/ampx-ui` (including `5562af8`) is merged into `develop`. Base L1 on `develop`; work continues on `feature/music-library` (`.worktrees/music-library`).
+- **New: deployment target is now macOS 26.0**, not 26.4 (`fix/macos-min-26.0`). The spec's *Decisions* row and the plan's tech stack must say 26.0. SwiftData `#Index`/`#Unique` still need only macOS 15.
+- **Items 2–5 are unchanged.** Tests still run inside the sandboxed host (`TEST_HOST`, `app-sandbox`, `assets.music.read-only`); the plan still reads plain `AMPX_LIBRARY_GATE_*` variables; item 3 still awaits a decision; the missing interfaces and two-phase init are still in the plan.
+- **Item 6 is unchanged.** The Add Files panel (`Sources/PlaylistManager.swift:660`) still allows only mp3/wav/flac/m3u; `M3UParser.supportedExtensions` is still mp3/flac/wav.
+- **Plan's "repository facts" are still true** for `TrackMetadataLoader.Metadata`, the private bookmark statics, and `PlaylistManager.init`.
+- **The L2 amendment target moved.** The UI spec is now Revision 9 (resizable Playlist width) plus the compact-modules addendum, and Winamp docking has merged. The Library spec's L2 section still cites Revision 7 and a fixed 490 pt width. The amendment must cover the compact presentation, the width rule and docking/detach behaviour, besides the four original items. The UI spec still lists Library as out of scope.
+
+## Resolution (2026-09-27)
+
+| Item | Resolution |
+|---|---|
+| 1 Base branch | `develop`; branch `feature/music-library` |
+| 26.0 target | Spec and plan say 26.0 |
+| 2 Gate under xcodebuild/sandbox | Spec *Where each measurement runs*: APFS evidence and the 11k walk in the container temp dir; `~/Music/DJ` via the Music entitlement and the real home path; opt-in `TEST_RUNNER_AMPX_LIBRARY_GATE=1`; HFS+/exFAT via `scripts/library-gate-rename.swift` on `hdiutil` images (verified mountable) |
+| 3 Missing hardware | Spec *Gate exit rule* (default adopted: SMB and spinning drive waivable) + `LibraryRenameTracking` allowlist on `volumeTypeNameKey` |
+| 4 Interfaces | `LibraryStore.applyIntegrityMerges`, `LibraryFileSystem.stat(at:)`, `Metadata.readFailed`, `LibraryEngine.openIfConfigured` (Task 14, before its start-up test) |
+| 5 Two-phase init | Hand-written `ModelActor` with one `init(modelContainer:dependencies:)` |
+| 6 Add Files panel | Panel types derived from `supportedExtensions` (Task 4) |
+| 7 Coverage gaps | Success criterion 2 test (Task 16); codec from extension (Task 4); `Metadata` uses `var` fields |
+| 8 Plan standard | 16 tasks: fingerprint split from the gate, scheduling split from the watcher, engine split from the browser; code for FSEvents ownership, transactions, index refresh, engine; explicit run/expect steps |
+| New: CI has no FFmpeg | Fixtures via `afconvert` + `lameenc` + `mutagen` (verified locally) |
+| New: `Package.swift` gone | `swift build` steps removed |
+| New: format/lint | Plan defers to the format hook and CI, per `AGENTS.md` |
+
 ## Next steps
 
-- [ ] User decides item 3 (required vs. waivable gate evidence).
-- [ ] Revise the L1 plan for items 1–8.
-- [ ] Draft the AmpX UI spec amendment (module ID, variable-height overflow, text input, key-router 2b) so L2 planning can start.
+- [x] Item 3 decided (proposed default adopted; revisit if you have SMB or a spinning drive).
+- [x] Revise the L1 plan for items 1–8.
+- [ ] Execute the L1 plan from Task 1.
+- [ ] Draft the AmpX UI spec amendment (spec items 1–7) so L2 planning can start.

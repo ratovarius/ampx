@@ -277,7 +277,8 @@ final class AudioPlayerTests: XCTestCase {
         self.player.play()
         self.waitBriefly(0.2)
         self.player.pause()
-        waitForMainQueue()
+        // Pause runs on the audio queue, which then posts the state to main: one main-queue turn can come first.
+        waitForMainQueue(until: { !self.player.isPlaying }, timeout: 2)
         XCTAssertFalse(self.player.isPlaying)
         XCTAssertEqual(self.player.testing_lastTransportAction, .pause)
     }

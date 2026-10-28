@@ -118,6 +118,55 @@ final class AmpXMenuBuilderTests: XCTestCase {
         XCTAssertTrue(titles.contains("Bring All to Front"))
     }
 
+    func testWindowMenuLibraryToggleAndShortcut() throws {
+        let application = self.makeApplication()
+        let menu = AmpXMenuBuilder.makeMainMenu(application: application)
+        let window = try XCTUnwrap(menu.item(withTitle: "Window")?.submenu)
+        let library = try XCTUnwrap(window.item(withTitle: AmpXMenuCatalog.ViewPanel.library.rawValue))
+        XCTAssertEqual(library.keyEquivalent, "l")
+        XCTAssertEqual(library.keyEquivalentModifierMask, .command)
+        window.update()
+        XCTAssertEqual(library.state, .off)
+
+        application.toggleLibrary(nil)
+        window.update()
+        XCTAssertEqual(library.state, .on)
+        XCTAssertFalse(application.hosts.state.closed.contains(.library))
+        XCTAssertNotNil(application.hosts.moduleView(for: .library))
+
+        application.toggleLibrary(nil)
+        XCTAssertTrue(application.hosts.state.closed.contains(.library))
+        application.hosts.hideAllWindowsForTesting()
+    }
+
+    /// ⌘X ⌘C ⌘V ⌘A reach the focused text input (the Library search) through the responder chain.
+    func testEditMenuHasStandardTextCommands() throws {
+        let menu = AmpXMenuBuilder.makeMainMenu(application: self.makeApplication())
+        let edit = try XCTUnwrap(menu.item(withTitle: "Edit")?.submenu)
+        let expected: [(String, Selector, String)] = [
+            ("Cut", #selector(NSText.cut(_:)), "x"),
+            ("Copy", #selector(NSText.copy(_:)), "c"),
+            ("Paste", #selector(NSText.paste(_:)), "v"),
+            ("Select All", #selector(NSResponder.selectAll(_:)), "a"),
+        ]
+        for (title, action, key) in expected {
+            let item = try XCTUnwrap(edit.item(withTitle: title), title)
+            XCTAssertEqual(item.action, action)
+            XCTAssertNil(item.target)
+            XCTAssertEqual(item.keyEquivalent, key)
+            XCTAssertEqual(item.keyEquivalentModifierMask, .command)
+        }
+    }
+
+    func testFileMenuAddLibraryFolder() throws {
+        let application = self.makeApplication()
+        let menu = AmpXMenuBuilder.makeMainMenu(application: application)
+        let file = try XCTUnwrap(menu.item(withTitle: "File")?.submenu)
+        let item = try XCTUnwrap(file.item(withTitle: AmpXMenuCatalog.FileItem.addLibraryFolder.rawValue))
+        XCTAssertEqual(item.action, #selector(AmpXApplicationController.addLibraryFolder(_:)))
+        XCTAssertTrue(item.target === application)
+    }
+
     func testShuffleAndRepeatReflectPlaylistState() throws {
         let application = self.makeApplication()
         application.playlistManager.shuffleEnabled = true
