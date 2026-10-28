@@ -115,6 +115,37 @@ extension LibraryStore {
         }
     }
 
+    /// Each row's stored phrase stamp (JSON `RekordboxFileStamp` of its `.EXT`), for rows that have one.
+    func phraseStamps() throws -> [UUID: Data] {
+        var stamps: [UUID: Data] = [:]
+        for track in try self.modelContext.fetch(FetchDescriptor<LibraryTrack>()) {
+            if let stamp = track.phrasesStamp {
+                stamps[track.id] = stamp
+            }
+        }
+        return stamps
+    }
+
+    /// One transaction for a phrase-import run; writes for rows that no longer exist are skipped.
+    func applyRekordboxPhrases(_ writes: [RekordboxPhraseWrite]) throws {
+        guard !writes.isEmpty else { return }
+        try self.commit(nil) {
+            let rows = try Dictionary(
+                uniqueKeysWithValues: self.modelContext.fetch(FetchDescriptor<LibraryTrack>()).map { ($0.id, $0) }
+            )
+            var roots: [UUID] = []
+            for write in writes {
+                guard let row = rows[write.rowID] else { continue }
+                row.phrases = write.phrases
+                row.phrasesStamp = write.stamp
+                if !roots.contains(row.rootID) {
+                    roots.append(row.rootID)
+                }
+            }
+            return roots.map { .rowsChanged(rootID: $0) }
+        }
+    }
+
     /// The export is gone: keep its values, stamp and report, and mark it not present.
     func markRekordboxSourceAbsent(rootID: UUID) throws {
         try self.commit(nil) {

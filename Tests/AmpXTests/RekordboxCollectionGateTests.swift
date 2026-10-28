@@ -96,6 +96,54 @@ final class RekordboxCollectionGateTests: XCTestCase {
         await self.engine?.stop()
     }
 
+    /// DJ mode delivery 1: phrases from `~/Library/Pioneer/rekordbox` reach most of `~/Music/DJ`. Skips when the
+    /// test host cannot read that folder (a sandboxed host needs the user's grant).
+    func testRealPhraseImport() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["AMPX_LIBRARY_GATE"] == "1",
+            "Set TEST_RUNNER_AMPX_LIBRARY_GATE=1 to import phrases for ~/Music/DJ"
+        )
+        let home = try String(cString: XCTUnwrap(getpwuid(getuid())).pointee.pw_dir)
+        let rekordbox = URL(fileURLWithPath: home).appendingPathComponent("Library/Pioneer/rekordbox", isDirectory: true)
+        try XCTSkipUnless(
+            FileManager.default.isReadableFile(atPath: RekordboxAnalysisAccess.analysisFolder(in: rekordbox).path),
+            "The test host cannot read \(rekordbox.path)"
+        )
+        let log = EventLog()
+        let scope = ScopeSpy(log: log)
+        var configuration = LibraryEngineConfiguration(
+            startupFlag: FlagSpy(log: log),
+            bookmarkStore: SecurityScopedBookmarkStore(userDefaults: T.isolatedDefaults(self))
+        )
+        configuration.storeURL = nil
+        configuration.analysisSource = { RekordboxAnalysisDirectory(folder: rekordbox) }
+        configuration.storeDependencies = { flag in
+            var dependencies = LibraryStoreDependencies(startupFlag: flag)
+            dependencies.scope = scope.scope
+            dependencies.bookmarks = LibraryTestSupport.plainBookmarks
+            return dependencies
+        }
+        let engine = try await LibraryEngine.open(configuration)
+        self.engine = engine
+        let rootID = try await engine.addRoot(url: URL(fileURLWithPath: home).appendingPathComponent("Music/DJ", isDirectory: true))
+        let deadline = Date().addingTimeInterval(240)
+        var withPhrases = 0
+        var total = 0
+        while Date() < deadline {
+            await engine.waitUntilIdle()
+            let rows = try await engine.store.rekordboxSnapshot().rows.filter { $0.rootID == rootID }
+            let stamps = try await engine.store.phraseStamps()
+            total = rows.count
+            withPhrases = rows.count { stamps[$0.id] != nil }
+            if total > 0, withPhrases >= total * 95 / 100 {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        print("LIBRARY-GATE-phrases: \(withPhrases) of \(total) rows matched to rekordbox analysis")
+        XCTAssertGreaterThanOrEqual(withPhrases, total * 95 / 100)
+    }
+
     func testRealCollectionSync() async throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["AMPX_LIBRARY_GATE"] == "1",

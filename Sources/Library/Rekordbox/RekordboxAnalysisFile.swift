@@ -40,6 +40,23 @@ enum RekordboxAnalysisFile {
         return trimmed.isEmpty ? nil : trimmed.precomposedStringWithCanonicalMapping
     }
 
+    /// The analysed file's name. rekordbox stores only `?/` plus the name in `PPTH`, never the folder.
+    static func fileName(dat: Data) -> String? {
+        self.trackPath(dat: dat).map { ($0 as NSString).lastPathComponent }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// The first beat of the beatgrid in an `ANLZ0000.DAT` (`PQTZ`): time in seconds, BPM and beat number.
+    static func firstBeat(dat: Data) -> RekordboxBeat? {
+        let bytes = [UInt8](dat)
+        guard let section = self.section("PQTZ", in: bytes), section.count >= 32, self.u32(section[...], 20) > 0 else { return nil }
+        return RekordboxBeat(
+            start: Double(self.u32(section[...], 28)) / 1000,
+            bpm: Double(self.u16(section, 26)) / 100,
+            meter: "",
+            beat: Int(self.u16(section, 24))
+        )
+    }
+
     /// The phrase analysis in an `ANLZ0000.EXT` (`PSSI` section), unmasked when rekordbox masked it.
     static func phrases(ext: Data) -> RekordboxPhraseAnalysis? {
         let bytes = [UInt8](ext)

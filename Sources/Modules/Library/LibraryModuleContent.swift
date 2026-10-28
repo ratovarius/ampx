@@ -325,6 +325,9 @@ final class LibraryModuleContent: AmpXModuleContent {
         ) else { return }
         do {
             try self.analysisAccess.grant(folder)
+            if let engine = self.controller?.engine {
+                Task { await engine.phraseSync.requestRun() }
+            }
             self.onRekordboxAnalysisGranted?()
         } catch RekordboxAccessError.notAnAnalysisFolder {
             self.panels.showError(Self.notAnalysisFolderMessage)

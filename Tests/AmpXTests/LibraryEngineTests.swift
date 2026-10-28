@@ -100,6 +100,20 @@ final class LibraryEngineTests: XCTestCase {
 
     // MARK: - Root operations
 
+    func testStartRequestsPhraseImportAndDefaultsToNoSource() async throws {
+        XCTAssertNil(LibraryEngineConfiguration(startupFlag: self.flag, bookmarkStore: .shared).analysisSource())
+        let asked = EventLog()
+        var configuration = self.configuration()
+        configuration.analysisSource = {
+            asked.append("source")
+            return nil
+        }
+        let engine = try await LibraryEngine.open(configuration)
+        self.engines.append(engine)
+        await engine.waitUntilIdle()
+        XCTAssertEqual(asked.events, ["source"])
+    }
+
     func testAddScansAndPublishes() async throws {
         let engine = try await self.open()
         let versions = await engine.index.versions()

@@ -6,13 +6,24 @@ enum ANLZTestData {
         0xCB, 0xE1, 0xEE, 0xFA, 0xE5, 0xEE, 0xAD, 0xEE, 0xE9, 0xD2, 0xE9, 0xEB, 0xE1, 0xE9, 0xF3, 0xE8, 0xE9, 0xF4, 0xE1,
     ]
 
-    static func dat(path: String) -> Data {
+    /// rekordbox writes `?/` plus the file name as the path. `firstBeat` is `(seconds, bpm, beat number)` of the
+    /// beatgrid's first beat (`PQTZ`); nil leaves the grid out.
+    static func dat(path: String, firstBeat: (Double, Double, Int)? = (0.2, 128, 1)) -> Data {
         var pathBytes: [UInt8] = []
         for unit in (path + "\u{0}").utf16 {
             pathBytes += [UInt8(unit >> 8), UInt8(unit & 0xFF)]
         }
-        let section = Self.u32Bytes(UInt32(pathBytes.count)) + pathBytes
-        return self.file([self.section("PPTH", headerLength: 16, body: section)])
+        var sections = [self.section("PPTH", headerLength: 16, body: Self.u32Bytes(UInt32(pathBytes.count)) + pathBytes)]
+        if let (seconds, bpm, beat) = firstBeat {
+            var grid = Self.u32Bytes(0) + Self.u32Bytes(0x80000) + Self.u32Bytes(2)
+            for index in 0 ..< 2 {
+                let time = UInt32(((seconds + Double(index) * 60 / bpm) * 1000).rounded())
+                grid += Self.u16Bytes(UInt16((beat + index - 1) % 4 + 1)) + Self.u16Bytes(UInt16((bpm * 100).rounded()))
+                grid += Self.u32Bytes(time)
+            }
+            sections.append(self.section("PQTZ", headerLength: 24, body: grid))
+        }
+        return self.file(sections)
     }
 
     /// `entries` are `(beat, kind)` pairs; `count` overrides the stored entry count (to corrupt it).

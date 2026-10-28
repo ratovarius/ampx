@@ -41,6 +41,16 @@ final class RekordboxAnalysisFileTests: XCTestCase {
         XCTAssertNil(RekordboxAnalysisFile.phrases(ext: Data()))
     }
 
+    func testFileNameAndFirstBeat() throws {
+        let dat = ANLZTestData.dat(path: "?/Re\u{301}mix #1.mp3", firstBeat: (0.165, 127.5, 2))
+        XCTAssertEqual(RekordboxAnalysisFile.fileName(dat: dat), "R\u{E9}mix #1.mp3")
+        let beat = try XCTUnwrap(RekordboxAnalysisFile.firstBeat(dat: dat))
+        XCTAssertEqual(beat.start, 0.165, accuracy: 0.0005)
+        XCTAssertEqual(beat.bpm, 127.5)
+        XCTAssertEqual(beat.beat, 2)
+        XCTAssertNil(RekordboxAnalysisFile.firstBeat(dat: ANLZTestData.dat(path: "?/a.mp3", firstBeat: nil)))
+    }
+
     func testTrackPathIsNFC() {
         let nfd = "/Users/x/Music/DJ/Mu\u{301}sica/Re\u{301}mix #1.mp3"
         XCTAssertEqual(

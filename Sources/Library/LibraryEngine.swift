@@ -14,6 +14,13 @@ struct LibraryEngineConfiguration: Sendable {
 
     var watcherLatency: TimeInterval = 2
     var indexTiming: LibraryIndexTiming = .live
+    /// rekordbox's analysis folder for phrase import, opened per run. None by default: only the app passes the
+    /// granted folder (`live`), so tests never read the user's rekordbox data.
+    var analysisSource: @Sendable () -> (any RekordboxAnalysisSource)? = { nil }
+
+    static let liveAnalysisSource: @Sendable () -> (any RekordboxAnalysisSource)? = {
+        RekordboxAnalysisAccess(defaults: .standard).resolve().map { RekordboxAnalysisDirectory(folder: $0) }
+    }
 }
 
 /// Composes store, scanner, index and watcher, and coordinates root operations (spec: "Architecture").
@@ -30,6 +37,8 @@ actor LibraryEngine {
     nonisolated let watcher: LibraryWatcher
     /// Imports rekordbox exports found at roots' top level after their scans (rekordbox sync spec).
     nonisolated let rekordbox: RekordboxSync
+    /// Imports rekordbox's phrase analysis after each import, at launch and on grant (DJ mode spec Revision 2).
+    nonisolated let phraseSync: RekordboxPhraseSync
     private var watchedURLs: [UUID: URL] = [:]
     private var listener: Task<Void, Never>?
     private var pendingRewatches: [Task<Void, Never>] = []
@@ -40,9 +49,11 @@ actor LibraryEngine {
         scanner: LibraryScanner,
         watcher: LibraryWatcher,
         rekordbox: RekordboxSync,
+        phraseSync: RekordboxPhraseSync,
         bookmarkStore: SecurityScopedBookmarkStore
     ) {
         self.rekordbox = rekordbox
+        self.phraseSync = phraseSync
         self.store = store
         self.index = index
         self.scanner = scanner
@@ -79,6 +90,9 @@ actor LibraryEngine {
             scanner: scanner,
             watcher: watcher,
             rekordbox: RekordboxSync(store: store, scanner: scanner, fileSystem: configuration.fileSystem),
+            phraseSync: RekordboxPhraseSync(
+                store: store, scanner: scanner, fileSystem: configuration.fileSystem, source: configuration.analysisSource
+            ),
             bookmarkStore: configuration.bookmarkStore
         )
         reference.engine = engine
@@ -94,7 +108,10 @@ actor LibraryEngine {
         }
         await self.watcher.startVolumeObservation()
         // Before the launch scans, so their `finished` events trigger the rekordbox checks.
+        let phraseSync = self.phraseSync
+        await self.rekordbox.setOnImported { await phraseSync.requestRun() }
         await self.rekordbox.start()
+        await phraseSync.requestRun()
         for root in try await self.store.startAccessForAvailableRoots() {
             self.watch(root)
             await self.scanner.requestScan(rootID: root.id)
@@ -171,6 +188,7 @@ actor LibraryEngine {
     func waitUntilIdle() async {
         await self.scanner.waitUntilIdle()
         await self.rekordbox.waitUntilIdle()
+        await self.phraseSync.waitUntilIdle()
         while !self.pendingRewatches.isEmpty {
             let tasks = self.pendingRewatches
             self.pendingRewatches.removeAll()
@@ -186,8 +204,10 @@ actor LibraryEngine {
         self.pendingRewatches.forEach { $0.cancel() }
         self.pendingRewatches.removeAll()
         await self.rekordbox.halt()
+        await self.phraseSync.halt()
         await self.scanner.stop()
         await self.rekordbox.waitUntilIdle()
+        await self.phraseSync.waitUntilIdle()
         await self.watcher.stop()
         self.watchedURLs.removeAll()
         await self.index.stop()

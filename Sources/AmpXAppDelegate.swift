@@ -28,10 +28,12 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
         let playlistManager = PlaylistManager.shared
         let layoutStore = AmpXLayoutStore(defaults: .standard)
         let saved = layoutStore.load()
-        let libraryController = LibraryController(configuration: LibraryEngineConfiguration(
+        var libraryConfiguration = LibraryEngineConfiguration(
             startupFlag: UserDefaultsLibraryStartupFlag(defaults: .standard),
             bookmarkStore: .shared
-        ))
+        )
+        libraryConfiguration.analysisSource = LibraryEngineConfiguration.liveAnalysisSource
+        let libraryController = LibraryController(configuration: libraryConfiguration)
         let hosts = AmpXHostCoordinator(
             state: saved.state,
             skin: ClassicModernSkin(),

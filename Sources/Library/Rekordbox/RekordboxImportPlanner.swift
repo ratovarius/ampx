@@ -93,15 +93,11 @@ enum RekordboxImportPlanner {
         }
 
         // Pass 1: paths. A row claimed by two entries is ambiguous for both.
-        var byPath: [UUID: [String: UUID]] = [:]
-        for row in library.rows {
-            let caseSensitive = roots[row.rootID]?.caseSensitive ?? true
-            byPath[row.rootID, default: [:]][self.key(row.relativePath, caseSensitive: caseSensitive)] = row.id
-        }
+        let matcher = RekordboxPathMatcher(library)
         var pathClaims: [UUID: [Int]] = [:]
         var unresolved: [Int] = []
         for (index, track) in collection.tracks.enumerated() {
-            if let rowID = self.pathMatch(track.path, roots: library.roots, byPath: byPath) {
+            if let rowID = matcher.rowID(for: track.path) {
                 pathClaims[rowID, default: []].append(index)
             } else {
                 unresolved.append(index)
@@ -157,25 +153,6 @@ enum RekordboxImportPlanner {
             .map(fullPath)
             .sorted()
         return RekordboxImportPlan(writes: writes, report: report)
-    }
-
-    // MARK: - Matching
-
-    private static func key(_ path: String, caseSensitive: Bool) -> String {
-        let normalized = path.precomposedStringWithCanonicalMapping
-        return caseSensitive ? normalized : normalized.lowercased()
-    }
-
-    private static func pathMatch(_ path: String, roots: [RekordboxRootPath], byPath: [UUID: [String: UUID]]) -> UUID? {
-        for root in roots {
-            let prefix = self.key(root.path, caseSensitive: root.caseSensitive) + "/"
-            let candidate = self.key(path, caseSensitive: root.caseSensitive)
-            guard candidate.hasPrefix(prefix) else { continue }
-            if let rowID = byPath[root.id]?[String(candidate.dropFirst(prefix.count))] {
-                return rowID
-            }
-        }
-        return nil
     }
 
     // MARK: - Values
