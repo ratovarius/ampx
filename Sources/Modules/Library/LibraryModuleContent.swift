@@ -67,6 +67,8 @@ final class LibraryModuleContent: AmpXModuleContent {
     private(set) var errorMessage: String?
     private var preferences: LibraryModulePreferences
     private var rootsLoaded = false
+    /// Every library row, for MIXES WELL; refreshed whenever the model publishes rows.
+    private var libraryRows: [LibraryRow] = []
 
     private let controller: LibraryController?
     private let playlist: PlaylistManager?
@@ -228,6 +230,15 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.syncSelectionToModel(selection)
         self.updateFooter()
         self.updateSidebarReference()
+        self.refreshLibraryRows()
+    }
+
+    private func refreshLibraryRows() {
+        self.startTask { content in
+            guard let rows = await content.model?.allRows() else { return }
+            content.libraryRows = rows
+            content.updateSidebarReference()
+        }
     }
 
     /// The footer shows scan progress only while a run is going.
@@ -247,13 +258,20 @@ final class LibraryModuleContent: AmpXModuleContent {
         )
     }
 
+    /// The reference follows the switch: the focused row, or the playing track looked up across the whole library
+    /// (it may be filtered out of the table). Matches use the reference's BPM until Automix supplies the live tempo.
     private func updateSidebarReference() {
         let row: LibraryRow? = if self.sidebar.followsSelection {
             self.table.selection.focused.flatMap { id in self.table.rows.first { $0.id == id } }
         } else {
-            self.audioPlayer?.currentTrack?.url.flatMap { url in self.table.rows.first { $0.url == url } }
+            self.audioPlayer?.currentTrack?.url.flatMap { url in
+                self.libraryRows.first { $0.url == url } ?? self.table.rows.first { $0.url == url }
+            }
         }
         self.sidebar.updateReference(row)
+        self.sidebar.updateMatches(row.flatMap { reference in
+            reference.bpm.map { MixesWell.matches(reference: reference, tempo: $0, rows: self.libraryRows) }
+        })
     }
 
     private func refreshOverlay() {
@@ -352,6 +370,7 @@ final class LibraryModuleContent: AmpXModuleContent {
             self?.startTask { await $0.model?.enqueue(append: false, clickedID: id) }
         }
         self.table.onDragBegan = { [weak self] rows in self?.registerRoots(of: rows) }
+        self.sidebar.onQueue = { [weak self] row in self?.startTask { await $0.model?.append([row]) } }
         self.sidebar.onModeChange = { [weak self] followsSelection in
             guard let self else { return }
             self.preferences.mixesFollowsSelection = followsSelection

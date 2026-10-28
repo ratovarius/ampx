@@ -281,6 +281,47 @@ final class LibraryModuleContentTests: XCTestCase {
         }
     }
 
+    func testPlayingTrackOutsideFilterStillDrivesMatches() async throws {
+        func row(_ title: String, genre: String, bpm: Double) -> LibraryRow {
+            LibraryRow(
+                id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/Music/\(title).mp3"),
+                title: title, artist: "Artist", album: "", albumArtist: "", genre: genre, trackNumber: nil,
+                duration: 300, fileSize: 1, bpm: bpm, musicalKey: "Am", camelotKey: "8A",
+                bitrate: 0, bitrateIsDerived: false, codec: "mp3", isAvailable: true,
+                searchKey: "\(title) \(genre)".lowercased(), tempoSpread: 0
+            )
+        }
+        let playing = row("playing", genre: "Techno", bpm: 128)
+        let candidate = row("candidate", genre: "Techno", bpm: 129)
+        let house = row("deep", genre: "House", bpm: 122)
+        let rows = [playing, candidate, house]
+        let services = LibraryBrowserServices(
+            query: { query, generation in query.evaluate(rows: rows, snapshotVersion: 0, generation: generation) },
+            rows: { ids in rows.filter { ids.contains($0.id) } },
+            versions: { AsyncStream { _ in } },
+            progress: { AsyncStream { _ in } },
+            roots: { [] }
+        )
+        let player = AudioPlayer(installRemoteCommands: false)
+        let content = LibraryModuleContent(
+            skin: ClassicModernSkin(), controller: nil, playlist: self.playlist, audioPlayer: player,
+            panels: self.panels, defaults: self.defaults
+        )
+        content.frame = CGRect(origin: .zero, size: CGSize(width: 1000, height: 470))
+        self.contents.append(content)
+        content.attach(model: LibraryBrowserModel(services: services, playlist: self.playlist, bookmarkStore: .shared, beep: {}))
+        content.toolbar.onSearch?("house")
+        await self.eventually { content.table.rows.map(\.title) == ["deep"] }
+
+        player.currentTrack = Track(title: "playing", artist: "Artist", url: playing.url)
+
+        await self.eventually { content.sidebar.lines.first == "Artist – candidate" }
+        XCTAssertEqual(content.sidebar.referenceText, "Artist – playing · 128 BPM · Am")
+        content.sidebar.selectedMatchID = candidate.id
+        content.sidebar.queueButton.action?()
+        await self.eventually { self.playlist.tracks.map(\.title) == ["candidate"] }
+    }
+
     // MARK: - States and roots
 
     func testEmptyStateThenAddFolderOpensEngine() async throws {
