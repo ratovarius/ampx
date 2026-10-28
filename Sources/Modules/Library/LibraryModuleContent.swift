@@ -5,15 +5,28 @@ import Combine
 @MainActor
 protocol LibraryPanelPresenting: AnyObject {
     func chooseFolder(title: String) async -> URL?
+    /// Opens at `directory` when given.
+    func chooseFolder(title: String, directory: URL?) async -> URL?
     func confirmRemove(message: String, info: String) async -> Bool
     func showError(_ message: String)
+}
+
+extension LibraryPanelPresenting {
+    func chooseFolder(title: String, directory _: URL?) async -> URL? {
+        await self.chooseFolder(title: title)
+    }
 }
 
 @MainActor
 final class AppKitLibraryPanels: LibraryPanelPresenting {
     func chooseFolder(title: String) async -> URL? {
+        await self.chooseFolder(title: title, directory: nil)
+    }
+
+    func chooseFolder(title: String, directory: URL?) async -> URL? {
         let panel = NSOpenPanel()
         panel.title = title
+        panel.directoryURL = directory
         panel.prompt = "Choose"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -49,6 +62,7 @@ final class AppKitLibraryPanels: LibraryPanelPresenting {
 final class LibraryModuleContent: AmpXModuleContent {
     static let overlapMessage = "That folder overlaps a folder already in the library."
     static let emptyMessage = "No library folders yet"
+    static let notAnalysisFolderMessage = "That folder has no rekordbox analysis (share/PIONEER/USBANLZ)."
 
     let toolbar: LibraryToolbarView
     let genreList: LibraryFacetListView
@@ -67,6 +81,9 @@ final class LibraryModuleContent: AmpXModuleContent {
     private(set) var errorMessage: String?
     private var preferences: LibraryModulePreferences
     private var rootsLoaded = false
+    private let analysisAccess: RekordboxAnalysisAccess
+    /// Called after the user grants access to rekordbox's analysis folder (the engine then imports phrases).
+    var onRekordboxAnalysisGranted: (() -> Void)?
     /// Every library row, for MIXES WELL; refreshed whenever the model publishes rows.
     private var libraryRows: [LibraryRow] = []
 
@@ -90,7 +107,8 @@ final class LibraryModuleContent: AmpXModuleContent {
         playlist: PlaylistManager?,
         audioPlayer: AudioPlayer?,
         panels: LibraryPanelPresenting = AppKitLibraryPanels(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        analysisAccess: RekordboxAnalysisAccess? = nil
     ) {
         self.toolbar = LibraryToolbarView(skin: skin)
         self.genreList = LibraryFacetListView(skin: skin, title: "GENRE")
@@ -106,6 +124,7 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.audioPlayer = audioPlayer
         self.panels = panels
         self.defaults = defaults
+        self.analysisAccess = analysisAccess ?? RekordboxAnalysisAccess(defaults: defaults)
         self.preferences = LibraryModulePreferences.load(defaults)
         super.init(skin: skin)
 
@@ -297,6 +316,21 @@ final class LibraryModuleContent: AmpXModuleContent {
         guard let report = self.rekordboxState.sources.first(where: { $0.rootID == rootID })?.lastReport else { return }
         self.reportView.show(report)
         self.reportView.isHidden = false
+    }
+
+    /// ROOTS ▸ Allow Access to rekordbox Analysis…: a folder panel at `~/Library/Pioneer/rekordbox`.
+    func allowRekordboxAnalysis() async {
+        guard let folder = await self.panels.chooseFolder(
+            title: "Choose the rekordbox Folder", directory: RekordboxAnalysisAccess.suggestedFolder
+        ) else { return }
+        do {
+            try self.analysisAccess.grant(folder)
+            self.onRekordboxAnalysisGranted?()
+        } catch RekordboxAccessError.notAnAnalysisFolder {
+            self.panels.showError(Self.notAnalysisFolderMessage)
+        } catch {
+            self.panels.showError(error.localizedDescription)
+        }
     }
 
     private func showLatestRekordboxReport() {
@@ -494,11 +528,13 @@ final class LibraryModuleContent: AmpXModuleContent {
         LibraryRootsMenu.make(
             roots: self.model?.roots ?? [],
             rekordboxSources: Dictionary(self.rekordboxState.sources.map { ($0.rootID, $0) }, uniquingKeysWith: { first, _ in first }),
+            rekordbox: LibraryRootsMenu.RekordboxState(analysisGranted: self.analysisAccess.isGranted),
             actions: .init(
                 add: { [weak self] in self?.startTask { await $0.addFolder() } },
                 relocate: { [weak self] id in self?.startTask { await $0.relocateRoot(id) } },
                 remove: { [weak self] id in self?.startTask { await $0.removeRoot(id) } },
-                viewRekordboxReport: { [weak self] id in self?.showRekordboxReport(rootID: id) }
+                viewRekordboxReport: { [weak self] id in self?.showRekordboxReport(rootID: id) },
+                allowRekordboxAnalysis: { [weak self] in self?.startTask { await $0.allowRekordboxAnalysis() } }
             )
         )
     }

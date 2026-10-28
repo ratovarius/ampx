@@ -144,4 +144,27 @@ final class LibraryRootsMenuTests: XCTestCase {
             "rekordbox: collection.xml · not synced"
         )
     }
+
+    func testRekordboxSectionNeedsAShownSource() {
+        let dj = self.root("/Users/me/Music/DJ")
+        let hidden = LibraryRootsMenu.make(roots: [dj], rekordboxSources: [dj.id: self.source(dj.id, matched: 0)], actions: self.actions())
+        XCTAssertFalse(hidden.items.map(\.title).contains("Allow Access to rekordbox Analysis…"))
+    }
+
+    func testRekordboxSectionOffersAccess() throws {
+        let dj = self.root("/Users/me/Music/DJ")
+        var allowed = 0
+        var actions = self.actions()
+        actions.allowRekordboxAnalysis = { allowed += 1 }
+        let menu = LibraryRootsMenu.make(roots: [dj], rekordboxSources: [dj.id: self.source(dj.id)], actions: actions)
+        XCTAssertEqual(menu.items.map(\.title).suffix(2), ["", "Allow Access to rekordbox Analysis…"])
+        menu.performActionForItem(at: menu.items.count - 1)
+        XCTAssertEqual(allowed, 1)
+
+        let granted = LibraryRootsMenu.make(
+            roots: [dj], rekordboxSources: [dj.id: self.source(dj.id)],
+            rekordbox: LibraryRootsMenu.RekordboxState(analysisGranted: true), actions: actions
+        )
+        XCTAssertEqual(granted.items.last?.title, "Change rekordbox Analysis Folder…")
+    }
 }

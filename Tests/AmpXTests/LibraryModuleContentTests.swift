@@ -41,9 +41,15 @@ final class LibraryModuleContentTests: XCTestCase {
         var confirm = true
         private(set) var confirmations: [(String, String)] = []
         private(set) var errors: [String] = []
+        private(set) var directories: [URL?] = []
 
         func chooseFolder(title _: String) async -> URL? {
             self.folder
+        }
+
+        func chooseFolder(title _: String, directory: URL?) async -> URL? {
+            self.directories.append(directory)
+            return self.folder
         }
 
         func confirmRemove(message: String, info: String) async -> Bool {
@@ -444,6 +450,36 @@ final class LibraryModuleContentTests: XCTestCase {
         states.yield(self.syncedState(root))
         await self.eventually { !content.footer.rekordboxButton.isHidden }
         XCTAssertTrue(content.footer.rekordboxButton.label?.hasPrefix("REKORDBOX ") == true)
+    }
+
+    func testAllowRekordboxAnalysisGrantsAndNotifies() async throws {
+        let access = RekordboxAnalysisAccess(defaults: T.isolatedDefaults(self), bookmarks: T.plainBookmarks)
+        let content = LibraryModuleContent(
+            skin: ClassicModernSkin(), controller: nil, playlist: self.playlist, audioPlayer: nil,
+            panels: self.panels, defaults: self.defaults, analysisAccess: access
+        )
+        self.contents.append(content)
+        var granted = 0
+        content.onRekordboxAnalysisGranted = { granted += 1 }
+
+        self.panels.folder = try self.folder("NotRekordbox")
+        await content.allowRekordboxAnalysis()
+        XCTAssertEqual(self.panels.errors, ["That folder has no rekordbox analysis (share/PIONEER/USBANLZ)."])
+        XCTAssertEqual(self.panels.directories, [RekordboxAnalysisAccess.suggestedFolder])
+        XCTAssertFalse(access.isGranted)
+
+        let rekordbox = try self.folder("rekordbox")
+        try FileManager.default.createDirectory(
+            at: RekordboxAnalysisAccess.analysisFolder(in: rekordbox), withIntermediateDirectories: true
+        )
+        self.panels.folder = rekordbox
+        await content.allowRekordboxAnalysis()
+        XCTAssertTrue(access.isGranted)
+        XCTAssertEqual(granted, 1)
+
+        self.panels.folder = nil
+        await content.allowRekordboxAnalysis()
+        XCTAssertEqual(granted, 1, "cancelled panel")
     }
 
     func testReportTextIsAccessible() {
