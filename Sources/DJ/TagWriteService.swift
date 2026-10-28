@@ -265,7 +265,7 @@ actor TagWriteService: TagWriting {
 
     private static func matches(_ found: String?, _ expected: String, field: TagField) -> Bool {
         guard let found = found?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
-        if field == .bpm, let number = Double(found), let wanted = Double(expected) {
+        if field == .bpm, let number = TagWritePlanner.tempo(found), let wanted = TagWritePlanner.tempo(expected) {
             return Int(number.rounded()) == Int(wanted.rounded())
         }
         return found == expected

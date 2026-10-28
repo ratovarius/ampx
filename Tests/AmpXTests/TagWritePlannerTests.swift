@@ -20,6 +20,8 @@ final class TagWritePlannerTests: XCTestCase {
         XCTAssertEqual(TagWritePlanner.desired(self.row(bpm: 127.6, key: "Am")), [.bpm: "128", .key: "Am"])
         XCTAssertEqual(TagWritePlanner.desired(self.row(bpm: nil, key: nil, label: "Drumcode")), [.label: "Drumcode"])
         XCTAssertEqual(TagWritePlanner.desired(self.row(bpm: 0, key: "", label: "  ")), [:], "empty values never become tags")
+        XCTAssertEqual(TagWritePlanner.desired(self.row(bpm: .infinity, key: nil)), [:])
+        XCTAssertEqual(TagWritePlanner.desired(self.row(bpm: .nan, key: nil)), [:])
     }
 
     func testHalfDoubleGuard() {
@@ -47,7 +49,7 @@ final class TagWritePlannerTests: XCTestCase {
         decision = TagWritePlanner.decide(self.row(), file: [.bpm: "128.00", .key: "Am"])
         XCTAssertEqual(decision, TagWriteDecision(changes: [:], halfDouble: false))
 
-        for odd in ["", "fast"] {
+        for odd in ["", "fast", "nan", "inf", "-Infinity", "1e30", "99999999999999999999"] {
             decision = TagWritePlanner.decide(self.row(), file: [.bpm: odd, .key: "Am"])
             XCTAssertFalse(decision.halfDouble, odd)
             XCTAssertEqual(decision.changes, [.bpm: "128"], odd)

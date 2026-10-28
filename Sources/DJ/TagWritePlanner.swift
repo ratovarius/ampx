@@ -24,11 +24,20 @@ enum TagWritePlanner {
     /// How close the file's BPM must be to half or double rekordbox's to count as an octave disagreement.
     static let halfDoubleTolerance = 0.01
 
+    /// A tag's BPM as a number, or nil when it is not a plausible tempo (empty, text, NaN, infinite or huge):
+    /// such a tag is simply overwritten.
+    static func tempo(_ text: String?) -> Double? {
+        guard let value = text.flatMap({ Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }),
+              value.isFinite, value > 0, value < 10000
+        else { return nil }
+        return value
+    }
+
     /// The values AmpX wants in the file: BPM rounded to an integer (ID3 `TBPM` and MP4 `tmpo` are integers), the
     /// key as rekordbox spells it, and the text fields. Empty values are left out, so they never clear a tag.
     static func desired(_ row: TagWriteRow) -> [TagField: String] {
         var fields: [TagField: String] = [:]
-        if let bpm = row.bpm, bpm > 0 {
+        if let bpm = row.bpm, bpm.isFinite, bpm > 0, bpm < 10000 {
             fields[.bpm] = String(Int(bpm.rounded()))
         }
         let texts: [(TagField, String?)] = [
@@ -59,7 +68,7 @@ enum TagWritePlanner {
         for (field, value) in self.desired(row) {
             let current = file[field]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if field == .bpm {
-                let fileBPM = Double(current)
+                let fileBPM = self.tempo(current)
                 if let fileBPM, let bpm = row.bpm, self.isHalfOrDouble(fileBPM, of: bpm) {
                     halfDouble = true
                     continue
