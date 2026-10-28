@@ -26,7 +26,7 @@ The database (`~/Library/Pioneer/rekordbox/master.db`) is encrypted with SQLCiph
 | With BPM (`AverageBpm`) | 2,232 |
 | With key (`Tonality`, musical notation: `Am`, `F#`, `Dbm`) | 2,232 |
 | With a beatgrid (`<TEMPO>`) | 2,232, of which 165 have more than one tempo |
-| With cue points | 0 |
+| With cue points | 2,198, all rekordbox's automatic hot cue A at the first downbeat; no memory cues (corrected 2026-10-28) |
 | Rated | 5 |
 
 Path matching reaches 2,232 only when both sides are NFC-normalised (53 accented names differ in normal form) and a `#` in `Location` is read as part of the path, not as a URL fragment (2 entries).
@@ -48,10 +48,10 @@ Path matching reaches 2,232 only when both sides are NFC-normalised (53 accented
 
 ## Non-goals
 
-- Writing anything back to rekordbox or to audio files.
+- Writing anything back to rekordbox or to audio files. DJ mode Revision 2 adds opt-in tag writing of standard fields.
 - Creating library rows or roots from the XML. Tracks outside every root are reported, never added.
 - Looking for XMLs in subfolders, or outside library folders.
-- rekordbox playlists, cue points (none exist in this collection), colours and My Tags.
+- rekordbox playlists, colours and My Tags. Cue points are imported by [DJ mode Revision 2](./2026-09-11-dj-mode-design.md).
 - Smart playlists and the MIXES WELL recommendations (DJ mode).
 - Reading label, remixer, composer, grouping or mix from file tags.
 

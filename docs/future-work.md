@@ -41,3 +41,52 @@ fullscreen / mini Metal stack and ENTHEA’s GLSL as reference.
 - Easy to ship a thinner, less reactive viz if only the pretty fragment is ported and ENTHEA’s `updateAudio` chain is not.
 
 **Do not start by default.** Pursue only if WebKit cost, battery, or distribution constraints justify the rewrite.
+
+---
+
+## Smart playlists (DJ mode)
+
+**Status:** taken out of DJ mode on 2026-10-28; not designed.  
+**Spec:** `docs/superpowers/specs/2026-09-11-dj-mode-design.md` (Revision 1, § Smart playlists) has the
+original sketch.
+
+### What it is
+
+Saved, live-updating queries over the library: a Codable `LibraryPredicate` that extends `LibraryQuery`
+with comparisons on BPM, bitrate, codec and Camelot key, evaluated against the in-memory `LibraryIndex`
+and re-evaluated on every `LibraryChange`. The sketch's four defaults: *Gig-ready* (≥ 315 kbps or
+lossless), *Needs replacing* (< 192 kbps), *Energy bands* (118–124 … 138+ BPM) and *Key-compatible*
+(Camelot neighbours of the playing track).
+
+### Open questions
+
+- **How they are used:** browsed and picked from by hand, or sent whole to the Playlist. This decides
+  whether they need a list in the Library window, their own window, or only a menu.
+- **Where they live in the UI:** the Library window has no pane for them (GENRE, ARTIST, table,
+  MIXES WELL); placing one needs an AmpX UI spec amendment first.
+- **Persistence:** `SmartPlaylistRecord` needs `LibrarySchemaV3` (V2 is the rekordbox sync's).
+- **Lossless list:** include ALAC (`.m4a`) alongside FLAC, WAV and AIFF.
+- **Party queue** (DJ mode phase B) was meant to draw from a smart playlist; without them it needs
+  another source, such as the current Playlist or a genre.
+
+---
+
+## Cue UI (DJ mode)
+
+**Status:** deferred on 2026-10-28 until cues are set by hand in rekordbox.  
+**Spec:** `docs/superpowers/specs/2026-09-11-dj-mode-design.md` (Revision 2, § Cues).
+
+DJ mode Revision 2 stores every hot cue and memory cue from the rekordbox export but shows none: today the
+export only has rekordbox's automatic hot cue A at the first downbeat. When hand-set cues exist, add marks
+on the seek bar and jumps to hot cues 1–8 from the keyboard.
+
+---
+
+## Native BPM and key detection (DJ mode)
+
+**Status:** dropped from DJ mode Revision 2 on 2026-10-28; every DJ track has rekordbox BPM and key.  
+**Spec:** `docs/superpowers/specs/2026-09-11-dj-mode-design.md` (Revision 1, § Native analyser) has the
+original sketch: spectral-flux onsets with autocorrelation for tempo, chroma against Krumhansl–Schmuckler
+profiles for key.
+
+Worth reviving only for libraries without a rekordbox export.
