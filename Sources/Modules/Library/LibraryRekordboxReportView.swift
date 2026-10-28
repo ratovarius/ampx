@@ -55,20 +55,28 @@ final class LibraryRekordboxReportView: AmpXDrawingView {
         return lines
     }
 
-    private static func entries(_ report: RekordboxSyncReport) -> [String] {
+    static let headings: Set<String> = [
+        "NOT IN ANY LIBRARY FOLDER", "AMBIGUOUS", "RATING CONFLICTS", "NO LONGER IN REKORDBOX",
+        "TEMPO HALF OR DOUBLE: CHECK IN REKORDBOX", "TAGS NOT WRITTEN",
+    ]
+
+    private static func entries(_ report: RekordboxSyncReport, tags: TagWriteReport?) -> [String] {
         let groups: [(String, [String])] = [
             ("NOT IN ANY LIBRARY FOLDER", report.unmatched),
             ("AMBIGUOUS", report.ambiguous.map(\.path)),
             ("RATING CONFLICTS", report.ratingConflicts.map(\.path)),
             ("NO LONGER IN REKORDBOX", report.noLongerInRekordbox),
+            ("TEMPO HALF OR DOUBLE: CHECK IN REKORDBOX", tags?.halfDouble ?? []),
+            ("TAGS NOT WRITTEN", (tags?.skippedReadOnly ?? []) + (tags?.failed ?? [])),
         ]
         return groups.filter { !$0.1.isEmpty }.flatMap { [$0.0] + $0.1 }
     }
 
-    func show(_ report: RekordboxSyncReport) {
+    /// `tags` adds the last tag-writing run's lists (DJ mode spec Revision 2 § Tag writing).
+    func show(_ report: RekordboxSyncReport, tags: TagWriteReport? = nil) {
         self.report = report
         self.summaryLines = Self.summary(report)
-        self.entryLines = Self.entries(report)
+        self.entryLines = Self.entries(report, tags: tags)
         self.scrollOffset = 0
         needsLayout = true
         needsDisplay = true
@@ -128,7 +136,7 @@ final class LibraryRekordboxReportView: AmpXDrawingView {
         let viewport = self.listViewport
         context.saveGState()
         context.clip(to: viewport)
-        let headings = Set(["NOT IN ANY LIBRARY FOLDER", "AMBIGUOUS", "RATING CONFLICTS", "NO LONGER IN REKORDBOX"])
+        let headings = Self.headings
         let first = max(0, Int(self.scrollOffset / Self.lineHeight))
         let last = min(self.entryLines.count, first + Int(viewport.height / Self.lineHeight) + 2)
         if first < last {

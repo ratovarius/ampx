@@ -10,10 +10,14 @@ enum LibraryRootsMenu {
         var remove: (UUID) -> Void
         var viewRekordboxReport: (UUID) -> Void = { _ in }
         var allowRekordboxAnalysis: () -> Void = {}
+        var toggleTagWriting: () -> Void = {}
+        var writeTagsForSelection: () -> Void = {}
     }
 
     struct RekordboxState: Equatable {
         var analysisGranted = false
+        var tagWriting = false
+        var hasSelection = false
     }
 
     static func make(
@@ -52,6 +56,12 @@ enum LibraryRootsMenu {
         }
         if rekordboxSources.values.contains(where: \.isShown) {
             menu.addItem(.separator())
+            let keep = ClosureMenuItem(title: "Keep rekordbox Data in File Tags", action: actions.toggleTagWriting)
+            keep.state = rekordbox.tagWriting ? .on : .off
+            menu.addItem(keep)
+            let selection = ClosureMenuItem(title: "Write rekordbox Tags to Selected Tracks", action: actions.writeTagsForSelection)
+            selection.isEnabled = rekordbox.hasSelection
+            menu.addItem(selection)
             let title = rekordbox.analysisGranted ? "Change rekordbox Analysis Folder…" : "Allow Access to rekordbox Analysis…"
             menu.addItem(ClosureMenuItem(title: title, action: actions.allowRekordboxAnalysis))
         }

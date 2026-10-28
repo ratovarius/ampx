@@ -1,7 +1,7 @@
 # DJ Mode (MIXES WELL, rekordbox Tags and Phrases, Automix)
 
 **Date:** 2026-09-11 · **Revised:** 2026-10-28 (Revision 2: smart playlists moved to future work; tag writing, cues, rekordbox phrases and Automix designed with the user)
-**Status:** Proposed
+**Status:** Delivery 1 implemented on `feature/dj-mode-library-data`; deliveries 2 and 3 proposed
 **Depends on:** [Music Library](./2026-09-11-music-library-design.md), [Library Module](./2026-09-27-library-module-design.md) and [rekordbox Collection Sync](./2026-09-28-rekordbox-sync-design.md), all merged to `develop` in PR #15 (`502b1aa`)
 **Related:** [2026-09-03-spectrum-signal-path-design.md](./2026-09-03-spectrum-signal-path-design.md) (tap point)
 

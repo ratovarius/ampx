@@ -43,6 +43,15 @@ struct TagWriteReport: Codable, Equatable, Sendable {
     var halfDouble: [String] = []
 }
 
+/// What the Library window needs from tag writing (a seam for tests).
+protocol TagWriting: AnyObject, Sendable {
+    var isEnabled: Bool { get }
+    func setEnabled(_ enabled: Bool)
+    func preview(rowIDs: Set<UUID>?) async -> TagWriteSummary
+    func write(rowIDs: Set<UUID>?, onlyDue: Bool) async -> TagWriteReport
+    func lastReport() -> TagWriteReport?
+}
+
 /// The tag-writing setting and the last report, in `UserDefaults` (DJ mode spec Revision 2 § Tag writing).
 final class TagWriteSettings: @unchecked Sendable {
     static let enabledKey = "AmpX.keepRekordboxTagsInFiles"
@@ -68,7 +77,7 @@ final class TagWriteSettings: @unchecked Sendable {
 /// Writes rekordbox data into files' standard tags (DJ mode spec Revision 2 § Tag writing). Each run is an exclusive
 /// job in the scanner's FIFO. A file is written through a hidden temporary copy that is read back and checked before
 /// it replaces the original, so a failure or a halt never leaves a damaged or half-written file behind.
-actor TagWriteService {
+actor TagWriteService: TagWriting {
     static let durationTolerance = 0.01
 
     private enum Outcome {
@@ -95,6 +104,11 @@ actor TagWriteService {
 
     nonisolated var isEnabled: Bool {
         self.settings?.isEnabled ?? false
+    }
+
+    /// No effect without settings (tag writing stays off).
+    nonisolated func setEnabled(_ enabled: Bool) {
+        self.settings?.isEnabled = enabled
     }
 
     nonisolated func lastReport() -> TagWriteReport? {
