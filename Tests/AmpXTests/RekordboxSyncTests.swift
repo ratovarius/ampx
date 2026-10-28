@@ -230,6 +230,8 @@ final class RekordboxSyncTests: XCTestCase {
         let sources = try await self.sources()
         XCTAssertEqual(sources.first?.lastReport?.matched, 0)
         XCTAssertEqual(sources.first?.lastReport?.unmatched, ["/Elsewhere/z.mp3"])
+        let state = await self.sync.state()
+        XCTAssertEqual(state.status, .hidden, "an export that matches nothing shows nothing")
         let reads = await self.h.fileSystem.fullReads
         await self.check()
         let readsAfter = await self.h.fileSystem.fullReads

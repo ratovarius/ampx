@@ -181,6 +181,16 @@ final class LibraryModuleContentTests: XCTestCase {
         XCTAssertEqual(content.filter.search, "café")
     }
 
+    func testOutOfRangeBpmIsDropped() {
+        let content = self.makeContent(controller: nil)
+        for text in ["9223372036854775808", String(repeating: "9", count: 400)] {
+            content.toolbar.bpmMin.insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
+            content.toolbar.bpmMin.insertNewline(nil)
+            XCTAssertNil(content.filter.bpmMin)
+            XCTAssertEqual(content.toolbar.bpmMin.committedText, "")
+        }
+    }
+
     func testSearchFacetBpmMissingDriveQuery() {
         let content = self.makeContent(controller: nil)
         content.toolbar.search.insertText("deep", replacementRange: NSRange(location: NSNotFound, length: 0))
@@ -395,6 +405,21 @@ final class LibraryModuleContentTests: XCTestCase {
         XCTAssertTrue(content.footer.rekordboxButton.label?.hasPrefix("REKORDBOX ") == true)
     }
 
+    func testReportTextIsAccessible() {
+        let view = LibraryRekordboxReportView(skin: ClassicModernSkin())
+        view.frame = CGRect(x: 0, y: 0, width: 600, height: 400)
+        var report = RekordboxSyncReport(fileName: "collection.xml")
+        report.matched = 3
+        report.unmatched = ["/Music/Old/a.mp3"]
+        view.show(report)
+        view.layoutSubtreeIfNeeded()
+
+        let texts = (view.accessibilityChildren() ?? []).compactMap { ($0 as? NSAccessibilityElement)?.accessibilityValue() as? String }
+        XCTAssertTrue(texts.contains("3 of 4 tracks matched"), "\(texts)")
+        XCTAssertTrue(texts.contains("/Music/Old/a.mp3"), "\(texts)")
+        XCTAssertTrue((view.accessibilityChildren() ?? []).contains { ($0 as? NSView) === view.closeButton })
+    }
+
     func testRootsItemOpensReport() async throws {
         let (content, states, root) = await self.rekordboxContent()
         states.yield(self.syncedState(root, matched: 7))
@@ -406,6 +431,15 @@ final class LibraryModuleContentTests: XCTestCase {
         XCTAssertEqual(content.reportView.report?.matched, 7)
         content.reportView.closeButton.action?()
         XCTAssertTrue(content.reportView.isHidden)
+
+        submenu.performActionForItem(at: index)
+        let escape = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53
+        ))
+        XCTAssertTrue(content.handleKey(escape))
+        XCTAssertTrue(content.reportView.isHidden)
+        XCTAssertFalse(content.handleKey(escape), "Esc with no report open is not the Library's")
     }
 
     func testIndicatorClickOpensLatestReport() async {

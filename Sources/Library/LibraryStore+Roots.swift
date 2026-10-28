@@ -32,6 +32,7 @@ extension LibraryStore {
         guard try self.root(id) != nil else { throw LibraryStoreError.unknownRoot }
         self.revokeScan(rootID: id)
         self.revokeRekordboxSync(rootID: id)
+        self.rootRelocations += 1
         let bookmark = try self.dependencies.bookmarks.make(target)
         try self.commit(nil) {
             guard let root = try self.root(id) else { throw LibraryStoreError.unknownRoot }

@@ -4,6 +4,16 @@ import XCTest
 /// Library module window (spec 2026-09-27-library-module-design.md § UI spec amendment 1–3).
 @MainActor
 final class AmpXLibraryWindowTests: XCTestCase {
+    private final class NarrowScreen: NSScreen {
+        override var frame: NSRect {
+            NSRect(x: 0, y: 0, width: 960, height: 640)
+        }
+
+        override var visibleFrame: NSRect {
+            NSRect(x: 0, y: 0, width: 960, height: 615)
+        }
+    }
+
     private final class TallScreen: NSScreen {
         override var frame: NSRect {
             NSRect(x: 0, y: 0, width: 2560, height: 1600)
@@ -79,6 +89,22 @@ final class AmpXLibraryWindowTests: XCTestCase {
         XCTAssertEqual(library.size, AmpXMetrics.defaultLibrarySize)
         XCTAssertEqual(library.maxY, playlist.minY, "flush below the stack")
         XCTAssertEqual(library.minX, playlist.minX)
+    }
+
+    /// Narrower than the default size: the centred fallback is centred on the size it returns, and the saved
+    /// size matches the frame, so the first open does not grow it back past the screen edge.
+    func testDefaultLibraryOnNarrowScreenFitsAndMatchesSavedSize() throws {
+        let screen = NarrowScreen()
+        let visible = screen.visibleFrame
+        let centred = AmpXLayout.defaultLibraryFrame(
+            size: AmpXMetrics.defaultLibrarySize, stack: [CGRect(x: 300, y: 300, width: 300, height: 300)], visibleFrame: visible
+        )
+        XCTAssertTrue(visible.contains(centred), "\(centred) not inside \(visible)")
+
+        let layout = AmpXLayoutStore.defaultLayout(for: screen)
+        let library = try XCTUnwrap(layout.frames[.library])
+        XCTAssertTrue(visible.contains(library), "\(library) not inside \(visible)")
+        XCTAssertEqual(layout.librarySize, library.size)
     }
 
     func testLibraryFrameClampedToVisibleScreen() throws {

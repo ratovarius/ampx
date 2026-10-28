@@ -91,11 +91,12 @@ enum AmpXLayout {
         if visible.contains(right) {
             return right
         }
+        let fitted = CGSize(width: min(size.width, visible.width), height: min(size.height, visible.height))
         return CGRect(
-            x: (visible.midX - size.width / 2).rounded(),
-            y: (visible.midY - size.height / 2).rounded(),
-            width: min(size.width, visible.width),
-            height: min(size.height, visible.height)
+            x: (visible.midX - fitted.width / 2).rounded(),
+            y: (visible.midY - fitted.height / 2).rounded(),
+            width: fitted.width,
+            height: fitted.height
         )
     }
 

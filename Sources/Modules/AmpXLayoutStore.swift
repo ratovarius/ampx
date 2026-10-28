@@ -52,17 +52,20 @@ final class AmpXLayoutStore {
 
     static func defaultLayout(for screen: NSScreen) -> AmpXSavedLayout {
         let state = AmpXModuleState()
+        let librarySize = self.boundedLibrarySize(AmpXMetrics.defaultLibrarySize, screen: screen)
         return AmpXSavedLayout(
             state: state,
             frames: AmpXLayout.defaultFrames(
                 state: state,
                 playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
                 playlistWidth: AmpXMetrics.defaultPlaylistWidth,
+                librarySize: librarySize,
                 anchorTopLeft: AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame),
                 visibleFrame: screen.visibleFrame
             ),
             playlistViewportHeight: AmpXMetrics.defaultPlaylistViewportHeight,
-            playlistWidth: AmpXMetrics.defaultPlaylistWidth
+            playlistWidth: AmpXMetrics.defaultPlaylistWidth,
+            librarySize: librarySize
         )
     }
 
@@ -111,14 +114,18 @@ final class AmpXLayoutStore {
         )
         let anchor = dto.stackFrame?.cgRect.flatMap { self.isValidFrame($0) ? CGPoint(x: $0.minX, y: $0.maxY) : nil }
             ?? AmpXLayout.defaultAnchor(visibleFrame: screen.visibleFrame)
+        let librarySize = self.boundedLibrarySize(AmpXMetrics.defaultLibrarySize, screen: screen)
         let frames = AmpXLayout.defaultFrames(
             state: state,
             playlistViewportHeight: viewport,
             playlistWidth: width,
+            librarySize: librarySize,
             anchorTopLeft: anchor,
             visibleFrame: screen.visibleFrame
         ).mapValues { self.clampedToVisibleFrame($0, screen: screen) }
-        return AmpXSavedLayout(state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width)
+        return AmpXSavedLayout(
+            state: state, frames: frames, playlistViewportHeight: viewport, playlistWidth: width, librarySize: librarySize
+        )
     }
 
     /// Payloads written before the Library existed have no `libraryOpen`: the Library stays closed.

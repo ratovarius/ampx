@@ -64,6 +64,16 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    /// Stops the library before AppKit exits, so its scan and import tokens are revoked and saves drained.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let controller = self.applicationController else { return .terminateNow }
+        Task { @MainActor in
+            await controller.shutDownLibrary()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_: Notification) {
         self.applicationController?.terminate()
         if let monitor = keyboardEventMonitor {

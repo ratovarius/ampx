@@ -285,9 +285,11 @@ enum AmpXKeyRouter {
         return false
     }
 
-    /// ↑↓ Home End PageUp PageDown (± ⇧), ↩ and ⌘↩, ⌘A and ⌘F.
+    /// ↑↓ Home End PageUp PageDown (± ⇧), ↩ and ⌘↩, ⌘A and ⌘F, and Esc (closes the rekordbox report).
     private static func matchesLibraryKey(_ event: NSEvent, flags: NSEvent.ModifierFlags) -> Bool {
         switch event.keyCode {
+        case 53:
+            flags.isEmpty
         case 125, 126, 115, 119, 116, 121:
             flags.isEmpty || flags == [.shift]
         case 36, 76:

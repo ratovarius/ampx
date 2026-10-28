@@ -43,8 +43,24 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     func terminate() {
         self.hosts.flushLayoutPersistence()
         self.hosts.theaterController.handleApplicationTermination()
-        if let libraryController = self.libraryController {
-            Task { await libraryController.stop() }
+    }
+
+    /// Runs before `terminate()`, from `applicationShouldTerminate`: AppKit exits right after
+    /// `applicationWillTerminate`, so the library's tokens and saves must be settled first. Returns after
+    /// `timeout` even if the engine is still stopping, so a stuck scan never blocks Quit.
+    func shutDownLibrary(timeout: Duration = .seconds(3)) async {
+        guard let libraryController = self.libraryController else { return }
+        let gate = ShutdownGate()
+        await withCheckedContinuation { continuation in
+            gate.continuation = continuation
+            Task { @MainActor in
+                await libraryController.stop()
+                gate.open()
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                gate.open()
+            }
         }
     }
 
@@ -194,9 +210,10 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     }
 
     private func loadStartupSoundIfNeeded() {
-        guard self.playsStartupSound else { return }
-        guard self.playlistManager.shouldPlayStartupSoundOnLaunch else { return }
-        guard let startupURL = Bundle.main.url(forResource: "startup", withExtension: "mp3") else {
+        guard self.playsStartupSound, self.playlistManager.shouldPlayStartupSoundOnLaunch, let startupURL = Bundle.main.url(
+            forResource: "startup",
+            withExtension: "mp3"
+        ) else {
             return
         }
 
@@ -231,6 +248,17 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     private static var isRunningUnderTest: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || NSClassFromString("XCTestCase") != nil
+    }
+}
+
+/// Resumes `shutDownLibrary` once, whichever of the engine stop and the timeout comes first.
+@MainActor
+private final class ShutdownGate {
+    var continuation: CheckedContinuation<Void, Never>?
+
+    func open() {
+        self.continuation?.resume()
+        self.continuation = nil
     }
 }
 

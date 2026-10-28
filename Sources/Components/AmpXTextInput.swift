@@ -58,8 +58,9 @@ final class AmpXTextInput: AmpXControlView, @preconcurrency NSTextInputClient {
         }
     }
 
+    /// The committed number; nil when empty or too long to be finite.
     var numericValue: Double? {
-        Double(self.committedText)
+        Double(self.committedText).flatMap { $0.isFinite ? $0 : nil }
     }
 
     private var length: Int {

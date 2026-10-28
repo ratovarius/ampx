@@ -144,4 +144,39 @@ final class LibraryRekordboxReportView: AmpXDrawingView {
         }
         context.restoreGState()
     }
+
+    // MARK: - Accessibility
+
+    /// The drawn summary and the visible list lines as static text (frames follow scrolling), then the
+    /// Close button and scrollbar.
+    override func accessibilityChildren() -> [Any]? {
+        var children: [Any] = self.summaryLines.enumerated().map { index, line in
+            self.textElement(line, frame: CGRect(
+                x: 12, y: Self.summaryTop + CGFloat(index) * Self.lineHeight, width: bounds.width - 24, height: Self.lineHeight
+            ))
+        }
+        let viewport = self.listViewport
+        let first = max(0, Int(self.scrollOffset / Self.lineHeight))
+        let last = min(self.entryLines.count, first + Int(viewport.height / Self.lineHeight) + 1)
+        if first < last {
+            for index in first ..< last {
+                let y = viewport.minY + CGFloat(index) * Self.lineHeight - self.scrollOffset
+                let frame = CGRect(x: 12, y: y, width: viewport.width - 20, height: Self.lineHeight).intersection(viewport)
+                guard !frame.isEmpty else { continue }
+                children.append(self.textElement(self.entryLines[index], frame: frame))
+            }
+        }
+        children.append(self.closeButton)
+        children.append(self.scrollbar)
+        return children
+    }
+
+    private func textElement(_ text: String, frame: CGRect) -> NSAccessibilityElement {
+        let element = NSAccessibilityElement()
+        element.setAccessibilityRole(.staticText)
+        element.setAccessibilityValue(text)
+        element.setAccessibilityParent(self)
+        element.setAccessibilityFrameInParentSpace(frame)
+        return element
+    }
 }

@@ -156,7 +156,17 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
         }
     }
 
+    /// A saved bookmark for `url` or a folder above it, activated if needed. Unlike `ensureAccess`, plain
+    /// readability does not count: a drop's temporary grant ends at relaunch.
     @discardableResult
+    func isCoveredByBookmark(_ url: URL) -> Bool {
+        let normalized = self.normalizedURL(url)
+        if self.hasActiveScope(normalized) || self.hasAncestorScope(for: normalized) {
+            return true
+        }
+        return self.state.withLock { self.activateBookmark(forPath: normalized.path, in: &$0) }
+    }
+
     func ensureAccess(for url: URL) -> Bool {
         let normalized = self.normalizedURL(url)
         if self.hasActiveScope(normalized) || self.hasAncestorScope(for: normalized) {
@@ -236,11 +246,9 @@ final class SecurityScopedBookmarkStore: @unchecked Sendable {
             }
         }
 
-        guard let match = bestMatch, match.index < state.securityScopedBookmarks.count else {
-            return false
-        }
-
-        guard var resolved = SecurityScopedBookmark.resolve(state.securityScopedBookmarks[match.index]) else {
+        guard let match = bestMatch, match.index < state.securityScopedBookmarks.count,
+              var resolved = SecurityScopedBookmark.resolve(state.securityScopedBookmarks[match.index])
+        else {
             return false
         }
 

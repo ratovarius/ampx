@@ -203,8 +203,7 @@ class PlaylistManager: ObservableObject {
 
         self.audioPlayer.loadTrack(track) { [weak self] success in
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard requestId == self.playRequestGeneration else { return }
+                guard let self, requestId == self.playRequestGeneration else { return }
                 if success {
                     if self.shuffleEnabled {
                         if let shufflePos = self.shuffledIndices.firstIndex(of: index) {
@@ -622,8 +621,8 @@ class PlaylistManager: ObservableObject {
         self.m3uEntry(for: trackURL, relativeTo: playlistFile)
     }
 
-    /// A drop of several items. Audio files load in one ordered batch, and a file already covered by an
-    /// active scope (e.g. a Library root, bookmarked when the drag began) saves no bookmark of its own:
+    /// A drop of several items. Audio files load in one ordered batch, and a file already covered by a
+    /// saved bookmark (e.g. a Library root, bookmarked when the drag began) saves no bookmark of its own:
     /// each save re-resolves the whole store, so per-file saves on a large drop would stall the app.
     func importDroppedURLs(_ urls: [URL]) {
         var files: [URL] = []
@@ -634,7 +633,7 @@ class PlaylistManager: ObservableObject {
                 self.importDroppedURL(url)
                 continue
             }
-            if !self.bookmarkStore.ensureAccess(for: url) {
+            if !self.bookmarkStore.isCoveredByBookmark(url) {
                 self.bookmarkStore.saveBookmark(for: url)
             }
             files.append(url)

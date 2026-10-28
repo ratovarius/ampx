@@ -7,10 +7,12 @@ struct RekordboxFileStamp: Codable, Sendable, Equatable {
     let modifiedAt: Date
 }
 
-/// Issued only by `LibraryStore`, one live token per root; revoked when the root is removed or relocated.
+/// Issued only by `LibraryStore`, one live token per root; revoked when the root is removed or relocated, and
+/// stale once any root is relocated (a plan writes rows in every root, matched against their old paths).
 struct RekordboxSyncToken: Hashable, Sendable {
     let rootID: UUID
     fileprivate let nonce: UUID
+    fileprivate let relocations: Int
 }
 
 struct RekordboxSourceSnapshot: Sendable, Equatable {
@@ -20,6 +22,12 @@ struct RekordboxSourceSnapshot: Sendable, Equatable {
     let stamp: RekordboxFileStamp?
     let lastImportAt: Date?
     let lastReport: RekordboxSyncReport?
+
+    /// Present and matching at least one row. An export of an unrelated collection keeps its stamp and report
+    /// (so it is not re-read) but shows nothing.
+    var isShown: Bool {
+        self.isPresent && (self.lastReport?.matched ?? 0) > 0
+    }
 }
 
 /// Store side of the rekordbox sync (rekordbox sync spec § `LibraryStore.applyRekordbox`).
@@ -62,7 +70,7 @@ extension LibraryStore {
 
     func beginRekordboxSync(rootID: UUID) throws -> RekordboxSyncToken {
         guard try self.root(rootID) != nil else { throw LibraryStoreError.unknownRoot }
-        let token = RekordboxSyncToken(rootID: rootID, nonce: UUID())
+        let token = RekordboxSyncToken(rootID: rootID, nonce: UUID(), relocations: self.rootRelocations)
         self.rekordboxTokens[rootID] = token
         return token
     }
@@ -123,7 +131,9 @@ extension LibraryStore {
     }
 
     private func checkRekordbox(_ token: RekordboxSyncToken) throws {
-        guard self.rekordboxTokens[token.rootID] == token else { throw LibraryStoreError.revokedToken }
+        guard self.rekordboxTokens[token.rootID] == token, token.relocations == self.rootRelocations else {
+            throw LibraryStoreError.revokedToken
+        }
         guard try self.root(token.rootID) != nil else {
             self.rekordboxTokens[token.rootID] = nil
             throw LibraryStoreError.unknownRoot

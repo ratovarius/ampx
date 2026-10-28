@@ -8,7 +8,9 @@ guard CommandLine.arguments.count == 2 else {
     exit(64)
 }
 
-let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
+// Everything happens in a fresh folder inside the target, so no existing file is touched or deleted.
+let target = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
+let root = target.appendingPathComponent("ampx-rename-gate-\(UUID().uuidString)", isDirectory: true)
 let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey, .volumeIdentifierKey]
 let fileManager = FileManager.default
 
@@ -34,11 +36,8 @@ let original = root.appendingPathComponent("gate-a.bin")
 let renamed = root.appendingPathComponent("gate-b.bin")
 let subfolder = root.appendingPathComponent("gate-sub", isDirectory: true)
 let moved = subfolder.appendingPathComponent("gate-b.bin")
-defer {
-    for url in [original, renamed, subfolder] {
-        try? fileManager.removeItem(at: url)
-    }
-}
+try fileManager.createDirectory(at: root, withIntermediateDirectories: false)
+defer { try? fileManager.removeItem(at: root) }
 
 try Data((0 ..< 65536).map { UInt8(truncatingIfNeeded: $0 &* 7) }).write(to: original)
 try fileManager.createDirectory(at: subfolder, withIntermediateDirectories: true)

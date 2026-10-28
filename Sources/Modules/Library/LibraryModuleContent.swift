@@ -282,7 +282,7 @@ final class LibraryModuleContent: AmpXModuleContent {
     }
 
     private func showLatestRekordboxReport() {
-        let latest = self.rekordboxState.sources.filter(\.isPresent).max {
+        let latest = self.rekordboxState.sources.filter(\.isShown).max {
             ($0.lastImportAt ?? .distantPast) < ($1.lastImportAt ?? .distantPast)
         }
         if let latest {

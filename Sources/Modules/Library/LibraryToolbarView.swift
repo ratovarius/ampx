@@ -54,22 +54,35 @@ final class LibraryToolbarView: AmpXDrawingView {
     }
 
     private func reportBpm() {
-        self.onBpm?(self.bpmMin.numericValue, self.bpmMax.numericValue)
+        self.onBpm?(Self.bpm(self.bpmMin), Self.bpm(self.bpmMax))
     }
+
+    /// A BPM filter bound; anything outside 0–999 is dropped (it also keeps `bpmText`'s `Int` conversion safe).
+    private static func bpm(_ field: AmpXTextInput) -> Double? {
+        field.numericValue.flatMap { (0 ... Self.maximumBpm).contains($0) ? $0 : nil }
+    }
+
+    private static let maximumBpm: Double = 999
 
     /// Shows `state` without reporting changes; fields keep their text when it already matches.
     func apply(_ state: LibraryFilterState) {
         if self.search.committedText != state.search {
             self.search.committedText = state.search
         }
-        let minText = state.bpmMin.map(Self.bpmText) ?? ""
-        if self.bpmMin.numericValue != state.bpmMin {
-            self.bpmMin.committedText = minText
+        Self.show(state.bpmMin, in: self.bpmMin)
+        Self.show(state.bpmMax, in: self.bpmMax)
+    }
+
+    /// Keeps text that already means `value` (e.g. "128.0" for 128); replaces anything else, including a
+    /// dropped out-of-range number.
+    private static func show(_ value: Double?, in field: AmpXTextInput) {
+        if let current = Self.bpm(field), current == value {
+            return
         }
-        let maxText = state.bpmMax.map(Self.bpmText) ?? ""
-        if self.bpmMax.numericValue != state.bpmMax {
-            self.bpmMax.committedText = maxText
+        if value == nil, field.committedText.isEmpty {
+            return
         }
+        field.committedText = value.map(Self.bpmText) ?? ""
     }
 
     private static func bpmText(_ value: Double) -> String {

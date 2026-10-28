@@ -168,6 +168,26 @@ final class LibraryStoreRekordboxTests: XCTestCase {
         }
     }
 
+    /// A plan writes rows in every root; relocating any of them makes its row matches stale.
+    func testRelocatingAnotherRootRevokesToken() async throws {
+        let store = T.makeRootStore(container: self.container, scope: ScopeSpy(log: EventLog()), flag: FlagSpy(log: EventLog()))
+        let token = try await store.beginRekordboxSync(rootID: self.dj)
+        let moved = try T.temporaryDirectory(self)
+
+        try await store.relocateRoot(id: self.other, to: moved)
+
+        do {
+            try await store.applyRekordbox(
+                self.plan([RekordboxRowWrite(rowID: self.b, rootID: self.other, values: self.values())]),
+                fileName: "collection.xml", stamp: self.stamp, token: token
+            )
+            XCTFail("revoked")
+        } catch {
+            XCTAssertEqual(error as? LibraryStoreError, .revokedToken)
+        }
+        XCTAssertNil(try self.track(self.b).bpm)
+    }
+
     func testRemoveRootDeletesSource() async throws {
         let store = T.makeStore(self, container: self.container)
         let token = try await store.beginRekordboxSync(rootID: self.dj)

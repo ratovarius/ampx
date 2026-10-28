@@ -126,6 +126,8 @@ final class AmpXTextInputTests: XCTestCase {
         XCTAssertEqual(input.numericValue, 124.56)
         input.committedText = ""
         XCTAssertNil(input.numericValue)
+        input.committedText = String(repeating: "9", count: 400)
+        XCTAssertNil(input.numericValue, "overflows to infinity")
     }
 
     func testCommitOnEnterAndTab() {

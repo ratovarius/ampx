@@ -62,13 +62,15 @@ final class LibraryRootsMenuTests: XCTestCase {
         return calendar
     }
 
-    private func source(_ rootID: UUID, present: Bool = true, lastImport: Date? = Date(timeIntervalSince1970: 1_790_000_000))
-        -> RekordboxSourceSnapshot
-    {
-        RekordboxSourceSnapshot(
+    private func source(
+        _ rootID: UUID, present: Bool = true, matched: Int = 1, lastImport: Date? = Date(timeIntervalSince1970: 1_790_000_000)
+    ) -> RekordboxSourceSnapshot {
+        var report = RekordboxSyncReport(fileName: "collection.xml")
+        report.matched = matched
+        return RekordboxSourceSnapshot(
             rootID: rootID, fileName: "collection.xml", isPresent: present,
             stamp: RekordboxFileStamp(size: 1, modifiedAt: .distantPast), lastImportAt: lastImport,
-            lastReport: RekordboxSyncReport(fileName: "collection.xml")
+            lastReport: report
         )
     }
 
@@ -99,6 +101,17 @@ final class LibraryRootsMenuTests: XCTestCase {
         XCTAssertFalse(submenu.items[2].isEnabled)
         submenu.performActionForItem(at: 3)
         XCTAssertEqual(viewed, [dj.id])
+    }
+
+    func testZeroMatchSourceHidden() throws {
+        let dj = self.root("/Users/me/Music/DJ")
+        let menu = LibraryRootsMenu.make(
+            roots: [dj], rekordboxSources: [dj.id: self.source(dj.id, matched: 0)], actions: self.actions()
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(menu.items[2].submenu).items.map(\.title),
+            ["/Users/me/Music/DJ", "Available", "", "Relocate…", "Remove…"]
+        )
     }
 
     func testAbsentSourceHidden() throws {

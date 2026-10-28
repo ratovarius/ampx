@@ -115,4 +115,29 @@ final class PlaylistImportTests: XCTestCase {
         XCTAssertEqual(manager.tracks.map(\.url), dropped)
         XCTAssertEqual(store.bookmarkCount, 1)
     }
+
+    /// A Finder drop is readable only through the drop's temporary grant: it still needs its own bookmark
+    /// to play after relaunch.
+    func testDroppedReadableFileWithoutBookmarkSavesOne() async throws {
+        let store = SecurityScopedBookmarkStore(userDefaults: userDefaults)
+        let manager = PlaylistManager(
+            audioPlayer: MockAudioPlayer(),
+            restoreBookmarks: false,
+            restorePlaylist: false,
+            bookmarkStore: store,
+            alertPresenter: SilentPlaylistAlertPresenter()
+        )
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drop-one-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("01.mp3")
+        FileManager.default.createFile(atPath: file.path, contents: Data([0x00]))
+        XCTAssertEqual(store.bookmarkCount, 0)
+
+        manager.importDroppedURLs([file])
+        await waitForTrackCount(1, on: manager)
+
+        XCTAssertGreaterThan(store.bookmarkCount, 0)
+    }
 }

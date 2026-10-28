@@ -236,13 +236,16 @@ actor RekordboxSync {
             let collection = try await Task.detached(priority: .utility) { try RekordboxCollectionParser.parse(data) }.value
             let library = try await snapshot
             guard !self.stopped, !Task.isCancelled else { return }
-            // Only a parsed export shows as syncing: failures never reach the UI.
-            self.syncing = true
-            await self.publishState()
             let name = file.name, rootID = root.id
             let plan = await Task.detached(priority: .utility) {
                 RekordboxImportPlanner.plan(collection, fileName: name, sourceRootID: rootID, library: library)
             }.value
+            // Only a parsed export that matches something shows as syncing: failures and unrelated
+            // collections never reach the UI.
+            if plan.report.matched > 0 {
+                self.syncing = true
+                await self.publishState()
+            }
             try await self.store.applyRekordbox(plan, fileName: file.name, stamp: file.stamp, token: token)
             self.failedStamps[root.id] = nil
             syncLogger.info("Imported \(file.name, privacy: .public): \(plan.report.matched) matched, \(plan.report.updated) updated")
@@ -273,7 +276,7 @@ actor RekordboxSync {
 
     private func publishState() async {
         let sources = await (try? self.store.rekordboxSources()) ?? self.lastState.sources
-        let present = sources.filter(\.isPresent)
+        let present = sources.filter(\.isShown)
         let status: RekordboxSyncStatus = if self.syncing {
             .syncing
         } else if present.isEmpty {

@@ -27,7 +27,7 @@ enum LibraryRootsMenu {
             status.isEnabled = false
             submenu.addItem(status)
             // Only a present export shows anything (rekordbox sync spec § UI).
-            if let source = rekordboxSources[root.id], source.isPresent {
+            if let source = rekordboxSources[root.id], source.isShown {
                 let line = NSMenuItem(title: self.rekordboxLine(source), action: nil, keyEquivalent: "")
                 line.isEnabled = false
                 submenu.addItem(line)

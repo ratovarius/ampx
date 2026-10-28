@@ -205,6 +205,7 @@ final class AmpXKeyRouterTests: XCTestCase {
         }
         XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 0, modifierFlags: [.command]), context: context), .library)
         XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 3, modifierFlags: [.command]), context: context), .library)
+        XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 53), context: context), .library, "Esc closes the report")
         // Left/Right still seek, Space still plays: the Library claims only its own keys.
         XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 123), context: context), .global)
         XCTAssertEqual(AmpXKeyRouter.route(event: self.keyDown(keyCode: 49), context: context), .global)

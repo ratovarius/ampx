@@ -86,6 +86,8 @@ actor LibraryStore: ModelActor {
     var activeTokens: [UUID: LibraryScanToken] = [:]
     /// One live rekordbox sync per root (`LibraryStore+Rekordbox.swift`).
     var rekordboxTokens: [UUID: RekordboxSyncToken] = [:]
+    /// Counts root relocations, so a rekordbox token taken before one is rejected for every root.
+    var rootRelocations = 0
     var subscribers: [UUID: AsyncStream<LibraryChange>.Continuation] = [:]
     /// Security scopes held per available root (spec: "Access lifetime").
     var activeScopes: [UUID: URL] = [:]
