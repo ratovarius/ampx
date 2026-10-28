@@ -29,9 +29,26 @@
 		B20000010 /* Library */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Library; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A90000077 /* Exceptions for "Sources" folder in "AmpX" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Vendor/TagLib/COPYING.LGPL,
+				Vendor/TagLib/COPYING.MPL,
+				Vendor/TagLib/VENDOR.md,
+				Vendor/TagLib/taglib/toolkit/tlist.tcc,
+				Vendor/TagLib/taglib/toolkit/tmap.tcc,
+			);
+			target = A50000001 /* AmpX */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A40000002 /* Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A90000077 /* Exceptions for "Sources" folder in "AmpX" target */,
+			);
 			explicitFileTypes = {
 			};
 			explicitFolders = (
@@ -256,6 +273,17 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Sources/Vendor/TagLib",
+					"$(SRCROOT)/Sources/Vendor/TagLib/taglib/**",
+					"$(SRCROOT)/Sources/Vendor/TagLib/3rdparty/utfcpp/source",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+				);
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/AmpX-Bridging-Header.h";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -303,6 +331,7 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
+					"TAGLIB_STATIC=1",
 					"$(inherited)",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -348,6 +377,21 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Sources/Vendor/TagLib",
+					"$(SRCROOT)/Sources/Vendor/TagLib/taglib/**",
+					"$(SRCROOT)/Sources/Vendor/TagLib/3rdparty/utfcpp/source",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+				);
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/AmpX-Bridging-Header.h";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"TAGLIB_STATIC=1",
+					"$(inherited)",
+				);
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
