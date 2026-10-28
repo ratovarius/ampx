@@ -73,7 +73,7 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(track.codec, "flac")
         XCTAssertEqual(track.duration, 60)
         XCTAssertNil(track.contentFingerprint)
-        XCTAssertEqual(track.schemaVersion, 2)
+        XCTAssertEqual(track.schemaVersion, 3)
         XCTAssertEqual(track.analysisSource, .fileTag)
         XCTAssertEqual(track.camelotKey, "8A")
     }

@@ -85,6 +85,16 @@ enum RekordboxBeatGrid {
         return grid
     }
 
+    /// `(max − min) / median` of the grid's BPMs, in percent; nil for an empty grid (DJ mode spec § Track classes).
+    static func tempoSpread(_ grid: [RekordboxBeat]) -> Double? {
+        guard !grid.isEmpty else { return nil }
+        let bpms = grid.map(\.bpm).sorted()
+        let middle = bpms.count / 2
+        let median = bpms.count.isMultiple(of: 2) ? (bpms[middle - 1] + bpms[middle]) / 2 : bpms[middle]
+        guard median > 0 else { return nil }
+        return (bpms[bpms.count - 1] - bpms[0]) / median * 100
+    }
+
     private static func read(_ bytes: [UInt8], at index: Int) -> UInt64 {
         (0 ..< 8).reduce(UInt64(0)) { $0 | UInt64(bytes[index + $1]) << UInt64($1 * 8) }
     }

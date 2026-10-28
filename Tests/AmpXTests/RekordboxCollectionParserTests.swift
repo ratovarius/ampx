@@ -113,4 +113,10 @@ final class RekordboxCollectionParserTests: XCTestCase {
         )
         XCTAssertNil(RekordboxCollectionParser.path(fromLocation: ""))
     }
+
+    func testTempoSpreadIsRangeOverMedianInPercent() throws {
+        let grid = [128.0, 128, 130].map { RekordboxBeat(start: 0, bpm: $0, meter: "4/4", beat: 1) }
+        XCTAssertEqual(try XCTUnwrap(RekordboxBeatGrid.tempoSpread(grid)), 2.0 / 128 * 100, accuracy: 1e-9)
+        XCTAssertNil(RekordboxBeatGrid.tempoSpread([]))
+    }
 }

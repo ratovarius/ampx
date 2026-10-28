@@ -2,10 +2,10 @@
 import Foundation
 import SwiftData
 
-/// Test-only V3 (spec: "Schema versioning"): the shipped V2 plus one optional field, reached by a custom stage
-/// whose `didMigrate` stamps `schemaVersion = 3`. Never shipped; proves a store can move past the newest shipped schema.
-enum LibraryTestSchemaV3: VersionedSchema {
-    static let versionIdentifier = Schema.Version(3, 0, 0)
+/// Test-only V4 (spec: "Schema versioning"): the shipped V3 plus one optional field, reached by a custom stage
+/// whose `didMigrate` stamps `schemaVersion = 4`. Never shipped; proves a store can move past the newest shipped schema.
+enum LibraryTestSchemaV4: VersionedSchema {
+    static let versionIdentifier = Schema.Version(4, 0, 0)
     static var models: [any PersistentModel.Type] {
         [LibraryRoot.self, LibraryTrack.self, RekordboxSource.self]
     }
@@ -73,13 +73,19 @@ enum LibraryTestSchemaV3: VersionedSchema {
         var mix: String?
         var ratingSource: RatingSource?
         var rekordboxPlayCount: Int = 0
+        var cues: Data?
+        var tempoSpread: Double?
+        var phrases: Data?
+        var phrasesStamp: Data?
+        var mixScan: Data?
+        var tagsWrittenHash: Data?
         var testOnlyField: String?
 
         init(id: UUID, rootID: UUID, relativePath: String, title: String, artist: String) {
             self.id = id
             self.rootID = rootID
             self.relativePath = relativePath
-            self.schemaVersion = 3
+            self.schemaVersion = 4
             self.title = title
             self.artist = artist
             self.album = ""
@@ -118,18 +124,18 @@ enum LibraryTestSchemaV3: VersionedSchema {
 
     enum MigrationPlan: SchemaMigrationPlan {
         static var schemas: [any VersionedSchema.Type] {
-            LibraryMigrationPlan.schemas + [LibraryTestSchemaV3.self]
+            LibraryMigrationPlan.schemas + [LibraryTestSchemaV4.self]
         }
 
         static var stages: [MigrationStage] {
             LibraryMigrationPlan.stages + [
                 .custom(
-                    fromVersion: LibrarySchemaV2.self,
-                    toVersion: LibraryTestSchemaV3.self,
+                    fromVersion: LibrarySchemaV3.self,
+                    toVersion: LibraryTestSchemaV4.self,
                     willMigrate: nil,
                     didMigrate: { context in
-                        for track in try context.fetch(FetchDescriptor<LibraryTestSchemaV3.LibraryTrack>()) {
-                            track.schemaVersion = 3
+                        for track in try context.fetch(FetchDescriptor<LibraryTestSchemaV4.LibraryTrack>()) {
+                            track.schemaVersion = 4
                         }
                         try context.save()
                     }
@@ -139,7 +145,7 @@ enum LibraryTestSchemaV3: VersionedSchema {
     }
 
     static func makeContainer(url: URL) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LibraryTestSchemaV3.self)
+        let schema = Schema(versionedSchema: LibraryTestSchemaV4.self)
         return try ModelContainer(
             for: schema,
             migrationPlan: MigrationPlan.self,
