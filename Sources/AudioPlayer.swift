@@ -53,13 +53,30 @@ class AudioPlayer: NSObject, ObservableObject {
     /// ReplayGain tags read from the current track (empty when none / not yet read).
     @Published private(set) var currentReplayGain = ReplayGain()
     private var manualPreampValue: Float = 0
-    /// Linear gain applied to the player node for normalization (1.0 = no change).
-    private nonisolated(unsafe) var normalizationLinearGain: Float = 1.0
+    /// ReplayGain per deck; the live deck's is also `currentReplayGain`.
+    private var deckReplayGains = [ReplayGain(), ReplayGain()]
+    /// MainActor mirror of the graph's live deck, switched once per Automix transition.
+    private(set) var liveDeckIndex = 0
 
     private nonisolated(unsafe) var audioGraph: AudioGraph?
     private nonisolated(unsafe) var audioEngine: AVAudioEngine?
-    private nonisolated(unsafe) var playerNode: AVAudioPlayerNode?
-    private nonisolated(unsafe) var audioFile: AVAudioFile?
+    /// Per-deck playback state; read and written on `audioQueue` only.
+    private nonisolated(unsafe) var deckStates = [DeckPlayback(), DeckPlayback()]
+
+    /// The live deck's player node (the graph's `source`).
+    private nonisolated var playerNode: AVAudioPlayerNode? {
+        self.audioGraph?.source
+    }
+
+    private nonisolated var liveIndexOnQueue: Int {
+        self.audioGraph?.liveDeckIndex ?? 0
+    }
+
+    private nonisolated var audioFile: AVAudioFile? {
+        get { self.deckStates[self.liveIndexOnQueue].file }
+        set { self.deckStates[self.liveIndexOnQueue].file = newValue }
+    }
+
     /// The AmpX EQ stage of the processing graph (preamp + parametric EQ).
     private nonisolated(unsafe) var eqEffect: EQAudioEffect?
     private nonisolated(unsafe) var spectrumAnalyzer: FFTSpectrumAnalyzer?
@@ -85,10 +102,14 @@ class AudioPlayer: NSObject, ObservableObject {
     /// can re-check it before committing UI state.
     private nonisolated(unsafe) var playbackGenerationStorage = 0
     private nonisolated(unsafe) var loadGeneration = 0
-    /// Absolute file time at the start of the currently scheduled player segment.
+    /// Absolute file time at the start of the live deck's scheduled player segment.
     /// `AVAudioPlayerNode.playerTime.sampleTime` is relative to that segment, so UI
     /// position is `playbackSegmentStartTime + sampleTime/sampleRate`.
-    private nonisolated(unsafe) var playbackSegmentStartTime: TimeInterval = 0
+    private nonisolated var playbackSegmentStartTime: TimeInterval {
+        get { self.deckStates[self.liveIndexOnQueue].segmentStart }
+        set { self.deckStates[self.liveIndexOnQueue].segmentStart = newValue }
+    }
+
     private let audioQueue = DispatchQueue(label: "com.ampx.audio", qos: .userInteractive)
 
     private nonisolated var playbackGeneration: Int {
@@ -176,15 +197,15 @@ class AudioPlayer: NSObject, ObservableObject {
         self.audioQueue.sync {
             // The processing pipeline is declared as an ordered effect chain rather than
             // hand-wired here, so future DSP modules are inserted via `AudioGraph`, not by
-            // editing this method. Today the chain is a single stage: the AmpX EQ.
+            // editing this method. Today the chain is a single stage: the AmpX EQ, fed by
+            // the two Automix decks (only the live one plays outside a transition).
             let eqEffect = EQAudioEffect()
-            let graph = AudioGraph()
+            let graph = AudioGraph.twoDeck()
             graph.build(effects: [eqEffect])
 
             self.audioGraph = graph
             self.eqEffect = eqEffect
             self.audioEngine = graph.engine
-            self.playerNode = graph.source
 
             engineStarted = self.startEngineIfNeeded(graph.engine)
 
@@ -337,7 +358,7 @@ class AudioPlayer: NSObject, ObservableObject {
                         self.runOnMainActor(weak: self) { player in
                             guard generation == player.loadGeneration else { return }
                             player.currentReplayGain = replayGain
-                            player.recomputeNormalizationGain()
+                            player.deckReplayGains[player.liveDeckIndex] = replayGain
                             if player.volumeNormalizationEnabled {
                                 player.applyPlayerVolume()
                             }
@@ -400,26 +421,19 @@ class AudioPlayer: NSObject, ObservableObject {
         }
     }
 
-    /// Stops scheduled audio and reuses the attached player node for the next file.
+    /// Stops both decks and returns them to rate 1, no cut and full fade, so a loaded track
+    /// always starts at its original tempo. The idle deck's state is cleared too.
     private nonisolated func preparePlayerNodeForNewTrack() {
-        guard let engine = audioEngine else { return }
         // Invalidate analysis only after stopping/resetting the old source. Opening
         // the new epoch on the main actor beforehand could stamp old PCM as new.
         defer { self.spectrumAnalyzer?.resetMiniAnalysis() }
 
-        if let player = playerNode {
-            player.stop()
-            player.reset()
-            return
+        for deck in self.audioGraph?.decks ?? [] {
+            deck.player.stop()
+            deck.player.reset()
+            deck.reset()
         }
-
-        // Defensive: if the source was ever torn down, recreate it and reconnect to the
-        // head of the effect chain (the EQ preamp).
-        guard let destination = self.eqEffect?.inputNode ?? self.audioGraph?.tapPoint else { return }
-        let player = AVAudioPlayerNode()
-        self.playerNode = player
-        engine.attach(player)
-        engine.connect(player, to: destination, format: nil)
+        self.deckStates[1 - self.liveIndexOnQueue] = DeckPlayback()
     }
 
     private func updateNowPlayingInfo() {
@@ -440,16 +454,12 @@ class AudioPlayer: NSObject, ObservableObject {
 
     func play() {
         self.testing_lastTransportAction = .play
-        let playerGain = VolumeModel.playerNormalizationGain(
-            normalizationEnabled: self.volumeNormalizationEnabled,
-            normalizationGain: self.normalizationLinearGain
-        )
+        let playerGain = self.playerGain(deck: self.liveDeckIndex)
         let mixerGain = VolumeModel.taper(self.volume)
         let balance = self.balance
         self.audioQueue.async { [weak self] in
-            guard let self else { return }
-
-            guard let player = self.playerNode,
+            guard let self,
+                  let player = self.playerNode,
                   let file = self.audioFile,
                   let engine = self.audioEngine
             else {
@@ -671,49 +681,51 @@ class AudioPlayer: NSObject, ObservableObject {
         self.applyPlayerVolume()
     }
 
-    /// Applies ReplayGain on the player node and the tapered fader on the main mixer
+    /// Applies each deck's ReplayGain on its own player node (two gain stages: the Automix
+    /// fade envelope lives on the deck's mixer) and the tapered fader on the main mixer,
     /// so the analysis tap (post-EQ) does not see the listening volume.
     private func applyPlayerVolume() {
-        let playerGain = VolumeModel.playerNormalizationGain(
-            normalizationEnabled: self.volumeNormalizationEnabled,
-            normalizationGain: self.normalizationLinearGain
-        )
+        let playerGains = self.deckReplayGains.indices.map { self.playerGain(deck: $0) }
         let mixerGain = VolumeModel.taper(self.volume)
         self.audioQueue.async { [weak self] in
             guard let self else { return }
-            self.playerNode?.volume = playerGain
+            for (deck, gain) in zip(self.audioGraph?.decks ?? [], playerGains) {
+                deck.player.volume = gain
+            }
             self.audioEngine?.mainMixerNode.outputVolume = mixerGain
         }
+    }
+
+    /// Linear normalization gain for a deck's player node (1.0 when normalization is off).
+    private func playerGain(deck: Int) -> Float {
+        VolumeModel.playerNormalizationGain(
+            normalizationEnabled: self.volumeNormalizationEnabled,
+            normalizationGain: self.deckReplayGains[deck].normalizationGain(preferAlbum: self.volumeNormalizationPreferAlbum)
+        )
     }
 
     func setBalance(_ newBalance: Float) {
         let clamped = max(-1, min(1, newBalance))
         self.balance = clamped
         self.audioQueue.async { [weak self] in
-            self?.playerNode?.pan = clamped
+            for deck in self?.audioGraph?.decks ?? [] {
+                deck.player.pan = clamped
+            }
         }
     }
 
     /// Enables/disables ReplayGain volume normalization. Off by default.
     func setVolumeNormalizationEnabled(_ enabled: Bool) {
         self.volumeNormalizationEnabled = enabled
-        self.recomputeNormalizationGain()
         self.applyPlayerVolume()
     }
 
     /// Chooses album vs. track ReplayGain when both are present.
     func setVolumeNormalizationPreferAlbum(_ preferAlbum: Bool) {
         self.volumeNormalizationPreferAlbum = preferAlbum
-        self.recomputeNormalizationGain()
         if self.volumeNormalizationEnabled {
             self.applyPlayerVolume()
         }
-    }
-
-    /// Recomputes the cached linear normalization gain from the current track's ReplayGain tags.
-    private func recomputeNormalizationGain() {
-        let gain = self.currentReplayGain.normalizationGain(preferAlbum: self.volumeNormalizationPreferAlbum)
-        self.normalizationLinearGain = gain
     }
 
     func setEQBand(_ band: Int, gain: Float) {
@@ -1046,4 +1058,58 @@ extension AudioPlayer {
             completion(snapshot)
         }
     }
+
+    struct DeckSnapshot: Equatable, Sendable {
+        let rate: Float
+        let lowCut: Bool
+        let fade: Float
+        let playerVolume: Float
+        let pan: Float
+        let isPlaying: Bool
+        let isLive: Bool
+    }
+
+    func testing_deckSnapshot(completion: @escaping @Sendable ([DeckSnapshot]) -> Void) {
+        self.audioQueue.async { [weak self] in
+            guard let graph = self?.audioGraph else {
+                completion([])
+                return
+            }
+            completion(graph.decks.enumerated().map { index, deck in
+                DeckSnapshot(
+                    rate: deck.timePitch.rate,
+                    lowCut: !deck.lowCut.bypass,
+                    fade: deck.fade.outputVolume,
+                    playerVolume: deck.player.volume,
+                    pan: deck.player.pan,
+                    isPlaying: deck.player.isPlaying,
+                    isLive: index == graph.liveDeckIndex
+                )
+            })
+        }
+    }
+
+    func testing_configureDeck(_ index: Int, rate: Float, fade: Float, lowCut: Bool) {
+        self.audioQueue.async { [weak self] in
+            guard let deck = self?.audioGraph?.decks[index] else { return }
+            deck.setRate(rate)
+            deck.fade.outputVolume = fade
+            deck.setLowCut(lowCut)
+        }
+    }
+
+    func testing_setReplayGain(_ replayGain: ReplayGain, deck: Int) {
+        self.deckReplayGains[deck] = replayGain
+        if deck == self.liveDeckIndex {
+            self.currentReplayGain = replayGain
+        }
+        self.applyPlayerVolume()
+    }
+}
+
+/// One deck's playback state on the audio queue: the scheduled file and where its segment starts.
+struct DeckPlayback {
+    var file: AVAudioFile?
+    /// Absolute file time at the start of the deck's scheduled segment.
+    var segmentStart: TimeInterval = 0
 }
