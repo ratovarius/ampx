@@ -370,6 +370,7 @@ class AudioPlayer: NSObject, ObservableObject {
                 let bitrate = formatDetails?.bitrateKbps ?? 128
 
                 self.audioFile = newFile
+                self.deckStates[self.liveIndexOnQueue].trackID = track.id
 
                 // ReplayGain metadata I/O must not block the serial audio queue.
                 Task { [weak self] in
@@ -482,6 +483,8 @@ class AudioPlayer: NSObject, ObservableObject {
     func play() {
         self.testing_lastTransportAction = .play
         let playerGain = self.playerGain(deck: self.liveDeckIndex)
+        // Play always starts the track from the top at its original tempo (spec § Tempo: manual play).
+        self.liveRate = 1
         let mixerGain = VolumeModel.taper(self.volume)
         let balance = self.balance
         self.audioQueue.async { [weak self] in
@@ -505,9 +508,11 @@ class AudioPlayer: NSObject, ObservableObject {
 
             // Stopping the node fires the completion of any segment still scheduled (e.g. by
             // a seek while stopped); the new generation makes that completion a no-op.
+            self.cancelTransitionOnQueue(notify: true)
             self.playbackGeneration += 1
             player.stop()
             player.reset()
+            self.audioGraph?.liveDeck?.reset()
 
             self.shouldAutoAdvance = true
             self.playbackSegmentStartTime = 0
@@ -1072,7 +1077,7 @@ extension AudioPlayer {
             deck.player.reset()
             deck.reset()
             deck.fade.outputVolume = 0
-            self.deckStates[incoming] = DeckPlayback(file: file, segmentStart: prepared.plan.incomingStart)
+            self.deckStates[incoming] = DeckPlayback(file: file, trackID: prepared.track.id, segmentStart: prepared.plan.incomingStart)
             self.transition = ActiveTransition(
                 prepared: prepared,
                 curve: BlendCurve(plan: prepared.plan),
@@ -1298,6 +1303,7 @@ extension AudioPlayer {
             self.performSwitchOnQueue()
         }
         let outgoing = graph.decks[transition.outgoing]
+        let finishedTrackID = self.deckStates[transition.outgoing].trackID
         outgoing.player.stop()
         outgoing.player.reset()
         outgoing.reset()
@@ -1309,7 +1315,9 @@ extension AudioPlayer {
         let outgoingIndex = transition.outgoing
         self.runOnMainActor(weak: self) { player in
             player.isBlending = false
-            player.deckTrackIDs[outgoingIndex] = nil
+            if player.deckTrackIDs[outgoingIndex] == finishedTrackID {
+                player.deckTrackIDs[outgoingIndex] = nil
+            }
         }
     }
 
@@ -1319,6 +1327,7 @@ extension AudioPlayer {
         self.stopBlendTimer()
         self.transition = nil
         let idleIndex = 1 - graph.liveDeckIndex
+        let cancelledTrackID = self.deckStates[idleIndex].trackID
         idle.player.stop()
         idle.player.reset()
         idle.reset()
@@ -1327,7 +1336,10 @@ extension AudioPlayer {
         live.setLowCut(false)
         self.runOnMainActor(weak: self) { player in
             player.isBlending = false
-            player.deckTrackIDs[idleIndex] = nil
+            // A prepare queued right after this cancel may already own the slot.
+            if player.deckTrackIDs[idleIndex] == cancelledTrackID {
+                player.deckTrackIDs[idleIndex] = nil
+            }
             if notify {
                 player.onTransitionCancelled?()
             }
@@ -1482,6 +1494,10 @@ extension AudioPlayer {
         }
     }
 
+    func testing_deckTrackID(_ deck: Int) -> UUID? {
+        self.deckTrackIDs[deck]
+    }
+
     func testing_setReplayGain(_ replayGain: ReplayGain, deck: Int) {
         self.deckReplayGains[deck] = replayGain
         if deck == self.liveDeckIndex {
@@ -1494,6 +1510,8 @@ extension AudioPlayer {
 /// One deck's playback state on the audio queue: the scheduled file and where its segment starts.
 struct DeckPlayback {
     var file: AVAudioFile?
+    /// The playback occurrence (`Track.id`) loaded on the deck, matching the MainActor's `deckTrackIDs`.
+    var trackID: UUID?
     /// Absolute file time at the start of the deck's scheduled segment.
     var segmentStart: TimeInterval = 0
 }

@@ -477,10 +477,19 @@ class PlaylistManager: ObservableObject {
         return position < self.shuffledIndices.count ? self.shuffledIndices[position] : nil
     }
 
-    /// Appends the continuation's pick, marked `AUTO`.
+    /// Appends the continuation's pick, marked `AUTO`. With Shuffle on it goes right after the current position in
+    /// the shuffle order, so it plays next and the played part of the order is kept (no reshuffle).
     func appendAutoTrack(_ track: Track) {
-        self.addTracks([track])
+        self.tracks.append(track)
         self.autoTrackIDs.insert(track.id)
+        if self.shuffleEnabled {
+            if self.shuffledIndices.isEmpty {
+                self.generateShuffledIndices()
+            } else {
+                self.shuffledIndices.insert(self.tracks.count - 1, at: min(self.shuffleCurrentIndex + 1, self.shuffledIndices.count))
+            }
+        }
+        self.persistState()
     }
 
     /// The Automix transport switch: `index` is now playing, already loaded on the incoming deck.

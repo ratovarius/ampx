@@ -272,4 +272,30 @@ final class AudioPlayerTransitionTests: XCTestCase {
         XCTAssertEqual(self.cancellations, 1)
         XCTAssertEqual(self.player.liveDeckIndex, 0)
     }
+
+    /// Review finding 3: a cancel followed at once by a new prepare must leave the slot to the new track, so its
+    /// ReplayGain read is applied.
+    func testReprepareAfterCancelKeepsIncomingTrackSlot() {
+        self.startA()
+        XCTAssertTrue(self.prepare().1)
+        self.player.cancelTransition()
+        let second = Track(title: "B2", artist: "T", url: self.trackB.url)
+        XCTAssertTrue(self.prepare(track: second).1)
+        self.settle()
+        XCTAssertEqual(self.player.testing_deckTrackID(1), second.id)
+    }
+
+    /// Review finding 4 (spec § Tempo: Play on a stopped player starts the track at its original tempo).
+    func testPlayAfterStopStartsAtOriginalTempo() {
+        self.startA()
+        self.player.setLiveRate(1.04)
+        self.settle()
+        XCTAssertEqual(self.live(self.snapshot()).rate, 1.04, accuracy: 1e-6)
+        self.player.stop()
+        self.settle()
+        self.player.play()
+        self.settle()
+        XCTAssertEqual(self.live(self.snapshot()).rate, 1)
+        XCTAssertEqual(self.player.liveRate, 1)
+    }
 }

@@ -125,4 +125,16 @@ final class PlaylistAutomixTests: XCTestCase {
         XCTAssertGreaterThan(tag.minX, PlaylistRowLayout.titleRect(in: row).minX)
         XCTAssertEqual(tag.height, row.height)
     }
+
+    /// Review finding 5: with Shuffle on, the continuation's pick plays next instead of a reshuffled old track.
+    func testAutoPickIsNextInShuffleOrder() {
+        self.load(3, current: 1)
+        self.manager.shuffleEnabled = true
+        self.manager.test_setShuffledIndices([0, 2, 1], position: 2)
+        let pick = Track(title: "Pick", artist: "A", url: URL(fileURLWithPath: "/tmp/shuffle-pick.mp3"))
+        self.manager.appendAutoTrack(pick)
+        XCTAssertEqual(self.manager.nextTrackIndex(), 3)
+        XCTAssertEqual(self.manager.test_shuffledIndices, [0, 2, 1, 3])
+        XCTAssertEqual(self.manager.test_shuffleCurrentIndex, 2)
+    }
 }
