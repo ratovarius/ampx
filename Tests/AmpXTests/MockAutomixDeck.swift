@@ -14,6 +14,8 @@ final class MockAutomixDeck: AutomixDeckControlling {
     var fileTime: Double = 0
     var rate: Double = 1
     var prepareSucceeds = true
+    /// Like the real player: the prepare completion arrives on a later MainActor turn.
+    var completesAsynchronously = false
     private(set) var prepared: [PreparedTransition] = []
     private(set) var armed: [UUID] = []
     private(set) var cancelCount = 0
@@ -22,7 +24,12 @@ final class MockAutomixDeck: AutomixDeckControlling {
 
     func prepareTransition(_ prepared: PreparedTransition, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
         self.prepared.append(prepared)
-        completion(self.prepareSucceeds)
+        let ok = self.prepareSucceeds
+        if self.completesAsynchronously {
+            Task { @MainActor in completion(ok) }
+        } else {
+            completion(ok)
+        }
     }
 
     func armTransition(token: UUID) {

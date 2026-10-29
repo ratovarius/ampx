@@ -26,10 +26,12 @@ struct AutomixClock {
 
     static var live: AutomixClock {
         AutomixClock { fire in
-            let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            let timer = Timer(timeInterval: 0.25, repeats: true) { _ in
                 // A real `Task`, not `MainActor.assumeIsolated` (see AudioPlayer.startTimer).
                 Task { @MainActor in fire() }
             }
+            // `.common`, so ticks continue while a menu is open or a window is dragged.
+            RunLoop.main.add(timer, forMode: .common)
             return AnyCancellable { timer.invalidate() }
         }
     }
@@ -243,6 +245,10 @@ final class AutomixCoordinator: ObservableObject {
         self.deck.prepareTransition(prepared) { [weak self] ok in
             guard let self, case let .preparing(current, _) = self.phase, current == token else { return }
             self.phase = ok ? .prepared(token: token, trackID: nextTrack.id, plan: plan) : .idle
+            // Arm without waiting for the next tick when the prepare finished inside the arm window.
+            if ok {
+                Task { await self.tick() }
+            }
         }
         if case .prepared = self.phase, lead <= Self.armLead {
             self.arm(token)

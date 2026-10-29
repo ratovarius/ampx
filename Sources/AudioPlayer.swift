@@ -1111,8 +1111,25 @@ extension AudioPlayer {
             let outgoing = graph.decks[transition.outgoing]
             let incoming = graph.decks[transition.incoming]
 
+            if case let .beatmatched(rate, _) = plan.kind {
+                incoming.setRate(Float(rate))
+            }
+            incoming.fade.outputVolume = 0
+            incoming.setLowCut(transition.curve.lowCut(atOutgoingTime: plan.outgoingStart).incoming)
+
+            // When B starts, and from where: on time when A is still before its mix-out, else mid-blend.
+            let render = outgoing.player.lastRenderTime.flatMap { $0.isHostTimeValid ? $0 : nil }
+            let outgoingNow = render.flatMap { self.deckFileTime(transition.outgoing, at: $0) }
+            let start = DeckSync.start(
+                outgoingNow: outgoingNow ?? plan.outgoingStart,
+                outgoingTarget: plan.outgoingStart,
+                outgoingRate: Double(outgoing.timePitch.rate),
+                incomingRate: Double(incoming.timePitch.rate),
+                incomingStart: plan.incomingStart
+            )
+            self.deckStates[transition.incoming].segmentStart = start.incomingStart
             let sampleRate = file.fileFormat.sampleRate
-            let startFrame = min(max(AVAudioFramePosition(plan.incomingStart * sampleRate), 0), max(file.length - 1, 0))
+            let startFrame = min(max(AVAudioFramePosition(start.incomingStart * sampleRate), 0), max(file.length - 1, 0))
             incoming.player.scheduleSegment(
                 file,
                 startingFrame: startFrame,
@@ -1122,24 +1139,9 @@ extension AudioPlayer {
             ) { [weak self] _ in
                 self?.handleIncomingCompletion(token: token)
             }
-            if case let .beatmatched(rate, _) = plan.kind {
-                incoming.setRate(Float(rate))
-            }
-            incoming.fade.outputVolume = 0
-            incoming.setLowCut(transition.curve.lowCut(atOutgoingTime: plan.outgoingStart).incoming)
-
-            if let render = outgoing.player.lastRenderTime, render.isHostTimeValid,
-               let playerTime = outgoing.player.playerTime(forNodeTime: render), playerTime.sampleRate > 0
-            {
-                let now = self.deckStates[transition.outgoing].segmentStart + Double(playerTime.sampleTime) / playerTime.sampleRate
-                let start = DeckSync.startHostTime(
-                    nowHostTime: render.hostTime,
-                    outgoingNow: now,
-                    outgoingTarget: plan.outgoingStart,
-                    outgoingRate: Double(outgoing.timePitch.rate),
-                    ticksPerSecond: Double(AVAudioTime.hostTime(forSeconds: 1))
-                )
-                incoming.player.play(at: AVAudioTime(hostTime: start))
+            if let render, outgoingNow != nil {
+                let ticks = start.requestedDelay * Double(AVAudioTime.hostTime(forSeconds: 1))
+                incoming.player.play(at: AVAudioTime(hostTime: render.hostTime + UInt64(ticks.rounded())))
             } else {
                 incoming.player.play()
             }
@@ -1203,7 +1205,12 @@ extension AudioPlayer {
 
     /// A deck's file position from its own sample clock; nil while it is not rendering.
     private nonisolated func deckFileTime(_ index: Int) -> Double? {
-        guard let player = self.audioGraph?.decks[index].player, let render = player.lastRenderTime,
+        guard let render = self.audioGraph?.decks[index].player.lastRenderTime else { return nil }
+        return self.deckFileTime(index, at: render)
+    }
+
+    private nonisolated func deckFileTime(_ index: Int, at render: AVAudioTime) -> Double? {
+        guard let player = self.audioGraph?.decks[index].player,
               let playerTime = player.playerTime(forNodeTime: render), playerTime.sampleRate > 0
         else { return nil }
         return self.deckStates[index].segmentStart + Double(playerTime.sampleTime) / playerTime.sampleRate

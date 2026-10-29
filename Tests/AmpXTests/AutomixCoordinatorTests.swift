@@ -224,4 +224,15 @@ final class AutomixCoordinatorTests: XCTestCase {
         await self.at(321)
         XCTAssertEqual(self.deck.prepared.count, 2)
     }
+
+    /// Review finding 2: with an asynchronous prepare inside the arm window, arming must not wait for the next tick.
+    func testAsyncPrepareInsideArmWindowArmsAtOnce() async {
+        self.deck.completesAsynchronously = true
+        await self.start([self.a, self.b], at: 329.5)
+        XCTAssertEqual(self.deck.prepared.count, 1)
+        for _ in 0 ..< 20 where self.deck.armed.isEmpty {
+            await Task.yield()
+        }
+        XCTAssertEqual(self.deck.armed, [self.deck.prepared[0].token])
+    }
 }
