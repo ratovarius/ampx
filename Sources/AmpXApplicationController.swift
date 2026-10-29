@@ -7,6 +7,10 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     let playlistManager: PlaylistManager
     let hosts: AmpXHostCoordinator
     let libraryController: LibraryController?
+    /// Automix settings (Playback ▸ Automix and Automix Options) and the persisted pick filter.
+    let automixSettings: AutomixSettingsStore
+    /// Plays the Playlist as a continuous set while Automix is on; created with the playback bindings.
+    private(set) var automix: AutomixCoordinator?
     /// Launch-time `startIfConfigured()`; opens the engine only when the library has roots.
     private(set) var libraryStartTask: Task<Void, Never>?
 
@@ -18,12 +22,15 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         playlistManager: PlaylistManager,
         hosts: AmpXHostCoordinator,
         libraryController: LibraryController? = nil,
+        automixSettings: AutomixSettingsStore? = nil,
         playsStartupSound: Bool? = nil
     ) {
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
         self.hosts = hosts
         self.libraryController = libraryController
+        // Tests get a throwaway suite, so they never read or write the app's Automix settings.
+        self.automixSettings = automixSettings ?? AutomixSettingsStore(defaults: UserDefaults(suiteName: "AmpX.automix.\(UUID().uuidString)")!)
         self.playsStartupSound = playsStartupSound ?? !Self.isRunningUnderTest
         super.init()
     }
@@ -207,6 +214,14 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         self.audioPlayer.onPreviousTrackRequested = { [weak playlistManager] in
             playlistManager?.previous()
         }
+        let libraryController = self.libraryController
+        self.automix = AutomixCoordinator(
+            settings: self.automixSettings,
+            playlist: self.playlistManager,
+            deck: self.audioPlayer,
+            library: { libraryController?.engine.map { LibraryEngineAutomixLibrary(engine: $0) } },
+            clock: Self.isRunningUnderTest ? .manual : .live
+        )
     }
 
     private func loadStartupSoundIfNeeded() {

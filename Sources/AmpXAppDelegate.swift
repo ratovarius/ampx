@@ -47,7 +47,8 @@ final class AmpXAppDelegate: NSObject, NSApplicationDelegate {
             audioPlayer: audioPlayer,
             playlistManager: playlistManager,
             hosts: hosts,
-            libraryController: libraryController
+            libraryController: libraryController,
+            automixSettings: AutomixSettingsStore(defaults: .standard)
         )
         self.applicationController = application
 
