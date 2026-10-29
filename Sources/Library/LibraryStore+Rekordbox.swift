@@ -47,7 +47,7 @@ extension LibraryStore {
                 bpm: $0.bpm, musicalKey: $0.musicalKey, analysisSource: $0.analysisSource,
                 rating: $0.rating, ratingSource: $0.ratingSource, rekordboxPlayCount: $0.rekordboxPlayCount,
                 label: $0.label, remixer: $0.remixer, composer: $0.composer, grouping: $0.grouping, mix: $0.mix,
-                beatGrid: $0.beatGrid
+                beatGrid: $0.beatGrid, cues: $0.cues
             )
         }
         return RekordboxLibrarySnapshot(roots: roots, rows: rows)
@@ -115,6 +115,75 @@ extension LibraryStore {
         }
     }
 
+    /// Each row's stored phrase stamp (JSON `RekordboxFileStamp` of its `.EXT`), for rows that have one.
+    func phraseStamps() throws -> [UUID: Data] {
+        var stamps: [UUID: Data] = [:]
+        for track in try self.modelContext.fetch(FetchDescriptor<LibraryTrack>()) {
+            if let stamp = track.phrasesStamp {
+                stamps[track.id] = stamp
+            }
+        }
+        return stamps
+    }
+
+    /// One transaction for a phrase-import run; writes for rows that no longer exist are skipped.
+    func applyRekordboxPhrases(_ writes: [RekordboxPhraseWrite]) throws {
+        guard !writes.isEmpty else { return }
+        try self.commit(nil) {
+            let rows = try Dictionary(
+                uniqueKeysWithValues: self.modelContext.fetch(FetchDescriptor<LibraryTrack>()).map { ($0.id, $0) }
+            )
+            var roots: [UUID] = []
+            for write in writes {
+                guard let row = rows[write.rowID] else { continue }
+                row.phrases = write.phrases
+                row.phrasesStamp = write.stamp
+                if !roots.contains(row.rootID) {
+                    roots.append(row.rootID)
+                }
+            }
+            return roots.map { .rowsChanged(rootID: $0) }
+        }
+    }
+
+    /// Rows with rekordbox values in available roots, not missing; limited to `rowIDs` when given (tag writing).
+    /// Label, remixer, composer and grouping only ever come from rekordbox; BPM and key only when `analysisSource`
+    /// says so, so a file's own BPM/key is never written back.
+    func tagWriteRows(rowIDs: Set<UUID>?) throws -> [TagWriteRow] {
+        let roots = try Dictionary(self.roots().filter(\.isAvailable).map { ($0.id, $0.url) }, uniquingKeysWith: { first, _ in first })
+        return try self.modelContext.fetch(FetchDescriptor<LibraryTrack>())
+            .filter { track in
+                let hasRekordboxText = [track.label, track.remixer, track.composer, track.grouping].contains { $0 != nil }
+                return (track.analysisSource == .rekordbox || hasRekordboxText) && !track.isMissing
+                    && (rowIDs?.contains(track.id) ?? true)
+            }
+            .compactMap { track in
+                let analysis = track.analysisSource == .rekordbox
+                return roots[track.rootID].map { root in
+                    TagWriteRow(
+                        rowID: track.id, rootID: track.rootID, url: root.appendingPathComponent(track.relativePath),
+                        bpm: analysis ? track.bpm : nil, musicalKey: analysis ? track.musicalKey : nil,
+                        label: track.label, remixer: track.remixer,
+                        composer: track.composer, grouping: track.grouping, tagsWrittenHash: track.tagsWrittenHash
+                    )
+                }
+            }
+            .sorted { $0.url.path < $1.url.path }
+    }
+
+    /// Records what was written to, or confirmed in, each file. Nothing displayed changes, so nothing is published.
+    func markTagsWritten(_ hashes: [UUID: Data]) throws {
+        guard !hashes.isEmpty else { return }
+        try self.commit(nil) {
+            for track in try self.modelContext.fetch(FetchDescriptor<LibraryTrack>()) {
+                if let hash = hashes[track.id] {
+                    track.tagsWrittenHash = hash
+                }
+            }
+            return []
+        }
+    }
+
     /// The export is gone: keep its values, stamp and report, and mark it not present.
     func markRekordboxSourceAbsent(rootID: UUID) throws {
         try self.commit(nil) {
@@ -154,5 +223,7 @@ extension LibraryStore {
         row.grouping = values.grouping
         row.mix = values.mix
         row.beatGrid = values.beatGrid
+        row.tempoSpread = values.beatGrid.flatMap(RekordboxBeatGrid.unpack).flatMap(RekordboxBeatGrid.tempoSpread)
+        row.cues = values.cues
     }
 }

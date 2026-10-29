@@ -97,9 +97,18 @@ final class LibraryChromeTests: XCTestCase {
         XCTAssertEqual(footer.rootsButton.label, "ROOTS")
     }
 
-    func testSidebarPlaceholderAndDisabledQueue() {
+    private func mixRow(_ title: String, bpm: Double? = 128, camelot: String? = "8A") -> LibraryRow {
+        LibraryRow(
+            id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/\(title).mp3"), title: title, artist: "Artist",
+            album: "", albumArtist: "", genre: "Techno", trackNumber: nil, duration: 300, fileSize: 1, bpm: bpm,
+            musicalKey: "Am", camelotKey: camelot, bitrate: 0, bitrateIsDerived: false, codec: "mp3", isAvailable: true,
+            searchKey: "", tempoSpread: 0
+        )
+    }
+
+    func testSidebarPlaceholdersAndDisabledQueue() {
         let sidebar = LibraryMixesSidebarView(skin: self.skin)
-        XCTAssertEqual(sidebar.placeholderText, "Recommendations arrive with DJ mode (BPM & key analysis).")
+        XCTAssertEqual(sidebar.placeholderText, "No track")
         XCTAssertFalse(sidebar.queueButton.isEnabled)
         XCTAssertEqual(sidebar.referenceText, "No track")
         let row = LibraryRow(
@@ -109,6 +118,45 @@ final class LibraryChromeTests: XCTestCase {
         )
         sidebar.updateReference(row)
         XCTAssertEqual(sidebar.referenceText, "Stavroz – The Finishing · 124 BPM · 8A")
+        XCTAssertEqual(sidebar.placeholderText, "This track has no BPM or key.", "no Camelot key")
+        sidebar.updateReference(self.mixRow("ref"))
+        sidebar.updateMatches(MixesWellResult(matches: [], chapter: []))
+        XCTAssertEqual(sidebar.placeholderText, "No matches.")
+    }
+
+    func testSidebarListsMatchesThenChapterHeader() {
+        let sidebar = LibraryMixesSidebarView(skin: self.skin)
+        sidebar.frame = CGRect(x: 0, y: 0, width: LibraryMixesSidebarView.width, height: 400)
+        let reference = self.mixRow("ref")
+        sidebar.updateReference(reference)
+        let rows = [self.mixRow("same", bpm: 129), self.mixRow("plus", camelot: "9A"), self.mixRow("half", bpm: 64)]
+        sidebar.updateMatches(MixesWell.matches(reference: reference, tempo: 128, rows: rows))
+        XCTAssertNil(sidebar.placeholderText)
+        XCTAssertEqual(sidebar.lines, [
+            "Artist – same", "SAME KEY  +1%",
+            "Artist – plus", "+1  ±0%",
+            "CHANGE CHAPTER",
+            "Artist – half", "SAME KEY  ±0%  ½×",
+        ])
+    }
+
+    func testSidebarQueueNeedsSelection() {
+        let sidebar = LibraryMixesSidebarView(skin: self.skin)
+        sidebar.frame = CGRect(x: 0, y: 0, width: LibraryMixesSidebarView.width, height: 400)
+        let reference = self.mixRow("ref")
+        let match = self.mixRow("same")
+        sidebar.updateReference(reference)
+        sidebar.updateMatches(MixesWell.matches(reference: reference, tempo: 128, rows: [match]))
+        var queued: [String] = []
+        sidebar.onQueue = { queued.append($0.title) }
+        XCTAssertFalse(sidebar.queueButton.isEnabled)
+        sidebar.selectedMatchID = match.id
+        XCTAssertTrue(sidebar.queueButton.isEnabled)
+        sidebar.queueButton.action?()
+        XCTAssertEqual(queued, ["same"])
+        sidebar.updateMatches(MixesWellResult(matches: [], chapter: []))
+        XCTAssertNil(sidebar.selectedMatchID, "a selection that left the list is dropped")
+        XCTAssertFalse(sidebar.queueButton.isEnabled)
     }
 
     func testSidebarModeToggleReports() {

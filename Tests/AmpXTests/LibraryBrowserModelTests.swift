@@ -274,6 +274,27 @@ final class LibraryBrowserModelTests: XCTestCase {
         XCTAssertEqual(self.playlist.tracks.first?.url, moved.appendingPathComponent("1.mp3"))
     }
 
+    func testAllRowsIgnoresCurrentQuery() async throws {
+        let model = try await self.loadedModel([self.row(1, title: "A"), self.row(2, title: "B")])
+        model.setQuery(LibraryQuery(search: "zzz", sort: .title))
+        await model.waitForRefresh()
+        XCTAssertTrue(model.rows.isEmpty)
+        let all = await model.allRows()
+        XCTAssertEqual(Set(all.map(\.title)), ["A", "B"])
+    }
+
+    func testAppendSkipsUnavailableRowsAndSavesRootBookmark() async throws {
+        let a = self.row(1, title: "A"), b = self.row(2, title: "B")
+        let model = try await self.loadedModel([a, b])
+        self.live.latest = [a, self.row(2, title: "B", available: false)]
+        await model.append([a, b])
+        XCTAssertEqual(self.playlist.tracks.map(\.title), ["A"])
+        let saved = self.bookmarkDefaults.array(forKey: "AmpXSecurityScopedBookmarks") as? [Data]
+        XCTAssertEqual(saved?.count, 1)
+        await model.append([b])
+        XCTAssertEqual(self.beeps, 1)
+    }
+
     // MARK: - Helpers
 
     private func makeModel(scripted: Bool = false) -> LibraryBrowserModel {

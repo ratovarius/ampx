@@ -5,15 +5,28 @@ import Combine
 @MainActor
 protocol LibraryPanelPresenting: AnyObject {
     func chooseFolder(title: String) async -> URL?
+    /// Opens at `directory` when given.
+    func chooseFolder(title: String, directory: URL?) async -> URL?
     func confirmRemove(message: String, info: String) async -> Bool
     func showError(_ message: String)
+}
+
+extension LibraryPanelPresenting {
+    func chooseFolder(title: String, directory _: URL?) async -> URL? {
+        await self.chooseFolder(title: title)
+    }
 }
 
 @MainActor
 final class AppKitLibraryPanels: LibraryPanelPresenting {
     func chooseFolder(title: String) async -> URL? {
+        await self.chooseFolder(title: title, directory: nil)
+    }
+
+    func chooseFolder(title: String, directory: URL?) async -> URL? {
         let panel = NSOpenPanel()
         panel.title = title
+        panel.directoryURL = directory
         panel.prompt = "Choose"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -49,6 +62,7 @@ final class AppKitLibraryPanels: LibraryPanelPresenting {
 final class LibraryModuleContent: AmpXModuleContent {
     static let overlapMessage = "That folder overlaps a folder already in the library."
     static let emptyMessage = "No library folders yet"
+    static let notAnalysisFolderMessage = "That folder has no rekordbox analysis (share/PIONEER/USBANLZ)."
 
     let toolbar: LibraryToolbarView
     let genreList: LibraryFacetListView
@@ -58,6 +72,7 @@ final class LibraryModuleContent: AmpXModuleContent {
     let footer: LibraryFooterView
     let resizeHandle: PlaylistResizeHandleView
     let reportView: LibraryRekordboxReportView
+    let tagSummaryView: LibraryTagSummaryView
     private let emptyButton: AmpXButton
     private(set) var rekordboxState = RekordboxSyncState(status: .hidden, sources: [])
     private var rekordboxTask: Task<Void, Never>?
@@ -67,6 +82,12 @@ final class LibraryModuleContent: AmpXModuleContent {
     private(set) var errorMessage: String?
     private var preferences: LibraryModulePreferences
     private var rootsLoaded = false
+    private let analysisAccess: RekordboxAnalysisAccess
+    private let injectedTagWriter: (any TagWriting)?
+    /// Called after the user grants access to rekordbox's analysis folder (the engine then imports phrases).
+    var onRekordboxAnalysisGranted: (() -> Void)?
+    /// Every library row, for MIXES WELL; refreshed whenever the model publishes rows.
+    private var libraryRows: [LibraryRow] = []
 
     private let controller: LibraryController?
     private let playlist: PlaylistManager?
@@ -88,7 +109,9 @@ final class LibraryModuleContent: AmpXModuleContent {
         playlist: PlaylistManager?,
         audioPlayer: AudioPlayer?,
         panels: LibraryPanelPresenting = AppKitLibraryPanels(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        analysisAccess: RekordboxAnalysisAccess? = nil,
+        tagWriter: (any TagWriting)? = nil
     ) {
         self.toolbar = LibraryToolbarView(skin: skin)
         self.genreList = LibraryFacetListView(skin: skin, title: "GENRE")
@@ -98,12 +121,15 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.footer = LibraryFooterView(skin: skin)
         self.resizeHandle = PlaylistResizeHandleView(skin: skin)
         self.reportView = LibraryRekordboxReportView(skin: skin)
+        self.tagSummaryView = LibraryTagSummaryView(skin: skin)
         self.emptyButton = AmpXButton(skin: skin)
         self.controller = controller
         self.playlist = playlist
         self.audioPlayer = audioPlayer
         self.panels = panels
         self.defaults = defaults
+        self.analysisAccess = analysisAccess ?? RekordboxAnalysisAccess(defaults: defaults)
+        self.injectedTagWriter = tagWriter
         self.preferences = LibraryModulePreferences.load(defaults)
         super.init(skin: skin)
 
@@ -116,6 +142,7 @@ final class LibraryModuleContent: AmpXModuleContent {
             self.footer,
             self.emptyButton,
             self.reportView,
+            self.tagSummaryView,
             self.resizeHandle,
         ] as [NSView] {
             addSubview(view)
@@ -125,6 +152,7 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.emptyButton.isHidden = true
         self.emptyButton.action = { [weak self] in self?.startTask { await $0.addFolder() } }
         self.reportView.isHidden = true
+        self.tagSummaryView.isHidden = true
         self.reportView.onClose = { [weak self] in self?.reportView.isHidden = true }
         self.footer.onRekordboxClick = { [weak self] in self?.showLatestRekordboxReport() }
 
@@ -228,6 +256,15 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.syncSelectionToModel(selection)
         self.updateFooter()
         self.updateSidebarReference()
+        self.refreshLibraryRows()
+    }
+
+    private func refreshLibraryRows() {
+        self.startTask { content in
+            guard let rows = await content.model?.allRows() else { return }
+            content.libraryRows = rows
+            content.updateSidebarReference()
+        }
     }
 
     /// The footer shows scan progress only while a run is going.
@@ -247,13 +284,20 @@ final class LibraryModuleContent: AmpXModuleContent {
         )
     }
 
+    /// The reference follows the switch: the focused row, or the playing track looked up across the whole library
+    /// (it may be filtered out of the table). Matches use the reference's BPM until Automix supplies the live tempo.
     private func updateSidebarReference() {
         let row: LibraryRow? = if self.sidebar.followsSelection {
             self.table.selection.focused.flatMap { id in self.table.rows.first { $0.id == id } }
         } else {
-            self.audioPlayer?.currentTrack?.url.flatMap { url in self.table.rows.first { $0.url == url } }
+            self.audioPlayer?.currentTrack?.url.flatMap { url in
+                self.libraryRows.first { $0.url == url } ?? self.table.rows.first { $0.url == url }
+            }
         }
         self.sidebar.updateReference(row)
+        self.sidebar.updateMatches(row.flatMap { reference in
+            reference.bpm.map { MixesWell.matches(reference: reference, tempo: $0, rows: self.libraryRows) }
+        })
     }
 
     private func refreshOverlay() {
@@ -277,8 +321,62 @@ final class LibraryModuleContent: AmpXModuleContent {
 
     func showRekordboxReport(rootID: UUID) {
         guard let report = self.rekordboxState.sources.first(where: { $0.rootID == rootID })?.lastReport else { return }
-        self.reportView.show(report)
+        self.reportView.show(report, tags: self.tagWriter?.lastReport())
         self.reportView.isHidden = false
+    }
+
+    /// ROOTS ▸ Allow Access to rekordbox Analysis…: a folder panel at `~/Library/Pioneer/rekordbox`.
+    func allowRekordboxAnalysis() async {
+        guard let folder = await self.panels.chooseFolder(
+            title: "Choose the rekordbox Folder", directory: RekordboxAnalysisAccess.suggestedFolder
+        ) else { return }
+        do {
+            try self.analysisAccess.grant(folder)
+            if let engine = self.controller?.engine {
+                Task { await engine.phraseSync.requestRun() }
+            }
+            self.onRekordboxAnalysisGranted?()
+        } catch RekordboxAccessError.notAnAnalysisFolder {
+            self.panels.showError(Self.notAnalysisFolderMessage)
+        } catch {
+            self.panels.showError(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Tag writing
+
+    /// The engine's tag writer, or the one a test injected.
+    private var tagWriter: (any TagWriting)? {
+        self.injectedTagWriter ?? self.controller?.engine?.tagWriter
+    }
+
+    /// ROOTS ▸ Keep rekordbox Data in File Tags. Turning it on shows the summary first; turning it off is immediate.
+    func toggleTagWriting() async {
+        guard let writer = self.tagWriter else { return }
+        if writer.isEnabled {
+            writer.setEnabled(false)
+            return
+        }
+        await self.confirmTagWrite(rowIDs: nil, writer: writer) { writer.setEnabled(true) }
+    }
+
+    /// ROOTS ▸ Write rekordbox Tags to Selected Tracks: the same summary, for the selection only; the setting stays.
+    func writeTagsForSelection() async {
+        let ids = self.table.selection.ids
+        guard let writer = self.tagWriter, !ids.isEmpty else { return }
+        await self.confirmTagWrite(rowIDs: ids, writer: writer) {}
+    }
+
+    private func confirmTagWrite(rowIDs: Set<UUID>?, writer: any TagWriting, beforeWrite: @escaping () -> Void) async {
+        let summary = await writer.preview(rowIDs: rowIDs)
+        self.tagSummaryView.show(summary)
+        self.tagSummaryView.isHidden = false
+        self.tagSummaryView.onCancel = { [weak self] in self?.tagSummaryView.isHidden = true }
+        self.tagSummaryView.onWrite = { [weak self] in
+            self?.tagSummaryView.isHidden = true
+            beforeWrite()
+            self?.startTask { _ in _ = await writer.write(rowIDs: rowIDs, onlyDue: false) }
+        }
     }
 
     private func showLatestRekordboxReport() {
@@ -352,6 +450,7 @@ final class LibraryModuleContent: AmpXModuleContent {
             self?.startTask { await $0.model?.enqueue(append: false, clickedID: id) }
         }
         self.table.onDragBegan = { [weak self] rows in self?.registerRoots(of: rows) }
+        self.sidebar.onQueue = { [weak self] row in self?.startTask { await $0.model?.append([row]) } }
         self.sidebar.onModeChange = { [weak self] followsSelection in
             guard let self else { return }
             self.preferences.mixesFollowsSelection = followsSelection
@@ -432,6 +531,9 @@ final class LibraryModuleContent: AmpXModuleContent {
     /// Keys `AmpXKeyRouter` routes here (`.library`): ↑↓ Home End PageUp PageDown (± ⇧) move the table's
     /// focus, ↩ replaces and plays, ⌘↩ appends, ⌘A selects all and ⌘F focuses search.
     func handleKey(_ event: NSEvent) -> Bool {
+        if !self.tagSummaryView.isHidden, self.tagSummaryView.handleKey(event) {
+            return true
+        }
         if !self.reportView.isHidden, self.reportView.handleKey(event) {
             return true
         }
@@ -475,11 +577,19 @@ final class LibraryModuleContent: AmpXModuleContent {
         LibraryRootsMenu.make(
             roots: self.model?.roots ?? [],
             rekordboxSources: Dictionary(self.rekordboxState.sources.map { ($0.rootID, $0) }, uniquingKeysWith: { first, _ in first }),
+            rekordbox: LibraryRootsMenu.RekordboxState(
+                analysisGranted: self.analysisAccess.isGranted,
+                tagWriting: self.tagWriter?.isEnabled ?? false,
+                hasSelection: !self.table.selection.ids.isEmpty
+            ),
             actions: .init(
                 add: { [weak self] in self?.startTask { await $0.addFolder() } },
                 relocate: { [weak self] id in self?.startTask { await $0.relocateRoot(id) } },
                 remove: { [weak self] id in self?.startTask { await $0.removeRoot(id) } },
-                viewRekordboxReport: { [weak self] id in self?.showRekordboxReport(rootID: id) }
+                viewRekordboxReport: { [weak self] id in self?.showRekordboxReport(rootID: id) },
+                allowRekordboxAnalysis: { [weak self] in self?.startTask { await $0.allowRekordboxAnalysis() } },
+                toggleTagWriting: { [weak self] in self?.startTask { await $0.toggleTagWriting() } },
+                writeTagsForSelection: { [weak self] in self?.startTask { await $0.writeTagsForSelection() } }
             )
         )
     }
@@ -541,6 +651,7 @@ final class LibraryModuleContent: AmpXModuleContent {
         self.footer.frame = frames.footer
         self.emptyButton.frame = CGRect(x: frames.table.midX - 70, y: frames.table.midY + 8, width: 140, height: 28)
         self.reportView.frame = frames.table
+        self.tagSummaryView.frame = frames.table
         self.resizeHandle.frame = bounds
     }
 

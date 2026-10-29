@@ -160,7 +160,3 @@ enum LibrarySchemaV2: VersionedSchema {
         }
     )
 }
-
-typealias LibraryRoot = LibrarySchemaV2.LibraryRoot
-typealias LibraryTrack = LibrarySchemaV2.LibraryTrack
-typealias RekordboxSource = LibrarySchemaV2.RekordboxSource

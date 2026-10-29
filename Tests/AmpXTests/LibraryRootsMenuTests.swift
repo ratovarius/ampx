@@ -144,4 +144,51 @@ final class LibraryRootsMenuTests: XCTestCase {
             "rekordbox: collection.xml · not synced"
         )
     }
+
+    func testRekordboxSectionNeedsAShownSource() {
+        let dj = self.root("/Users/me/Music/DJ")
+        let hidden = LibraryRootsMenu.make(roots: [dj], rekordboxSources: [dj.id: self.source(dj.id, matched: 0)], actions: self.actions())
+        XCTAssertFalse(hidden.items.map(\.title).contains("Allow Access to rekordbox Analysis…"))
+    }
+
+    func testRekordboxSectionOffersAccess() throws {
+        let dj = self.root("/Users/me/Music/DJ")
+        var allowed = 0
+        var actions = self.actions()
+        actions.allowRekordboxAnalysis = { allowed += 1 }
+        let menu = LibraryRootsMenu.make(roots: [dj], rekordboxSources: [dj.id: self.source(dj.id)], actions: actions)
+        XCTAssertEqual(menu.items.last?.title, "Allow Access to rekordbox Analysis…")
+        menu.performActionForItem(at: menu.items.count - 1)
+        XCTAssertEqual(allowed, 1)
+
+        let granted = LibraryRootsMenu.make(
+            roots: [dj], rekordboxSources: [dj.id: self.source(dj.id)],
+            rekordbox: LibraryRootsMenu.RekordboxState(analysisGranted: true), actions: actions
+        )
+        XCTAssertEqual(granted.items.last?.title, "Change rekordbox Analysis Folder…")
+    }
+
+    func testRekordboxTagItems() throws {
+        let dj = self.root("/Users/me/Music/DJ")
+        var events: [String] = []
+        var actions = self.actions()
+        actions.toggleTagWriting = { events.append("toggle") }
+        actions.writeTagsForSelection = { events.append("selection") }
+        var state = LibraryRootsMenu.RekordboxState()
+        var menu = LibraryRootsMenu.make(roots: [dj], rekordboxSources: [dj.id: self.source(dj.id)], rekordbox: state, actions: actions)
+        XCTAssertEqual(menu.items.map(\.title).suffix(4), [
+            "", "Keep rekordbox Data in File Tags", "Write rekordbox Tags to Selected Tracks", "Allow Access to rekordbox Analysis…",
+        ])
+        let keep = try XCTUnwrap(menu.items.first { $0.title == "Keep rekordbox Data in File Tags" })
+        XCTAssertEqual(keep.state, .off)
+        XCTAssertFalse(try XCTUnwrap(menu.items.first { $0.title == "Write rekordbox Tags to Selected Tracks" }).isEnabled)
+
+        state.tagWriting = true
+        state.hasSelection = true
+        menu = LibraryRootsMenu.make(roots: [dj], rekordboxSources: [dj.id: self.source(dj.id)], rekordbox: state, actions: actions)
+        XCTAssertEqual(try XCTUnwrap(menu.items.first { $0.title == "Keep rekordbox Data in File Tags" }).state, .on)
+        menu.performActionForItem(at: try XCTUnwrap(menu.items.firstIndex { $0.title == "Keep rekordbox Data in File Tags" }))
+        menu.performActionForItem(at: try XCTUnwrap(menu.items.firstIndex { $0.title == "Write rekordbox Tags to Selected Tracks" }))
+        XCTAssertEqual(events, ["toggle", "selection"])
+    }
 }

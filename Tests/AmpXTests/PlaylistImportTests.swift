@@ -110,7 +110,8 @@ final class PlaylistImportTests: XCTestCase {
 
         let dropped = Array(files.reversed())
         manager.importDroppedURLs(dropped)
-        await waitForTrackCount(40, on: manager)
+        // 40 sequential AVFoundation loads: a busy CI runner needs well over the default 10 s (local: ~0.2 s).
+        await waitForTrackCount(40, on: manager, timeout: 60)
 
         XCTAssertEqual(manager.tracks.map(\.url), dropped)
         XCTAssertEqual(store.bookmarkCount, 1)

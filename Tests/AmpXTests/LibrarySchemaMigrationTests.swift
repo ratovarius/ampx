@@ -36,7 +36,7 @@ final class LibrarySchemaMigrationTests: XCTestCase {
             musicalKey: track.musicalKey, comment: track.comment, dateAdded: track.dateAdded,
             lastPlayedAt: track.lastPlayedAt, playCount: track.playCount, rating: track.rating, isMissing: track.isMissing
         )
-        XCTAssertEqual(track.schemaVersion, 2)
+        XCTAssertEqual(track.schemaVersion, 3)
     }
 
     func testNewTrackDefaults() {
@@ -44,10 +44,16 @@ final class LibrarySchemaMigrationTests: XCTestCase {
             id: UUID(), rootID: UUID(), relativePath: "a.mp3", title: "T", artist: "A",
             fileSize: 1, contentModifiedAt: Date(timeIntervalSince1970: 0), dateAdded: Date(timeIntervalSince1970: 0)
         )
-        XCTAssertEqual(track.schemaVersion, 2)
+        XCTAssertEqual(track.schemaVersion, 3)
         XCTAssertNil(track.analysisSource)
         XCTAssertNil(track.camelotKey)
         XCTAssertNil(track.beatGrid)
+        XCTAssertNil(track.cues)
+        XCTAssertNil(track.tempoSpread)
+        XCTAssertNil(track.phrases)
+        XCTAssertNil(track.phrasesStamp)
+        XCTAssertNil(track.mixScan)
+        XCTAssertNil(track.tagsWrittenHash)
         XCTAssertNil(track.label)
         XCTAssertNil(track.ratingSource)
         XCTAssertEqual(track.rekordboxPlayCount, 0)
@@ -118,7 +124,7 @@ final class LibrarySchemaMigrationTests: XCTestCase {
         XCTAssertEqual(track.rating, 3)
         XCTAssertEqual(track.playCount, 2)
         XCTAssertEqual(track.dateAdded, Date(timeIntervalSince1970: 400))
-        XCTAssertEqual(track.schemaVersion, 2)
+        XCTAssertEqual(track.schemaVersion, 3)
         XCTAssertEqual(track.analysisSource, .fileTag)
         XCTAssertEqual(track.camelotKey, "8A")
         XCTAssertEqual(track.rekordboxPlayCount, 0)
@@ -132,12 +138,12 @@ final class LibrarySchemaMigrationTests: XCTestCase {
         let untagged = try XCTUnwrap(tracks.first { $0.id != self.trackID })
         XCTAssertNil(untagged.analysisSource)
         XCTAssertNil(untagged.camelotKey)
-        XCTAssertEqual(untagged.schemaVersion, 2)
+        XCTAssertEqual(untagged.schemaVersion, 3)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<RekordboxSource>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<LibraryRoot>()), 1)
     }
 
-    func testLightweightMigrationToTestV3() throws {
+    func testLightweightMigrationToTestV4() throws {
         let storeURL = try LibraryTestSupport.temporaryDirectory(self).appendingPathComponent("Library.store")
         do {
             let context = try ModelContext(LibraryContainerFactory.make(url: storeURL))
@@ -147,11 +153,11 @@ final class LibrarySchemaMigrationTests: XCTestCase {
         }
 
         for _ in 0 ..< 2 { // second open proves idempotence
-            let context = try ModelContext(LibraryTestSchemaV3.makeContainer(url: storeURL))
-            let tracks = try context.fetch(FetchDescriptor<LibraryTestSchemaV3.LibraryTrack>())
+            let context = try ModelContext(LibraryTestSchemaV4.makeContainer(url: storeURL))
+            let tracks = try context.fetch(FetchDescriptor<LibraryTestSchemaV4.LibraryTrack>())
             XCTAssertEqual(tracks.count, 1)
             let track = try XCTUnwrap(tracks.first)
-            XCTAssertEqual(track.schemaVersion, 3)
+            XCTAssertEqual(track.schemaVersion, 4)
             XCTAssertNil(track.testOnlyField)
             self.assertTrackFields(
                 id: track.id, rootID: track.rootID, relativePath: track.relativePath,
@@ -163,7 +169,7 @@ final class LibrarySchemaMigrationTests: XCTestCase {
                 musicalKey: track.musicalKey, comment: track.comment, dateAdded: track.dateAdded,
                 lastPlayedAt: track.lastPlayedAt, playCount: track.playCount, rating: track.rating, isMissing: track.isMissing
             )
-            XCTAssertEqual(try context.fetchCount(FetchDescriptor<LibraryTestSchemaV3.LibraryRoot>()), 1)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<LibraryTestSchemaV4.LibraryRoot>()), 1)
         }
     }
 
@@ -174,13 +180,82 @@ final class LibrarySchemaMigrationTests: XCTestCase {
             context.insert(self.makeTrack())
             try context.save()
         }
-        _ = try LibraryTestSchemaV3.makeContainer(url: storeURL)
+        _ = try LibraryTestSchemaV4.makeContainer(url: storeURL)
 
         XCTAssertThrowsError(try LibraryContainerFactory.make(url: storeURL)) { error in
-            XCTAssertEqual(error as? LibraryContainerError, .newerSchema(found: "3.0.0"))
+            XCTAssertEqual(error as? LibraryContainerError, .newerSchema(found: "4.0.0"))
         }
-        let context = try ModelContext(LibraryTestSchemaV3.makeContainer(url: storeURL))
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<LibraryTestSchemaV3.LibraryTrack>()), 1)
+        let context = try ModelContext(LibraryTestSchemaV4.makeContainer(url: storeURL))
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<LibraryTestSchemaV4.LibraryTrack>()), 1)
+    }
+
+    func testV2StoreMigratesToV3KeepingValues() throws {
+        let storeURL = try LibraryTestSupport.temporaryDirectory(self).appendingPathComponent("Library.store")
+        let grid = [128.0, 128, 130].enumerated().map {
+            RekordboxBeat(start: Double($0.offset) * 1.875, bpm: $0.element, meter: "4/4", beat: 1)
+        }
+        do {
+            let schema = Schema(versionedSchema: LibrarySchemaV2.self)
+            let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: storeURL))
+            let context = ModelContext(container)
+            context.insert(LibrarySchemaV2.LibraryRoot(
+                id: self.rootID, bookmark: Data([1, 2, 3]), displayPath: "/Music/DJ", addedAt: Date(timeIntervalSince1970: 100)
+            ))
+            let track = LibrarySchemaV2.LibraryTrack(
+                id: self.trackID, rootID: self.rootID, relativePath: "Techno/a.mp3", title: "Song", artist: "Artist",
+                fileSize: 12345, contentModifiedAt: Date(timeIntervalSince1970: 300), dateAdded: Date(timeIntervalSince1970: 400)
+            )
+            track.bpm = 128
+            track.musicalKey = "Am"
+            track.camelotKey = "8A"
+            track.analysisSource = .rekordbox
+            track.beatGrid = RekordboxBeatGrid.pack(grid)
+            track.label = "Label"
+            track.rating = 3
+            track.ratingSource = .rekordbox
+            track.rekordboxPlayCount = 9
+            let gridless = LibrarySchemaV2.LibraryTrack(
+                id: UUID(), rootID: self.rootID, relativePath: "Techno/b.mp3", title: "B", artist: "Artist",
+                fileSize: 1, contentModifiedAt: Date(timeIntervalSince1970: 300), dateAdded: Date(timeIntervalSince1970: 400)
+            )
+            let source = LibrarySchemaV2.RekordboxSource(rootID: self.rootID, fileName: "collection.xml")
+            source.stampSize = 42
+            source.stampModifiedAt = Date(timeIntervalSince1970: 500)
+            context.insert(track)
+            context.insert(gridless)
+            context.insert(source)
+            try context.save()
+        }
+
+        let context = try ModelContext(LibraryContainerFactory.make(url: storeURL))
+        let tracks = try context.fetch(FetchDescriptor<LibraryTrack>())
+        XCTAssertEqual(tracks.count, 2)
+        let track = try XCTUnwrap(tracks.first { $0.id == self.trackID })
+        XCTAssertEqual(track.schemaVersion, 3)
+        XCTAssertEqual(track.bpm, 128)
+        XCTAssertEqual(track.musicalKey, "Am")
+        XCTAssertEqual(track.camelotKey, "8A")
+        XCTAssertEqual(track.analysisSource, .rekordbox)
+        XCTAssertEqual(track.beatGrid, RekordboxBeatGrid.pack(grid))
+        XCTAssertEqual(track.label, "Label")
+        XCTAssertEqual(track.rating, 3)
+        XCTAssertEqual(track.ratingSource, .rekordbox)
+        XCTAssertEqual(track.rekordboxPlayCount, 9)
+        XCTAssertNil(track.cues)
+        XCTAssertNil(track.phrases)
+        XCTAssertNil(track.phrasesStamp)
+        XCTAssertNil(track.mixScan)
+        XCTAssertNil(track.tagsWrittenHash)
+        XCTAssertEqual(try XCTUnwrap(track.tempoSpread), 2.0 / 128 * 100, accuracy: 1e-9)
+        let gridless = try XCTUnwrap(tracks.first { $0.id != self.trackID })
+        XCTAssertNil(gridless.tempoSpread)
+        XCTAssertEqual(gridless.schemaVersion, 3)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<LibraryRoot>()), 1)
+        // V3 imports cues: an unchanged export must be read again to supply them.
+        let source = try XCTUnwrap(context.fetch(FetchDescriptor<RekordboxSource>()).first)
+        XCTAssertEqual(source.fileName, "collection.xml")
+        XCTAssertNil(source.stampSize)
+        XCTAssertNil(source.stampModifiedAt)
     }
 
     // MARK: - Helpers

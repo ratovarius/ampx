@@ -265,7 +265,9 @@ actor LibraryIndex {
             searchKey: LibraryRow.makeSearchKey(
                 title: track.title, artist: track.artist, album: track.album, albumArtist: track.albumArtist,
                 extras: [track.label, track.remixer, track.composer, track.grouping, track.mix]
-            )
+            ),
+            tempoSpread: track.tempoSpread,
+            hasPhrases: track.phrases != nil
         )
     }
 }

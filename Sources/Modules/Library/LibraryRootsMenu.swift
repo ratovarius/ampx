@@ -1,16 +1,31 @@
 import AppKit
 
 /// The footer's ROOTS ▾ menu (Library Module spec § Behaviour): Add Folder…, then one submenu per root with
-/// its path, status, Relocate… and Remove….
+/// its path, status, Relocate… and Remove…, then, only while a rekordbox export is shown, a rekordbox section
+/// (DJ mode spec Revision 2 § Delivery 1).
 enum LibraryRootsMenu {
     struct Actions {
         var add: () -> Void
         var relocate: (UUID) -> Void
         var remove: (UUID) -> Void
         var viewRekordboxReport: (UUID) -> Void = { _ in }
+        var allowRekordboxAnalysis: () -> Void = {}
+        var toggleTagWriting: () -> Void = {}
+        var writeTagsForSelection: () -> Void = {}
     }
 
-    static func make(roots: [LibraryRootSnapshot], rekordboxSources: [UUID: RekordboxSourceSnapshot] = [:], actions: Actions) -> NSMenu {
+    struct RekordboxState: Equatable {
+        var analysisGranted = false
+        var tagWriting = false
+        var hasSelection = false
+    }
+
+    static func make(
+        roots: [LibraryRootSnapshot],
+        rekordboxSources: [UUID: RekordboxSourceSnapshot] = [:],
+        rekordbox: RekordboxState = RekordboxState(),
+        actions: Actions
+    ) -> NSMenu {
         let menu = NSMenu(title: "Roots")
         menu.autoenablesItems = false
         menu.addItem(ClosureMenuItem(title: "Add Folder…", action: actions.add))
@@ -38,6 +53,17 @@ enum LibraryRootsMenu {
             submenu.addItem(ClosureMenuItem(title: "Remove…") { actions.remove(root.id) })
             item.submenu = submenu
             menu.addItem(item)
+        }
+        if rekordboxSources.values.contains(where: \.isShown) {
+            menu.addItem(.separator())
+            let keep = ClosureMenuItem(title: "Keep rekordbox Data in File Tags", action: actions.toggleTagWriting)
+            keep.state = rekordbox.tagWriting ? .on : .off
+            menu.addItem(keep)
+            let selection = ClosureMenuItem(title: "Write rekordbox Tags to Selected Tracks", action: actions.writeTagsForSelection)
+            selection.isEnabled = rekordbox.hasSelection
+            menu.addItem(selection)
+            let title = rekordbox.analysisGranted ? "Change rekordbox Analysis Folder…" : "Allow Access to rekordbox Analysis…"
+            menu.addItem(ClosureMenuItem(title: title, action: actions.allowRekordboxAnalysis))
         }
         return menu
     }

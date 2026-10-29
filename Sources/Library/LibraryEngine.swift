@@ -14,6 +14,15 @@ struct LibraryEngineConfiguration: Sendable {
 
     var watcherLatency: TimeInterval = 2
     var indexTiming: LibraryIndexTiming = .live
+    /// rekordbox's analysis folder for phrase import, opened per run. None by default: only the app passes the
+    /// granted folder (`live`), so tests never read the user's rekordbox data.
+    var analysisSource: @Sendable () -> (any RekordboxAnalysisSource)? = { nil }
+    /// The tag-writing setting. nil keeps tag writing off: only the app passes the user's settings.
+    var tagWriteSettings: TagWriteSettings?
+
+    static let liveAnalysisSource: @Sendable () -> (any RekordboxAnalysisSource)? = {
+        RekordboxAnalysisAccess(defaults: .standard).resolve().map { RekordboxAnalysisDirectory(folder: $0) }
+    }
 }
 
 /// Composes store, scanner, index and watcher, and coordinates root operations (spec: "Architecture").
@@ -30,9 +39,15 @@ actor LibraryEngine {
     nonisolated let watcher: LibraryWatcher
     /// Imports rekordbox exports found at roots' top level after their scans (rekordbox sync spec).
     nonisolated let rekordbox: RekordboxSync
+    /// Imports rekordbox's phrase analysis after each import, at launch and on grant (DJ mode spec Revision 2).
+    nonisolated let phraseSync: RekordboxPhraseSync
+    /// Writes rekordbox data into file tags when the user turned it on (DJ mode spec Revision 2).
+    nonisolated let tagWriter: TagWriteService
     private var watchedURLs: [UUID: URL] = [:]
     private var listener: Task<Void, Never>?
     private var pendingRewatches: [Task<Void, Never>] = []
+    /// Roots last seen available; one coming back retries the tag writes it missed.
+    private var availableRoots: Set<UUID> = []
 
     private init(
         store: LibraryStore,
@@ -40,9 +55,13 @@ actor LibraryEngine {
         scanner: LibraryScanner,
         watcher: LibraryWatcher,
         rekordbox: RekordboxSync,
+        phraseSync: RekordboxPhraseSync,
+        tagWriter: TagWriteService,
         bookmarkStore: SecurityScopedBookmarkStore
     ) {
         self.rekordbox = rekordbox
+        self.phraseSync = phraseSync
+        self.tagWriter = tagWriter
         self.store = store
         self.index = index
         self.scanner = scanner
@@ -79,6 +98,10 @@ actor LibraryEngine {
             scanner: scanner,
             watcher: watcher,
             rekordbox: RekordboxSync(store: store, scanner: scanner, fileSystem: configuration.fileSystem),
+            phraseSync: RekordboxPhraseSync(
+                store: store, scanner: scanner, fileSystem: configuration.fileSystem, source: configuration.analysisSource
+            ),
+            tagWriter: TagWriteService(store: store, scanner: scanner, settings: configuration.tagWriteSettings),
             bookmarkStore: configuration.bookmarkStore
         )
         reference.engine = engine
@@ -94,8 +117,16 @@ actor LibraryEngine {
         }
         await self.watcher.startVolumeObservation()
         // Before the launch scans, so their `finished` events trigger the rekordbox checks.
+        let phraseSync = self.phraseSync, tagWriter = self.tagWriter
+        // Neither waits for its run: the import is itself an exclusive job, and their runs queue behind it.
+        await self.rekordbox.setOnImported {
+            await phraseSync.requestRun()
+            tagWriter.requestAutomaticWrite()
+        }
         await self.rekordbox.start()
+        await phraseSync.requestRun()
         for root in try await self.store.startAccessForAvailableRoots() {
+            self.availableRoots.insert(root.id)
             self.watch(root)
             await self.scanner.requestScan(rootID: root.id)
         }
@@ -171,6 +202,8 @@ actor LibraryEngine {
     func waitUntilIdle() async {
         await self.scanner.waitUntilIdle()
         await self.rekordbox.waitUntilIdle()
+        await self.phraseSync.waitUntilIdle()
+        await self.tagWriter.waitUntilIdle()
         while !self.pendingRewatches.isEmpty {
             let tasks = self.pendingRewatches
             self.pendingRewatches.removeAll()
@@ -186,8 +219,12 @@ actor LibraryEngine {
         self.pendingRewatches.forEach { $0.cancel() }
         self.pendingRewatches.removeAll()
         await self.rekordbox.halt()
+        await self.phraseSync.halt()
+        self.tagWriter.halt()
         await self.scanner.stop()
         await self.rekordbox.waitUntilIdle()
+        await self.phraseSync.waitUntilIdle()
+        await self.tagWriter.waitUntilIdle()
         await self.watcher.stop()
         self.watchedURLs.removeAll()
         await self.index.stop()
@@ -201,8 +238,15 @@ actor LibraryEngine {
         switch change {
         case let .rootsChanged(rootID):
             try? await self.syncWatch(rootID)
+            let isAvailable = await (try? self.store.roots())?.first { $0.id == rootID }?.isAvailable ?? false
+            if isAvailable, self.availableRoots.insert(rootID).inserted {
+                self.tagWriter.requestAutomaticWrite()
+            } else if !isAvailable {
+                self.availableRoots.remove(rootID)
+            }
         case let .rootRemoved(rootID):
             self.unwatch(rootID)
+            self.availableRoots.remove(rootID)
         case .rowsChanged, .rekordboxSourcesChanged:
             break
         }

@@ -102,13 +102,38 @@ final class LibraryBrowserModel: ObservableObject {
         } else {
             self.selection
         }
-        let displayed = self.rows.map(\.id).filter { ids.contains($0) }
-        let latest = await (try? self.services.rows(Set(displayed))) ?? []
+        let displayed = self.rows.filter { ids.contains($0.id) }
+        guard let tracks = await self.playableTracks(displayed) else { return }
+        if append {
+            self.playlist.addTracks(tracks)
+        } else {
+            self.playlist.clearPlaylist()
+            self.playlist.addTracks(tracks)
+            self.playlist.playTrack(at: 0)
+        }
+    }
+
+    /// Appends rows (MIXES WELL's + QUEUE) with the same availability re-check and bookmark registration as
+    /// `enqueue`; beeps when none is available.
+    func append(_ rows: [LibraryRow]) async {
+        guard let tracks = await self.playableTracks(rows) else { return }
+        self.playlist.addTracks(tracks)
+    }
+
+    /// Every row in the snapshot, whatever the current query filters (MIXES WELL matches across the library).
+    func allRows() async -> [LibraryRow] {
+        await (try? self.services.query(LibraryQuery(), 0))?.rows ?? []
+    }
+
+    /// The rows still available in the latest snapshot, in the given order, as new playlist tracks; nil (after a
+    /// beep) when none is.
+    private func playableTracks(_ rows: [LibraryRow]) async -> [Track]? {
+        let latest = await (try? self.services.rows(Set(rows.map(\.id)))) ?? []
         let latestByID = Dictionary(latest.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let available = displayed.compactMap { latestByID[$0] }.filter(\.isAvailable)
+        let available = rows.compactMap { latestByID[$0.id] }.filter(\.isAvailable)
         guard !available.isEmpty else {
             self.beep()
-            return
+            return nil
         }
 
         // Playlist continuity: the shared bookmark store keeps restored tracks under these roots playable.
@@ -118,15 +143,7 @@ final class LibraryBrowserModel: ObservableObject {
                 self.bookmarkStore.saveBookmark(for: url)
             }
         }
-
-        let tracks = available.map { $0.makeTrack() }
-        if append {
-            self.playlist.addTracks(tracks)
-        } else {
-            self.playlist.clearPlaylist()
-            self.playlist.addTracks(tracks)
-            self.playlist.playTrack(at: 0)
-        }
+        return available.map { $0.makeTrack() }
     }
 
     func stop() {

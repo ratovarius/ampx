@@ -41,9 +41,15 @@ final class LibraryModuleContentTests: XCTestCase {
         var confirm = true
         private(set) var confirmations: [(String, String)] = []
         private(set) var errors: [String] = []
+        private(set) var directories: [URL?] = []
 
         func chooseFolder(title _: String) async -> URL? {
             self.folder
+        }
+
+        func chooseFolder(title _: String, directory: URL?) async -> URL? {
+            self.directories.append(directory)
+            return self.folder
         }
 
         func confirmRemove(message: String, info: String) async -> Bool {
@@ -281,6 +287,47 @@ final class LibraryModuleContentTests: XCTestCase {
         }
     }
 
+    func testPlayingTrackOutsideFilterStillDrivesMatches() async throws {
+        func row(_ title: String, genre: String, bpm: Double) -> LibraryRow {
+            LibraryRow(
+                id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/Music/\(title).mp3"),
+                title: title, artist: "Artist", album: "", albumArtist: "", genre: genre, trackNumber: nil,
+                duration: 300, fileSize: 1, bpm: bpm, musicalKey: "Am", camelotKey: "8A",
+                bitrate: 0, bitrateIsDerived: false, codec: "mp3", isAvailable: true,
+                searchKey: "\(title) \(genre)".lowercased(), tempoSpread: 0
+            )
+        }
+        let playing = row("playing", genre: "Techno", bpm: 128)
+        let candidate = row("candidate", genre: "Techno", bpm: 129)
+        let house = row("deep", genre: "House", bpm: 122)
+        let rows = [playing, candidate, house]
+        let services = LibraryBrowserServices(
+            query: { query, generation in query.evaluate(rows: rows, snapshotVersion: 0, generation: generation) },
+            rows: { ids in rows.filter { ids.contains($0.id) } },
+            versions: { AsyncStream { _ in } },
+            progress: { AsyncStream { _ in } },
+            roots: { [] }
+        )
+        let player = AudioPlayer(installRemoteCommands: false)
+        let content = LibraryModuleContent(
+            skin: ClassicModernSkin(), controller: nil, playlist: self.playlist, audioPlayer: player,
+            panels: self.panels, defaults: self.defaults
+        )
+        content.frame = CGRect(origin: .zero, size: CGSize(width: 1000, height: 470))
+        self.contents.append(content)
+        content.attach(model: LibraryBrowserModel(services: services, playlist: self.playlist, bookmarkStore: .shared, beep: {}))
+        content.toolbar.onSearch?("house")
+        await self.eventually { content.table.rows.map(\.title) == ["deep"] }
+
+        player.currentTrack = Track(title: "playing", artist: "Artist", url: playing.url)
+
+        await self.eventually { content.sidebar.lines.first == "Artist – candidate" }
+        XCTAssertEqual(content.sidebar.referenceText, "Artist – playing · 128 BPM · Am")
+        content.sidebar.selectedMatchID = candidate.id
+        content.sidebar.queueButton.action?()
+        await self.eventually { self.playlist.tracks.map(\.title) == ["candidate"] }
+    }
+
     // MARK: - States and roots
 
     func testEmptyStateThenAddFolderOpensEngine() async throws {
@@ -301,7 +348,7 @@ final class LibraryModuleContentTests: XCTestCase {
 
     func testEngineErrorShowsErrorState() async throws {
         try FileManager.default.createDirectory(at: self.storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        _ = try LibraryTestSchemaV3.makeContainer(url: self.storeURL)
+        _ = try LibraryTestSchemaV4.makeContainer(url: self.storeURL)
         self.flag.setHasRoots(true)
         let controller = self.makeController()
         let content = self.makeContent(controller: controller)
@@ -403,6 +450,146 @@ final class LibraryModuleContentTests: XCTestCase {
         states.yield(self.syncedState(root))
         await self.eventually { !content.footer.rekordboxButton.isHidden }
         XCTAssertTrue(content.footer.rekordboxButton.label?.hasPrefix("REKORDBOX ") == true)
+    }
+
+    func testAllowRekordboxAnalysisGrantsAndNotifies() async throws {
+        let access = RekordboxAnalysisAccess(defaults: T.isolatedDefaults(self), bookmarks: T.plainBookmarks)
+        let content = LibraryModuleContent(
+            skin: ClassicModernSkin(), controller: nil, playlist: self.playlist, audioPlayer: nil,
+            panels: self.panels, defaults: self.defaults, analysisAccess: access
+        )
+        self.contents.append(content)
+        var granted = 0
+        content.onRekordboxAnalysisGranted = { granted += 1 }
+
+        self.panels.folder = try self.folder("NotRekordbox")
+        await content.allowRekordboxAnalysis()
+        XCTAssertEqual(self.panels.errors, ["That folder has no rekordbox analysis (share/PIONEER/USBANLZ)."])
+        XCTAssertEqual(self.panels.directories, [RekordboxAnalysisAccess.suggestedFolder])
+        XCTAssertFalse(access.isGranted)
+
+        let rekordbox = try self.folder("rekordbox")
+        try FileManager.default.createDirectory(
+            at: RekordboxAnalysisAccess.analysisFolder(in: rekordbox), withIntermediateDirectories: true
+        )
+        self.panels.folder = rekordbox
+        await content.allowRekordboxAnalysis()
+        XCTAssertTrue(access.isGranted)
+        XCTAssertEqual(granted, 1)
+
+        self.panels.folder = nil
+        await content.allowRekordboxAnalysis()
+        XCTAssertEqual(granted, 1, "cancelled panel")
+    }
+
+    private final class FakeTagWriting: TagWriting, @unchecked Sendable {
+        var isEnabled = false
+        var summary = TagWriteSummary(filesToUpdate: 2, perField: [.bpm: 2])
+        private(set) var calls: [String] = []
+        var report: TagWriteReport?
+
+        func setEnabled(_ enabled: Bool) {
+            self.isEnabled = enabled
+            self.calls.append("enabled \(enabled)")
+        }
+
+        func preview(rowIDs: Set<UUID>?) async -> TagWriteSummary {
+            self.calls.append("preview \(rowIDs?.count ?? -1)")
+            return self.summary
+        }
+
+        func write(rowIDs: Set<UUID>?, onlyDue: Bool) async -> TagWriteReport {
+            self.calls.append("write \(rowIDs?.count ?? -1) \(onlyDue)")
+            return TagWriteReport(written: 2)
+        }
+
+        func lastReport() -> TagWriteReport? {
+            self.report
+        }
+    }
+
+    private func tagContent(_ writer: FakeTagWriting) -> LibraryModuleContent {
+        let content = LibraryModuleContent(
+            skin: ClassicModernSkin(), controller: nil, playlist: self.playlist, audioPlayer: nil,
+            panels: self.panels, defaults: self.defaults, tagWriter: writer
+        )
+        content.frame = CGRect(origin: .zero, size: CGSize(width: 1000, height: 470))
+        self.contents.append(content)
+        return content
+    }
+
+    func testTurningTagWritingOnShowsSummaryThenWrites() async {
+        let writer = FakeTagWriting()
+        let content = self.tagContent(writer)
+        await content.toggleTagWriting()
+        XCTAssertFalse(content.tagSummaryView.isHidden)
+        XCTAssertEqual(content.tagSummaryView.summaryLines.first, "2 files to update")
+        XCTAssertEqual(writer.calls, ["preview -1"])
+
+        content.tagSummaryView.writeButton.action?()
+        await self.eventually { writer.calls.count == 3 }
+        XCTAssertEqual(writer.calls, ["preview -1", "enabled true", "write -1 false"])
+        XCTAssertTrue(content.tagSummaryView.isHidden)
+    }
+
+    func testCancelLeavesTagWritingOff() async {
+        let writer = FakeTagWriting()
+        let content = self.tagContent(writer)
+        await content.toggleTagWriting()
+        content.tagSummaryView.cancelButton.action?()
+        XCTAssertTrue(content.tagSummaryView.isHidden)
+        XCTAssertFalse(writer.isEnabled)
+        XCTAssertEqual(writer.calls, ["preview -1"])
+    }
+
+    func testTurningTagWritingOffIsImmediate() async {
+        let writer = FakeTagWriting()
+        writer.isEnabled = true
+        let content = self.tagContent(writer)
+        await content.toggleTagWriting()
+        XCTAssertEqual(writer.calls, ["enabled false"])
+        XCTAssertTrue(content.tagSummaryView.isHidden)
+    }
+
+    func testWriteTagsForSelectionUsesSelectionAndKeepsSetting() async {
+        let rows = (0 ..< 3).map { index in
+            LibraryRow(
+                id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/Music/\(index).mp3"),
+                title: "\(index)", artist: "Artist", album: "", albumArtist: "", genre: nil, trackNumber: nil,
+                duration: 60, fileSize: 1, bpm: nil, musicalKey: nil, bitrate: 0, bitrateIsDerived: false, codec: "mp3",
+                isAvailable: true, searchKey: "\(index)"
+            )
+        }
+        let services = LibraryBrowserServices(
+            query: { query, generation in query.evaluate(rows: rows, snapshotVersion: 0, generation: generation) },
+            rows: { ids in rows.filter { ids.contains($0.id) } },
+            versions: { AsyncStream { _ in } },
+            progress: { AsyncStream { _ in } },
+            roots: { [] }
+        )
+        let writer = FakeTagWriting()
+        let content = self.tagContent(writer)
+        content.attach(model: LibraryBrowserModel(services: services, playlist: self.playlist, bookmarkStore: .shared, beep: {}))
+        await self.eventually { content.table.rows.count == 3 }
+        content.selectAllRows()
+
+        await content.writeTagsForSelection()
+        content.tagSummaryView.writeButton.action?()
+        await self.eventually { writer.calls.count == 2 }
+        XCTAssertEqual(writer.calls, ["preview 3", "write 3 false"])
+        XCTAssertFalse(writer.isEnabled)
+    }
+
+    func testReportShowsTagSectionsOnlyWithEntries() {
+        let view = LibraryRekordboxReportView(skin: ClassicModernSkin())
+        var report = RekordboxSyncReport(fileName: "collection.xml")
+        report.matched = 3
+        view.show(report, tags: TagWriteReport(written: 3))
+        XCTAssertFalse(view.entryLines.contains("TEMPO HALF OR DOUBLE: CHECK IN REKORDBOX"))
+        view.show(report, tags: TagWriteReport(written: 1, skippedReadOnly: ["/r.mp3"], failed: ["/f.mp3"], halfDouble: ["/h.mp3"]))
+        XCTAssertEqual(view.entryLines, [
+            "TEMPO HALF OR DOUBLE: CHECK IN REKORDBOX", "/h.mp3", "TAGS NOT WRITTEN", "/r.mp3", "/f.mp3",
+        ])
     }
 
     func testReportTextIsAccessible() {

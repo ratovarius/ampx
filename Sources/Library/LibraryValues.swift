@@ -26,6 +26,10 @@ struct LibraryRow: Identifiable, Hashable, Sendable {
     let codec: String
     var isAvailable: Bool
     let searchKey: String
+    /// Beatgrid tempo variation in percent; nil without a grid (DJ mode § Track classes).
+    var tempoSpread: Double? = nil
+    /// rekordbox phrase analysis is stored for this row.
+    var hasPhrases = false
 
     /// A new playback occurrence each call: enqueuing the same row twice yields two playlist entries.
     func makeTrack() -> Track {

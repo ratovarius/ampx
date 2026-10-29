@@ -38,6 +38,8 @@ actor RekordboxSync {
     private var failedStamps: [UUID: RekordboxFileStamp] = [:]
     private var lastState = RekordboxSyncState(status: .hidden, sources: [])
     private var subscribers: [UUID: AsyncStream<RekordboxSyncState>.Continuation] = [:]
+    /// Called after an import that matched at least one row (phrase import and tag writing follow it).
+    private var onImported: (@Sendable () async -> Void)?
 
     init(store: LibraryStore, scanner: LibraryScanner, fileSystem: any LibraryFileSystem) {
         self.store = store
@@ -85,6 +87,10 @@ actor RekordboxSync {
         for rootID in self.jobTokens.keys {
             await self.store.revokeRekordboxSync(rootID: rootID)
         }
+    }
+
+    func setOnImported(_ handler: @escaping @Sendable () async -> Void) {
+        self.onImported = handler
     }
 
     func requestCheck(rootID: UUID, force: Bool = false) {
@@ -249,6 +255,9 @@ actor RekordboxSync {
             try await self.store.applyRekordbox(plan, fileName: file.name, stamp: file.stamp, token: token)
             self.failedStamps[root.id] = nil
             syncLogger.info("Imported \(file.name, privacy: .public): \(plan.report.matched) matched, \(plan.report.updated) updated")
+            if plan.report.matched > 0 {
+                await self.onImported?()
+            }
         } catch let error as RekordboxParseError {
             let repeated = self.failedStamps[root.id] == file.stamp
             self.failedStamps[root.id] = file.stamp
