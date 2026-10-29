@@ -152,7 +152,9 @@ final class AutomixCoordinator: ObservableObject {
     }
 
     private func context(for track: Track) async -> Context {
-        let duration = track.duration > 0 ? track.duration : self.deck.duration
+        // The deck's decoded length only stands in for the live track; an incoming 0 lets the library row decide.
+        let isLive = track.id == self.deck.currentTrack?.id
+        let duration = track.duration > 0 ? track.duration : isLive ? self.deck.duration : 0
         guard let url = track.url, let library = self.library() else {
             return Context(trackID: track.id, row: nil, track: .unknown(duration: duration))
         }
@@ -176,12 +178,25 @@ final class AutomixCoordinator: ObservableObject {
         else { return }
         self.continuationTriedFor = liveTrackID
         let pool = await library.pool(settings.pickFrom, filter: self.settings.pickFilter)
+        // The pool load suspends: Automix, the continuation, Repeat or the live track may have changed meanwhile.
+        let now = self.settings.settings
+        guard now.enabled, now.continueWithMixesWell, now.pickFrom == settings.pickFrom, !self.playlist.repeatEnabled,
+              self.deck.currentTrack?.id == liveTrackID
+        else {
+            if self.continuationTriedFor == liveTrackID {
+                self.continuationTriedFor = nil
+            }
+            return
+        }
         let queued = Set(self.playlist.tracks.compactMap(\.url))
         let removed = self.playlist.removedAutoURLs
         let excluded = self.playedRowIDs.union(pool.filter { removed.contains($0.url) || queued.contains($0.url) }.map(\.id))
         guard self.playlist.nextTrackIndex() == nil,
               let pick = MixesWell.nextPick(reference: reference, tempo: tempo, pool: pool, excluded: excluded)
         else { return }
+        // Playlist continuity: a restored AUTO track stays playable through its library root's bookmark.
+        await library.registerRoot(of: pick)
+        guard self.playlist.nextTrackIndex() == nil, self.deck.currentTrack?.id == liveTrackID else { return }
         self.playlist.appendAutoTrack(pick.makeTrack())
         // The append itself is a playlist change; the pick for this track is done.
         self.continuationTriedFor = liveTrackID
@@ -209,15 +224,17 @@ final class AutomixCoordinator: ObservableObject {
             self.dropPrepared()
             return
         }
-        let lead = (plan.outgoingStart - state.fileTime) / max(state.rate, 0.000_1)
+        let lead = self.lead(to: plan, at: state)
 
         switch self.phase {
         case let .prepared(token, trackID, preparedPlan):
             if trackID != nextTrack.id || preparedPlan != plan {
                 let stillQueued = self.playlist.tracks.contains { $0.id == trackID }
-                guard lead > Self.freezeLead || !stillQueued else {
+                // The freeze and the arm follow the plan B was prepared with, not the replacement.
+                let preparedLead = self.lead(to: preparedPlan, at: state)
+                guard preparedLead > Self.freezeLead || !stillQueued else {
                     // Frozen: the plan stands while B is still in the Playlist.
-                    if lead <= Self.armLead {
+                    if preparedLead <= Self.armLead {
                         self.arm(token)
                     }
                     return
@@ -253,6 +270,11 @@ final class AutomixCoordinator: ObservableObject {
         if case .prepared = self.phase, lead <= Self.armLead {
             self.arm(token)
         }
+    }
+
+    /// Seconds of playback until A reaches the plan's mix-out.
+    private func lead(to plan: MixPlan, at state: (fileTime: Double, rate: Double)) -> Double {
+        (plan.outgoingStart - state.fileTime) / max(state.rate, 0.000_1)
     }
 
     private func arm(_ token: UUID) {

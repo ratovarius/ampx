@@ -61,13 +61,25 @@ final class MockAutomixLibrary: AutomixLibrary, @unchecked Sendable {
     var tracks: [URL: (row: LibraryRow?, track: AutomixTrack)] = [:]
     var poolRows: [LibraryRow] = []
     private(set) var poolRequests: [(PickPool, LibraryQuery?)] = []
+    private(set) var trackRequests: [(URL, Double)] = []
+    private(set) var registeredRoots: [UUID] = []
+    /// Runs inside `pool` before it returns: what changes while the pool loads.
+    var whilePoolLoads: (@MainActor () -> Void)?
 
     func track(url: URL, duration: Double) async -> (row: LibraryRow?, track: AutomixTrack) {
-        self.tracks[url] ?? (nil, .unknown(duration: duration))
+        self.trackRequests.append((url, duration))
+        return self.tracks[url] ?? (nil, .unknown(duration: duration))
     }
 
     func pool(_ pickFrom: PickPool, filter: LibraryQuery?) async -> [LibraryRow] {
         self.poolRequests.append((pickFrom, filter))
+        if let whilePoolLoads = self.whilePoolLoads {
+            await whilePoolLoads()
+        }
         return self.poolRows
+    }
+
+    func registerRoot(of row: LibraryRow) async {
+        self.registeredRoots.append(row.rootID)
     }
 }

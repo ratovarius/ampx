@@ -83,7 +83,7 @@ final class AutomixLibraryTests: XCTestCase {
         var filter = LibraryQuery()
         filter.genres = [.text("Techno")]
         let pool = await self.library.pool(.currentView, filter: filter)
-        XCTAssertEqual(pool.map { $0.id }, [techno])
+        XCTAssertEqual(pool.map(\.id), [techno])
     }
 
     func testPoolWholeLibraryIgnoresFilter() async throws {
@@ -99,7 +99,40 @@ final class AutomixLibraryTests: XCTestCase {
         let present = try self.seed("a.mp3")
         try self.seed("b.mp3", missing: true)
         let pool = await self.library.pool(.wholeLibrary, filter: nil)
-        XCTAssertEqual(pool.map { $0.id }, [present])
+        XCTAssertEqual(pool.map(\.id), [present])
+    }
+
+    /// PR 17 review: the MISSING view keeps only unavailable rows, which the pool never holds.
+    func testPoolCurrentViewIgnoresMissingView() async throws {
+        let techno = try self.seed("a.mp3")
+        try self.seed("b.mp3", genre: "House")
+        try self.seed("c.mp3", missing: true)
+        var filter = LibraryQuery()
+        filter.genres = [.text("Techno")]
+        filter.onlyUnavailable = true
+        let pool = await self.library.pool(.currentView, filter: filter)
+        XCTAssertEqual(pool.map(\.id), [techno])
+    }
+
+    /// PR 17 review: an AUTO pick's root is bookmarked, so the restored Playlist can still open it.
+    func testRegisterRootSavesRootBookmark() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        self.addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let rootID = UUID()
+        try T.seedRoot(self.container, id: rootID, path: directory.path)
+        let defaults = T.isolatedDefaults(self)
+        let library = LibraryEngineAutomixLibrary(
+            index: self.index,
+            store: T.makeStore(self, container: self.container),
+            bookmarkStore: SecurityScopedBookmarkStore(userDefaults: defaults)
+        )
+        let id = UUID()
+        try T.seedTrack(self.container, id: id, rootID: rootID, path: "a.mp3")
+        let found = try await self.index.row(url: directory.appendingPathComponent("a.mp3"))
+        let row = try XCTUnwrap(found)
+        await library.registerRoot(of: row)
+        XCTAssertEqual((defaults.array(forKey: "AmpXSecurityScopedBookmarks") as? [Data])?.count, 1)
     }
 
     func testPoolWithoutPersistedFilterIsWholeLibrary() async throws {

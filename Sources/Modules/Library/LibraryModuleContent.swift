@@ -99,15 +99,15 @@ final class LibraryModuleContent: AmpXModuleContent {
     private var playerObservation: AnyCancellable?
     private var automixObservation: AnyCancellable?
 
-    /// Automix's settings and live tempo, set by the host once Automix exists. The window writes its filter to the
-    /// settings' pick filter (Current view), and matches the PLAYING reference against the live tempo.
+    /// Automix's settings and live tempo, set by the host once Automix exists. Each filter change writes the
+    /// settings' pick filter (Current view); attaching does not, so the saved filter outlives the unfiltered window
+    /// that opens at launch. The PLAYING reference matches against the live tempo.
     var automix: LibraryAutomixLink? {
         didSet {
             self.automixObservation = self.automix?.tempoChanges
                 .removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in self?.updateSidebarReference() }
-            self.automix?.settings.pickFilter = self.filter.query
             self.updateSidebarReference()
         }
     }

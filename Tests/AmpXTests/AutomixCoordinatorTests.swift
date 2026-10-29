@@ -21,7 +21,12 @@ final class AutomixCoordinatorTests: XCTestCase {
         self.deck = MockAutomixDeck()
         self.library = MockAutomixLibrary()
         self.player = MockAudioPlayer()
-        self.playlist = PlaylistManager(audioPlayer: self.player, restoreBookmarks: false, restorePlaylist: false, alertPresenter: SilentPlaylistAlertPresenter())
+        self.playlist = PlaylistManager(
+            audioPlayer: self.player,
+            restoreBookmarks: false,
+            restorePlaylist: false,
+            alertPresenter: SilentPlaylistAlertPresenter()
+        )
         self.settings = AutomixSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
         var settings = AutomixSettings()
         settings.enabled = true
@@ -129,12 +134,12 @@ final class AutomixCoordinatorTests: XCTestCase {
         XCTAssertEqual(self.playlist.tracks.count, 1)
     }
 
-    func testContinuationExcludesPlayedAndRemovedAuto() async {
+    func testContinuationExcludesPlayedAndRemovedAuto() async throws {
         self.settings.settings.continueWithMixesWell = true
         let first = self.row("First", bpm: 128)
         let second = self.row("Second", bpm: 127)
         let third = self.row("Third", bpm: 126)
-        self.library.poolRows = [self.library.tracks[self.a.url!]!.row!, first, second, third]
+        self.library.poolRows = try [XCTUnwrap(try self.library.tracks[XCTUnwrap(self.a.url)]?.row), first, second, third]
         await self.start([self.a], at: 1)
         XCTAssertEqual(self.playlist.tracks.last?.url, first.url, "the playing track itself is never picked")
         self.playlist.removeTrack(at: 1)
@@ -223,6 +228,63 @@ final class AutomixCoordinatorTests: XCTestCase {
         XCTAssertEqual(self.deck.prepared.count, 1)
         await self.at(321)
         XCTAssertEqual(self.deck.prepared.count, 2)
+    }
+
+    /// PR 17 review: a replanned mix-out cannot undo a preparation already inside the freeze, and the arm still
+    /// follows the prepared plan.
+    func testReplanAfterFreezeKeepsAndArmsPreparedPlan() async {
+        await self.start([self.a, self.b], at: 321)
+        await self.at(326)
+        // 8-bar blend: the replacement mixes out at bar 192 (360 s) instead of 176 (330 s).
+        self.settings.settings.lastPhraseBlendBars = 8
+        await self.at(326.5)
+        XCTAssertEqual(self.deck.cancelCount, 0)
+        await self.at(329.2)
+        XCTAssertEqual(self.deck.armed, [self.deck.prepared[0].token])
+        XCTAssertEqual(self.deck.prepared.count, 1)
+    }
+
+    /// PR 17 review: the deck's decoded length stands in only for the live track's missing tag duration.
+    func testIncomingWithoutDurationDoesNotInheritDeckDuration() async {
+        self.deck.duration = 412
+        let live = Track(title: "A", artist: "Artist", duration: 0, url: self.a.url)
+        let incoming = Track(title: "B", artist: "Artist", duration: 0, url: self.b.url)
+        await self.start([live, incoming], at: 1)
+        XCTAssertEqual(self.library.trackRequests.first { $0.0 == self.a.url }?.1, 412)
+        XCTAssertEqual(self.library.trackRequests.first { $0.0 == self.b.url }?.1, 0)
+    }
+
+    /// PR 17 review: turning the continuation off while the pool loads drops the pick; turning it on again retries.
+    func testContinuationTurnedOffWhilePoolLoadsDoesNotAppend() async throws {
+        self.settings.settings.continueWithMixesWell = true
+        self.library.poolRows = [self.row("Pick", bpm: 127)]
+        let settings = try XCTUnwrap(self.settings)
+        self.library.whilePoolLoads = { settings.settings.continueWithMixesWell = false }
+        await self.start([self.a], at: 1)
+        XCTAssertEqual(self.playlist.tracks.count, 1)
+        self.library.whilePoolLoads = nil
+        self.settings.settings.continueWithMixesWell = true
+        await self.at(2)
+        XCTAssertEqual(self.playlist.tracks.count, 2)
+    }
+
+    /// PR 17 review: a manual track change while the pool loads drops the pick made for the previous track.
+    func testTrackChangeWhilePoolLoadsDoesNotAppend() async throws {
+        self.settings.settings.continueWithMixesWell = true
+        self.library.poolRows = [self.row("Pick", bpm: 127)]
+        let (deck, c) = try (XCTUnwrap(self.deck), XCTUnwrap(self.c))
+        self.library.whilePoolLoads = { deck.currentTrack = c }
+        await self.start([self.a], at: 1)
+        XCTAssertEqual(self.playlist.tracks.map(\.url), [self.a.url])
+    }
+
+    /// PR 17 review: an AUTO pick's library root is bookmarked before it joins the Playlist.
+    func testContinuationRegistersPickRoot() async {
+        self.settings.settings.continueWithMixesWell = true
+        let pick = self.row("Pick", bpm: 127)
+        self.library.poolRows = [pick]
+        await self.start([self.a], at: 1)
+        XCTAssertEqual(self.library.registeredRoots, [pick.rootID])
     }
 
     /// Review finding 2: with an asynchronous prepare inside the arm window, arming must not wait for the next tick.

@@ -32,8 +32,8 @@ final class AudioPlayerTransitionTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         self.addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
-        self.trackA = Track(title: "A", artist: "T", url: try Self.tone(directory.appendingPathComponent("a.caf"), frequency: 220))
-        self.trackB = Track(title: "B", artist: "T", url: try Self.tone(directory.appendingPathComponent("b.caf"), frequency: 330))
+        self.trackA = try Track(title: "A", artist: "T", url: Self.tone(directory.appendingPathComponent("a.caf"), frequency: 220))
+        self.trackB = try Track(title: "B", artist: "T", url: Self.tone(directory.appendingPathComponent("b.caf"), frequency: 330))
         self.player = AudioPlayer(installRemoteCommands: false)
         self.player.testing_manualBlendTicks = true
         let events = self.events
@@ -283,6 +283,49 @@ final class AudioPlayerTransitionTests: XCTestCase {
         XCTAssertTrue(self.prepare(track: second).1)
         self.settle()
         XCTAssertEqual(self.player.testing_deckTrackID(1), second.id)
+    }
+
+    /// PR 17 review: the same track prepared again right after a cancel keeps its slot (and so its ReplayGain).
+    func testReprepareSameTrackAfterCancelKeepsSlot() {
+        self.startA()
+        XCTAssertTrue(self.prepare().1)
+        self.player.cancelTransition()
+        XCTAssertTrue(self.prepare().1)
+        self.settle()
+        XCTAssertEqual(self.player.testing_deckTrackID(1), self.trackB.id)
+    }
+
+    /// PR 17 review: a load started after the queue switched decks, but before the switch reached the MainActor,
+    /// keeps the transport; the deck mirror still follows the queue's live deck.
+    func testLoadRacingSwitchKeepsNewTrack() {
+        self.startA()
+        self.arm()
+        self.player.testing_tick(outgoingFileTime: 14)
+        let manual = Track(title: "Manual", artist: "T", url: self.trackA.url)
+        let loaded = expectation(description: "load")
+        self.player.loadTrack(manual) { _ in loaded.fulfill() }
+        wait(for: [loaded], timeout: 5)
+        self.settle()
+        XCTAssertTrue(self.changes.isEmpty)
+        XCTAssertEqual(self.player.currentTrack?.id, manual.id)
+        XCTAssertEqual(self.player.liveDeckIndex, 1)
+        XCTAssertEqual(self.player.testing_deckTrackID(1), manual.id)
+        XCTAssertTrue(self.snapshot()[1].isLive)
+    }
+
+    /// PR 17 review: B running out before the switch (a clip shorter than the blend) still advances past it.
+    func testIncomingEndingBeforeSwitchAdvances() {
+        self.startA()
+        self.arm()
+        self.tick(11)
+        self.player.testing_simulateIncomingCompletion()
+        // The completion, the finish and the track end each take one more audio-queue turn.
+        for _ in 0 ..< 3 {
+            self.settle()
+        }
+        XCTAssertEqual(self.changes.map(\.title), ["B"])
+        XCTAssertEqual(self.finished, 1)
+        XCTAssertFalse(self.player.isBlending)
     }
 
     /// Review finding 4 (spec § Tempo: Play on a stopped player starts the track at its original tempo).

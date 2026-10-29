@@ -1,6 +1,6 @@
 @testable import AmpX
-import SwiftData
 import Combine
+import SwiftData
 import XCTest
 
 /// The composed Library window body (Library Module spec § Layout, Behaviour).
@@ -288,7 +288,7 @@ final class LibraryModuleContentTests: XCTestCase {
         }
     }
 
-    func testPlayingTrackOutsideFilterStillDrivesMatches() async throws {
+    func testPlayingTrackOutsideFilterStillDrivesMatches() async {
         func row(_ title: String, genre: String, bpm: Double) -> LibraryRow {
             LibraryRow(
                 id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/Music/\(title).mp3"),
@@ -345,7 +345,18 @@ final class LibraryModuleContentTests: XCTestCase {
         XCTAssertEqual(store.pickFilter?.search, "drumcode")
     }
 
-    func testPlayingReferenceUsesEffectiveTempoWhenAutomixOn() async throws {
+    /// PR 17 review: the window opening unfiltered at launch keeps the saved pick filter.
+    func testAttachingKeepsPersistedPickFilter() {
+        let (link, store) = self.automixLink()
+        var saved = LibraryQuery()
+        saved.search = "drumcode"
+        store.pickFilter = saved
+        let content = self.makeContent(controller: nil)
+        content.automix = link
+        XCTAssertEqual(store.pickFilter?.search, "drumcode")
+    }
+
+    func testPlayingReferenceUsesEffectiveTempoWhenAutomixOn() async {
         func row(_ title: String, bpm: Double) -> LibraryRow {
             LibraryRow(
                 id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/Music/\(title).mp3"),

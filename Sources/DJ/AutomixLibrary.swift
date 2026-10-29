@@ -6,20 +6,24 @@ protocol AutomixLibrary: Sendable {
     func track(url: URL, duration: Double) async -> (row: LibraryRow?, track: AutomixTrack)
     /// Available rows only. A nil filter (never set) means the whole library.
     func pool(_ pickFrom: PickPool, filter: LibraryQuery?) async -> [LibraryRow]
+    /// Saves the bookmark of the row's library root, so the Playlist can restore a track picked from it.
+    func registerRoot(of row: LibraryRow) async
 }
 
 /// `AutomixLibrary` over the library engine's index and store.
 struct LibraryEngineAutomixLibrary: AutomixLibrary {
     let index: LibraryIndex
     let store: LibraryStore
+    let bookmarkStore: SecurityScopedBookmarkStore?
 
-    init(index: LibraryIndex, store: LibraryStore) {
+    init(index: LibraryIndex, store: LibraryStore, bookmarkStore: SecurityScopedBookmarkStore? = nil) {
         self.index = index
         self.store = store
+        self.bookmarkStore = bookmarkStore
     }
 
     init(engine: LibraryEngine) {
-        self.init(index: engine.index, store: engine.store)
+        self.init(index: engine.index, store: engine.store, bookmarkStore: engine.bookmarkStore)
     }
 
     func track(url: URL, duration: Double) async -> (row: LibraryRow?, track: AutomixTrack) {
@@ -35,11 +39,21 @@ struct LibraryEngineAutomixLibrary: AutomixLibrary {
     }
 
     func pool(_ pickFrom: PickPool, filter: LibraryQuery?) async -> [LibraryRow] {
-        let rows: [LibraryRow]? = if pickFrom == .currentView, let filter {
-            try? await self.index.rows(matching: filter)
+        var rows: [LibraryRow]?
+        if pickFrom == .currentView, var filter {
+            // Missing rows are never in the pool, so the MISSING view adds nothing (spec § Continuation).
+            filter.onlyUnavailable = false
+            rows = try? await self.index.rows(matching: filter)
         } else {
-            try? await self.index.everyRow()
+            rows = try? await self.index.everyRow()
         }
         return (rows ?? []).filter(\.isAvailable)
+    }
+
+    func registerRoot(of row: LibraryRow) async {
+        guard let bookmarkStore = self.bookmarkStore,
+              let url = await (try? self.store.roots())?.first(where: { $0.id == row.rootID })?.url
+        else { return }
+        bookmarkStore.saveBookmark(for: url)
     }
 }

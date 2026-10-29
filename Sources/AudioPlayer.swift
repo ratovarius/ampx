@@ -59,6 +59,9 @@ class AudioPlayer: NSObject, ObservableObject {
     private(set) var liveDeckIndex = 0
     /// The track loaded on each deck, so a late ReplayGain read never lands on a deck that moved on.
     private var deckTrackIDs: [UUID?] = [nil, nil]
+    /// The transition token that loaded each deck (nil for `loadTrack`): one track can be prepared twice in a row,
+    /// and a late cleanup or switch of the first preparation must leave the second alone.
+    private var deckPreparations: [UUID?] = [nil, nil]
 
     // MARK: Automix transitions (DJ mode spec Revision 2 § Clock, completion and transport)
 
@@ -431,6 +434,7 @@ class AudioPlayer: NSObject, ObservableObject {
         self.liveRate = 1
         self.deckTrackIDs = [nil, nil]
         self.deckTrackIDs[self.liveDeckIndex] = track.id
+        self.deckPreparations = [nil, nil]
         self.deckReplayGains[1 - self.liveDeckIndex] = ReplayGain()
     }
 
@@ -922,13 +926,16 @@ class AudioPlayer: NSObject, ObservableObject {
 
     private func startTimer() {
         self.timer?.invalidate()
-        self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             // A real `Task`, not `MainActor.assumeIsolated`: the timer fires with no Swift task and
             // on macOS 26 the executor check inside `assumeIsolated` crashes (see commit 5562af8).
             Task { @MainActor in
                 self?.tickPlaybackUI()
             }
         }
+        // `.common`, so `currentTime` keeps moving while a menu is open: Automix reads it to prepare and arm.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     private func stopTimer() {
@@ -1059,6 +1066,7 @@ extension AudioPlayer {
         }
         let incoming = 1 - self.liveDeckIndex
         self.deckTrackIDs[incoming] = prepared.track.id
+        self.deckPreparations[incoming] = prepared.token
         self.deckReplayGains[incoming] = ReplayGain()
         self.applyPlayerVolume()
         self.audioQueue.async { [weak self] in
@@ -1077,7 +1085,9 @@ extension AudioPlayer {
             deck.player.reset()
             deck.reset()
             deck.fade.outputVolume = 0
-            self.deckStates[incoming] = DeckPlayback(file: file, trackID: prepared.track.id, segmentStart: prepared.plan.incomingStart)
+            self.deckStates[incoming] = DeckPlayback(
+                file: file, trackID: prepared.track.id, preparation: prepared.token, segmentStart: prepared.plan.incomingStart
+            )
             self.transition = ActiveTransition(
                 prepared: prepared,
                 curve: BlendCurve(plan: prepared.plan),
@@ -1090,11 +1100,11 @@ extension AudioPlayer {
             )
             self.runOnMainActor { completion(true) }
 
-            let trackID = prepared.track.id
+            let token = prepared.token
             Task { [weak self] in
                 let replayGain = await ReplayGainReader.read(from: url)
                 await MainActor.run { [weak self] in
-                    guard let self, self.deckTrackIDs[incoming] == trackID else { return }
+                    guard let self, self.deckPreparations[incoming] == token else { return }
                     self.deckReplayGains[incoming] = replayGain
                     if incoming == self.liveDeckIndex {
                         self.currentReplayGain = replayGain
@@ -1281,7 +1291,20 @@ extension AudioPlayer {
         let rate = Double(graph.decks[incoming].timePitch.rate)
         let time = self.playbackTimeSnapshot() ?? transition.prepared.plan.incomingStart
         let format = (transition.duration, transition.sampleRate, transition.channels, transition.bitrate)
+        let token = transition.prepared.token
         self.runOnMainActor(weak: self) { player in
+            guard player.deckPreparations[incoming] == token else {
+                // A load landed after this switch on the queue but before here: it owns the transport and plays on
+                // the deck that is live now, so only the deck mirror follows.
+                if player.liveDeckIndex != incoming {
+                    player.liveDeckIndex = incoming
+                    player.deckTrackIDs.swapAt(0, 1)
+                    player.deckPreparations.swapAt(0, 1)
+                    player.deckReplayGains.swapAt(0, 1)
+                    player.applyPlayerVolume()
+                }
+                return
+            }
             player.liveDeckIndex = incoming
             player.liveRate = rate
             player.currentTrack = track
@@ -1303,7 +1326,7 @@ extension AudioPlayer {
             self.performSwitchOnQueue()
         }
         let outgoing = graph.decks[transition.outgoing]
-        let finishedTrackID = self.deckStates[transition.outgoing].trackID
+        let finished = (self.deckStates[transition.outgoing].trackID, self.deckStates[transition.outgoing].preparation)
         outgoing.player.stop()
         outgoing.player.reset()
         outgoing.reset()
@@ -1315,10 +1338,15 @@ extension AudioPlayer {
         let outgoingIndex = transition.outgoing
         self.runOnMainActor(weak: self) { player in
             player.isBlending = false
-            if player.deckTrackIDs[outgoingIndex] == finishedTrackID {
-                player.deckTrackIDs[outgoingIndex] = nil
-            }
+            player.clearDeckSlot(outgoingIndex, ifOwnedBy: finished)
         }
+    }
+
+    /// Empties the MainActor slot of a deck the queue just emptied, unless a newer load or prepare already owns it.
+    private func clearDeckSlot(_ index: Int, ifOwnedBy owner: (trackID: UUID?, preparation: UUID?)) {
+        guard self.deckTrackIDs[index] == owner.trackID, self.deckPreparations[index] == owner.preparation else { return }
+        self.deckTrackIDs[index] = nil
+        self.deckPreparations[index] = nil
     }
 
     /// Stops the idle deck and returns the live deck to full level with no cut.
@@ -1327,7 +1355,7 @@ extension AudioPlayer {
         self.stopBlendTimer()
         self.transition = nil
         let idleIndex = 1 - graph.liveDeckIndex
-        let cancelledTrackID = self.deckStates[idleIndex].trackID
+        let cancelled = (self.deckStates[idleIndex].trackID, self.deckStates[idleIndex].preparation)
         idle.player.stop()
         idle.player.reset()
         idle.reset()
@@ -1336,10 +1364,8 @@ extension AudioPlayer {
         live.setLowCut(false)
         self.runOnMainActor(weak: self) { player in
             player.isBlending = false
-            // A prepare queued right after this cancel may already own the slot.
-            if player.deckTrackIDs[idleIndex] == cancelledTrackID {
-                player.deckTrackIDs[idleIndex] = nil
-            }
+            // A prepare queued right after this cancel may already own the slot, even for the same track.
+            player.clearDeckSlot(idleIndex, ifOwnedBy: cancelled)
             if notify {
                 player.onTransitionCancelled?()
             }
@@ -1358,8 +1384,24 @@ extension AudioPlayer {
 
     private nonisolated func handleIncomingCompletion(token: UUID) {
         self.audioQueue.async { [weak self] in
-            guard let self, self.liveTransitionToken == token else { return }
+            guard let self else { return }
+            if let transition = self.transition, transition.prepared.token == token, transition.armed,
+               !transition.switched
+            {
+                // B ran out before the switch (a clip shorter than the blend): end the blend now so the
+                // Playlist moves to B and on past it, instead of promoting a deck with nothing left to play.
+                self.finishTransitionOnQueue()
+            }
+            guard self.liveTransitionToken == token else { return }
             self.handleTrackCompletion(generation: self.liveTransitionGeneration)
+        }
+    }
+
+    /// The incoming deck running out: stopping its player drops what is left and fires its real completion.
+    func testing_simulateIncomingCompletion() {
+        self.audioQueue.async { [weak self] in
+            guard let self, let transition = self.transition else { return }
+            self.audioGraph?.decks[transition.incoming].player.stop()
         }
     }
 
@@ -1512,6 +1554,8 @@ struct DeckPlayback {
     var file: AVAudioFile?
     /// The playback occurrence (`Track.id`) loaded on the deck, matching the MainActor's `deckTrackIDs`.
     var trackID: UUID?
+    /// The transition token that loaded the deck, matching the MainActor's `deckPreparations`.
+    var preparation: UUID?
     /// Absolute file time at the start of the deck's scheduled segment.
     var segmentStart: TimeInterval = 0
 }
