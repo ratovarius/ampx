@@ -1,4 +1,4 @@
---swiftversion 5.9
+--swiftversion 6.0
 --indent 4
 --maxwidth 140
 --ifdef no-indent

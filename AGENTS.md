@@ -8,6 +8,13 @@ alwaysApply: true
 Modern macOS music player with Winamp's UX spirit — compact floating window, playlist, EQ,
 visualizer — plus lossless audio, modern codecs, and a native macOS feel.
 
+## Start here
+
+IMPORTANT: before you plan, build or change anything in the product, or answer questions about it, read each of these files in full:
+
+1. `docs/CODE_STANDARDS.md`: how to write the code
+2. `docs/PROCESS.md`: how to plan, build and check the work
+
 Branch flow: `feature/*` → `develop` → `main`.
 
 ---
