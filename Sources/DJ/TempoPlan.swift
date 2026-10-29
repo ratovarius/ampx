@@ -19,8 +19,14 @@ enum TempoPlan {
         return abs(rate - 1) <= self.clamp + 1e-12 ? rate : nil
     }
 
-    /// The live track's BPM after one bar of glide.
-    static func glideStep(currentBPM: Double, originalBPM _: Double, nextBPM _: Double?, speedPer4Bars _: Double) -> Double {
-        currentBPM
+    /// The live track's BPM after one bar of glide: a quarter of the speed toward its original tempo, only when that
+    /// also moves toward the next track's (octave-normalised) tempo, and never past the original. Both directions.
+    static func glideStep(currentBPM: Double, originalBPM: Double, nextBPM: Double?, speedPer4Bars: Double) -> Double {
+        guard let nextBPM, nextBPM > 0, currentBPM != originalBPM else { return currentBPM }
+        let direction = originalBPM > currentBPM ? 1.0 : -1.0
+        let next = nextBPM * self.octaveFactor(incoming: nextBPM, outgoing: currentBPM)
+        guard (next - currentBPM) * direction > 0 else { return currentBPM }
+        let stepped = currentBPM + direction * speedPer4Bars / 4
+        return direction > 0 ? min(stepped, originalBPM) : max(stepped, originalBPM)
     }
 }
