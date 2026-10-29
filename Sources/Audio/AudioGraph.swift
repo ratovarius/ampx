@@ -1,26 +1,50 @@
 import AVFoundation
 
-/// Owns the `AVAudioEngine` and an ordered chain of ``AudioEffectUnit``s wired between a
-/// source player node and the engine's main mixer:
+/// Owns the `AVAudioEngine` and an ordered chain of ``AudioEffectUnit``s wired between an
+/// upstream node and the engine's main mixer:
 ///
-///     source → effects[0] → … → effects[n] → mainMixer → output
+///     upstream → effects[0] → … → effects[n] → mainMixer → output
 ///
-/// Adding a DSP module to the pipeline is ``insert(_:at:)`` — the chain rewires itself,
-/// so there is no hand-edited node wiring as the pipeline grows.
+/// The upstream is either a single source player node, or, in two-deck mode (DJ mode
+/// Automix), a `deckSum` mixer fed by two ``AudioDeck``s. Adding a DSP module to the
+/// pipeline is ``insert(_:at:)`` — the chain rewires itself, so there is no hand-edited
+/// node wiring as the pipeline grows.
 ///
 /// The engine is not thread-safe: every method must be called on the owning player's
 /// serial audio queue. `@unchecked Sendable` reflects that single-queue discipline.
 final class AudioGraph: @unchecked Sendable {
     let engine: AVAudioEngine
-    /// Signal source the chain starts from. Owned and attached by the graph.
-    let source: AVAudioPlayerNode
+    private let singleSource: AVAudioPlayerNode?
+    /// The two decks in two-deck mode; empty for a single-source graph.
+    let decks: [AudioDeck]
+    /// Sums the decks in two-deck mode; nil for a single-source graph.
+    let deckSum: AVAudioMixerNode?
+    private(set) var liveDeckIndex = 0
     private(set) var effects: [AudioEffectUnit] = []
 
+    /// The playing source: the given node, or the live deck's player in two-deck mode.
+    var source: AVAudioPlayerNode {
+        self.decks.isEmpty ? self.singleSource! : self.decks[self.liveDeckIndex].player
+    }
+
+    var liveDeck: AudioDeck? {
+        self.decks.isEmpty ? nil : self.decks[self.liveDeckIndex]
+    }
+
+    var idleDeck: AudioDeck? {
+        self.decks.isEmpty ? nil : self.decks[1 - self.liveDeckIndex]
+    }
+
+    /// The node feeding the effect chain.
+    private var upstream: AVAudioNode {
+        self.deckSum ?? self.source
+    }
+
     /// Node the analysis tap (FFT / visualizer) reads from — last effect output (post-EQ),
-    /// or the source when the chain is empty. Intentionally not `mainMixerNode` so the
+    /// or the upstream when the chain is empty. Intentionally not `mainMixerNode` so the
     /// listening fader can live on the mixer without changing analysis.
     var tapPoint: AVAudioNode {
-        self.effects.last?.outputNode ?? self.source
+        self.effects.last?.outputNode ?? self.upstream
     }
 
     var isRunning: Bool {
@@ -29,8 +53,34 @@ final class AudioGraph: @unchecked Sendable {
 
     init(engine: AVAudioEngine = AVAudioEngine(), source: AVAudioPlayerNode = AVAudioPlayerNode()) {
         self.engine = engine
-        self.source = source
-        self.engine.attach(self.source)
+        self.singleSource = source
+        self.decks = []
+        self.deckSum = nil
+        self.engine.attach(source)
+    }
+
+    private init(twoDeckEngine engine: AVAudioEngine) {
+        self.engine = engine
+        self.singleSource = nil
+        self.decks = [AudioDeck(), AudioDeck()]
+        let deckSum = AVAudioMixerNode()
+        self.deckSum = deckSum
+        engine.attach(deckSum)
+        for (bus, deck) in self.decks.enumerated() {
+            deck.attach(to: engine)
+            engine.connect(deck.fade, to: deckSum, fromBus: 0, toBus: AVAudioNodeBus(bus), format: nil)
+        }
+    }
+
+    /// Two decks summed into the effect chain (DJ mode spec Revision 2 § Audio graph).
+    static func twoDeck(engine: AVAudioEngine = AVAudioEngine()) -> AudioGraph {
+        AudioGraph(twoDeckEngine: engine)
+    }
+
+    /// Makes deck `index` the live one: `source` follows it.
+    func setLiveDeck(_ index: Int) {
+        guard self.decks.indices.contains(index) else { return }
+        self.liveDeckIndex = index
     }
 
     /// Attaches and connects the given effects in order, replacing any existing chain.
@@ -77,19 +127,19 @@ final class AudioGraph: @unchecked Sendable {
     }
 
     /// Tears down the external connections of the chain and re-wires
-    /// source → effects → mainMixer in the current order.
+    /// upstream → effects → mainMixer in the current order.
     ///
     /// Disconnecting an effect's *input* side and the *output* side of the previous stage
     /// leaves each effect's internal wiring (e.g. the EQ's preamp→eq link made in
     /// `attach(to:)`) intact, so a rebuild never has to know an effect's internals.
     private func reconnect() {
-        self.engine.disconnectNodeOutput(self.source)
+        self.engine.disconnectNodeOutput(self.upstream)
         for effect in self.effects {
             self.engine.disconnectNodeOutput(effect.outputNode)
             self.engine.disconnectNodeInput(effect.inputNode)
         }
 
-        var upstream: AVAudioNode = self.source
+        var upstream: AVAudioNode = self.upstream
         for effect in self.effects {
             self.engine.connect(upstream, to: effect.inputNode, format: nil)
             upstream = effect.outputNode

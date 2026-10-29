@@ -7,6 +7,10 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
     let playlistManager: PlaylistManager
     let hosts: AmpXHostCoordinator
     let libraryController: LibraryController?
+    /// Automix settings (Playback ▸ Automix and Automix Options) and the persisted pick filter.
+    let automixSettings: AutomixSettingsStore
+    /// Plays the Playlist as a continuous set while Automix is on; created with the playback bindings.
+    private(set) var automix: AutomixCoordinator?
     /// Launch-time `startIfConfigured()`; opens the engine only when the library has roots.
     private(set) var libraryStartTask: Task<Void, Never>?
 
@@ -18,12 +22,15 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         playlistManager: PlaylistManager,
         hosts: AmpXHostCoordinator,
         libraryController: LibraryController? = nil,
+        automixSettings: AutomixSettingsStore? = nil,
         playsStartupSound: Bool? = nil
     ) {
         self.audioPlayer = audioPlayer
         self.playlistManager = playlistManager
         self.hosts = hosts
         self.libraryController = libraryController
+        // Tests get a throwaway suite, so they never read or write the app's Automix settings.
+        self.automixSettings = automixSettings ?? AutomixSettingsStore(defaults: UserDefaults(suiteName: "AmpX.automix.\(UUID().uuidString)")!)
         self.playsStartupSound = playsStartupSound ?? !Self.isRunningUnderTest
         super.init()
     }
@@ -73,6 +80,12 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
             return true
         case #selector(self.toggleRepeat(_:)):
             menuItem.state = self.playlistManager.repeatEnabled ? .on : .off
+            return true
+        case #selector(self.toggleAutomix(_:)), #selector(self.chooseAutomixMixPoints(_:)), #selector(self.chooseAutomixTransition(_:)),
+             #selector(self.chooseAutomixLastPhraseBlend(_:)), #selector(self.chooseAutomixLongestBlend(_:)),
+             #selector(self.toggleAutomixGlideBack(_:)), #selector(self.chooseAutomixGlideSpeed(_:)),
+             #selector(self.toggleAutomixContinuation(_:)), #selector(self.chooseAutomixPickFrom(_:)):
+            menuItem.state = self.automixMenuState(menuItem) ? .on : .off
             return true
         case #selector(self.toggleEqualizer(_:)):
             menuItem.state = self.hosts.state.closed.contains(.equalizer) ? .off : .on
@@ -154,6 +167,72 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         self.playlistManager.repeatEnabled.toggle()
     }
 
+    // MARK: - Automix (Playback ▸ Automix, Automix Options)
+
+    @objc func toggleAutomix(_: Any?) {
+        self.automixSettings.settings.enabled.toggle()
+    }
+
+    @objc func chooseAutomixMixPoints(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: String.self).flatMap(MixPointMethod.init(rawValue:)) else { return }
+        self.automixSettings.settings.mixPoints = value
+    }
+
+    @objc func chooseAutomixTransition(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: String.self).flatMap(TransitionStyle.init(rawValue:)) else { return }
+        self.automixSettings.settings.transition = value
+    }
+
+    @objc func chooseAutomixLastPhraseBlend(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: Int.self) else { return }
+        self.automixSettings.settings.lastPhraseBlendBars = value
+    }
+
+    @objc func chooseAutomixLongestBlend(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: Int.self) else { return }
+        self.automixSettings.settings.longestBlendBars = value
+    }
+
+    @objc func toggleAutomixGlideBack(_: Any?) {
+        self.automixSettings.settings.glideBack.toggle()
+    }
+
+    @objc func chooseAutomixGlideSpeed(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: Double.self) else { return }
+        self.automixSettings.settings.glideSpeed = value
+    }
+
+    @objc func toggleAutomixContinuation(_: Any?) {
+        self.automixSettings.settings.continueWithMixesWell.toggle()
+    }
+
+    @objc func chooseAutomixPickFrom(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: String.self).flatMap(PickPool.init(rawValue:)) else { return }
+        self.automixSettings.settings.pickFrom = value
+    }
+
+    private static func chosen<T>(_ sender: Any?, as _: T.Type) -> T? {
+        (sender as? NSMenuItem)?.representedObject as? T
+    }
+
+    /// Whether an Automix menu item is checked for the current settings.
+    private func automixMenuState(_ item: NSMenuItem) -> Bool {
+        let settings = self.automixSettings.settings
+        let value = item.representedObject
+        switch item.action {
+        case #selector(self.toggleAutomix(_:)): return settings.enabled
+        case #selector(self.chooseAutomixMixPoints(_:)): return value as? String == settings.mixPoints.rawValue
+        case #selector(self.chooseAutomixTransition(_:)): return value as? String == settings.transition.rawValue
+        case #selector(self.chooseAutomixLastPhraseBlend(_:)): return value as? Int == settings.lastPhraseBlendBars
+        case #selector(self.chooseAutomixLongestBlend(_:)): return value as? Int == settings.longestBlendBars
+        case #selector(self.toggleAutomixGlideBack(_:)): return settings.glideBack
+        case #selector(self.chooseAutomixGlideSpeed(_:)): return value as? Double == settings.glideSpeed
+        case #selector(self.toggleAutomixContinuation(_:)): return settings.continueWithMixesWell
+        case #selector(self.chooseAutomixPickFrom(_:)): return value as? String == settings.pickFrom.rawValue
+        default: return false
+        }
+    }
+
     // MARK: - View
 
     @objc func toggleEqualizer(_: Any?) {
@@ -206,6 +285,21 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         }
         self.audioPlayer.onPreviousTrackRequested = { [weak playlistManager] in
             playlistManager?.previous()
+        }
+        let libraryController = self.libraryController
+        self.automix = AutomixCoordinator(
+            settings: self.automixSettings,
+            playlist: self.playlistManager,
+            deck: self.audioPlayer,
+            library: { libraryController?.engine.map { LibraryEngineAutomixLibrary(engine: $0) } },
+            clock: Self.isRunningUnderTest ? .manual : .live
+        )
+        if let automix = self.automix {
+            self.hosts.automixLink = LibraryAutomixLink(
+                settings: self.automixSettings,
+                effectiveTempo: { [weak automix] in automix?.effectiveTempo },
+                tempoChanges: automix.$effectiveTempo.eraseToAnyPublisher()
+            )
         }
     }
 

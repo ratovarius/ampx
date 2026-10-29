@@ -53,13 +53,54 @@ class AudioPlayer: NSObject, ObservableObject {
     /// ReplayGain tags read from the current track (empty when none / not yet read).
     @Published private(set) var currentReplayGain = ReplayGain()
     private var manualPreampValue: Float = 0
-    /// Linear gain applied to the player node for normalization (1.0 = no change).
-    private nonisolated(unsafe) var normalizationLinearGain: Float = 1.0
+    /// ReplayGain per deck; the live deck's is also `currentReplayGain`.
+    private var deckReplayGains = [ReplayGain(), ReplayGain()]
+    /// MainActor mirror of the graph's live deck, switched once per Automix transition.
+    private(set) var liveDeckIndex = 0
+    /// The track loaded on each deck, so a late ReplayGain read never lands on a deck that moved on.
+    private var deckTrackIDs: [UUID?] = [nil, nil]
+    /// The transition token that loaded each deck (nil for `loadTrack`): one track can be prepared twice in a row,
+    /// and a late cleanup or switch of the first preparation must leave the second alone.
+    private var deckPreparations: [UUID?] = [nil, nil]
+
+    // MARK: Automix transitions (DJ mode spec Revision 2 § Clock, completion and transport)
+
+    /// True from A's mix-out until the blend ends: Next then completes the transition instead of skipping.
+    @Published private(set) var isBlending = false
+    /// The live deck's tempo rate (1 = original); MainActor mirror for the Automix coordinator.
+    private(set) var liveRate: Double = 1
+    /// Fires once per transition, at the transport switch, with the incoming track.
+    var onAutomixTrackChanged: (@MainActor @Sendable (Track) -> Void)?
+    /// Fires when a seek, a load, a stop or a pause before the mix-out drops a prepared or armed transition.
+    var onTransitionCancelled: (@MainActor @Sendable () -> Void)?
+    /// The transition being prepared, armed or blended; `audioQueue` only.
+    private nonisolated(unsafe) var transition: ActiveTransition?
+    private nonisolated(unsafe) var blendTimer: DispatchSourceTimer?
+    /// Set at the transport switch: the incoming deck's completion then behaves as the live deck's.
+    private nonisolated(unsafe) var liveTransitionToken: UUID?
+    private nonisolated(unsafe) var liveTransitionGeneration = 0
+    /// Tests drive the blend with `testing_tick(outgoingFileTime:)` instead of the 10 ms ticker.
+    nonisolated(unsafe) var testing_manualBlendTicks = false
 
     private nonisolated(unsafe) var audioGraph: AudioGraph?
     private nonisolated(unsafe) var audioEngine: AVAudioEngine?
-    private nonisolated(unsafe) var playerNode: AVAudioPlayerNode?
-    private nonisolated(unsafe) var audioFile: AVAudioFile?
+    /// Per-deck playback state; read and written on `audioQueue` only.
+    private nonisolated(unsafe) var deckStates = [DeckPlayback(), DeckPlayback()]
+
+    /// The live deck's player node (the graph's `source`).
+    private nonisolated var playerNode: AVAudioPlayerNode? {
+        self.audioGraph?.source
+    }
+
+    private nonisolated var liveIndexOnQueue: Int {
+        self.audioGraph?.liveDeckIndex ?? 0
+    }
+
+    private nonisolated var audioFile: AVAudioFile? {
+        get { self.deckStates[self.liveIndexOnQueue].file }
+        set { self.deckStates[self.liveIndexOnQueue].file = newValue }
+    }
+
     /// The AmpX EQ stage of the processing graph (preamp + parametric EQ).
     private nonisolated(unsafe) var eqEffect: EQAudioEffect?
     private nonisolated(unsafe) var spectrumAnalyzer: FFTSpectrumAnalyzer?
@@ -85,10 +126,14 @@ class AudioPlayer: NSObject, ObservableObject {
     /// can re-check it before committing UI state.
     private nonisolated(unsafe) var playbackGenerationStorage = 0
     private nonisolated(unsafe) var loadGeneration = 0
-    /// Absolute file time at the start of the currently scheduled player segment.
+    /// Absolute file time at the start of the live deck's scheduled player segment.
     /// `AVAudioPlayerNode.playerTime.sampleTime` is relative to that segment, so UI
     /// position is `playbackSegmentStartTime + sampleTime/sampleRate`.
-    private nonisolated(unsafe) var playbackSegmentStartTime: TimeInterval = 0
+    private nonisolated var playbackSegmentStartTime: TimeInterval {
+        get { self.deckStates[self.liveIndexOnQueue].segmentStart }
+        set { self.deckStates[self.liveIndexOnQueue].segmentStart = newValue }
+    }
+
     private let audioQueue = DispatchQueue(label: "com.ampx.audio", qos: .userInteractive)
 
     private nonisolated var playbackGeneration: Int {
@@ -176,15 +221,15 @@ class AudioPlayer: NSObject, ObservableObject {
         self.audioQueue.sync {
             // The processing pipeline is declared as an ordered effect chain rather than
             // hand-wired here, so future DSP modules are inserted via `AudioGraph`, not by
-            // editing this method. Today the chain is a single stage: the AmpX EQ.
+            // editing this method. Today the chain is a single stage: the AmpX EQ, fed by
+            // the two Automix decks (only the live one plays outside a transition).
             let eqEffect = EQAudioEffect()
-            let graph = AudioGraph()
+            let graph = AudioGraph.twoDeck()
             graph.build(effects: [eqEffect])
 
             self.audioGraph = graph
             self.eqEffect = eqEffect
             self.audioEngine = graph.engine
-            self.playerNode = graph.source
 
             engineStarted = self.startEngineIfNeeded(graph.engine)
 
@@ -299,6 +344,7 @@ class AudioPlayer: NSObject, ObservableObject {
             self.playbackGeneration += 1
             self.playbackSegmentStartTime = 0
 
+            self.cancelTransitionOnQueue(notify: true)
             self.preparePlayerNodeForNewTrack()
 
             guard let url = track.url else {
@@ -327,6 +373,7 @@ class AudioPlayer: NSObject, ObservableObject {
                 let bitrate = formatDetails?.bitrateKbps ?? 128
 
                 self.audioFile = newFile
+                self.deckStates[self.liveIndexOnQueue].trackID = track.id
 
                 // ReplayGain metadata I/O must not block the serial audio queue.
                 Task { [weak self] in
@@ -337,7 +384,7 @@ class AudioPlayer: NSObject, ObservableObject {
                         self.runOnMainActor(weak: self) { player in
                             guard generation == player.loadGeneration else { return }
                             player.currentReplayGain = replayGain
-                            player.recomputeNormalizationGain()
+                            player.deckReplayGains[player.liveDeckIndex] = replayGain
                             if player.volumeNormalizationEnabled {
                                 player.applyPlayerVolume()
                             }
@@ -383,6 +430,12 @@ class AudioPlayer: NSObject, ObservableObject {
         self.isPlaying = false
         self.currentTime = 0
         self.currentTrack = track
+        // A loaded track always starts at its original tempo, on the live deck alone.
+        self.liveRate = 1
+        self.deckTrackIDs = [nil, nil]
+        self.deckTrackIDs[self.liveDeckIndex] = track.id
+        self.deckPreparations = [nil, nil]
+        self.deckReplayGains[1 - self.liveDeckIndex] = ReplayGain()
     }
 
     private func clearFailedLoadState() {
@@ -400,26 +453,19 @@ class AudioPlayer: NSObject, ObservableObject {
         }
     }
 
-    /// Stops scheduled audio and reuses the attached player node for the next file.
+    /// Stops both decks and returns them to rate 1, no cut and full fade, so a loaded track
+    /// always starts at its original tempo. The idle deck's state is cleared too.
     private nonisolated func preparePlayerNodeForNewTrack() {
-        guard let engine = audioEngine else { return }
         // Invalidate analysis only after stopping/resetting the old source. Opening
         // the new epoch on the main actor beforehand could stamp old PCM as new.
         defer { self.spectrumAnalyzer?.resetMiniAnalysis() }
 
-        if let player = playerNode {
-            player.stop()
-            player.reset()
-            return
+        for deck in self.audioGraph?.decks ?? [] {
+            deck.player.stop()
+            deck.player.reset()
+            deck.reset()
         }
-
-        // Defensive: if the source was ever torn down, recreate it and reconnect to the
-        // head of the effect chain (the EQ preamp).
-        guard let destination = self.eqEffect?.inputNode ?? self.audioGraph?.tapPoint else { return }
-        let player = AVAudioPlayerNode()
-        self.playerNode = player
-        engine.attach(player)
-        engine.connect(player, to: destination, format: nil)
+        self.deckStates[1 - self.liveIndexOnQueue] = DeckPlayback()
     }
 
     private func updateNowPlayingInfo() {
@@ -440,16 +486,14 @@ class AudioPlayer: NSObject, ObservableObject {
 
     func play() {
         self.testing_lastTransportAction = .play
-        let playerGain = VolumeModel.playerNormalizationGain(
-            normalizationEnabled: self.volumeNormalizationEnabled,
-            normalizationGain: self.normalizationLinearGain
-        )
+        let playerGain = self.playerGain(deck: self.liveDeckIndex)
+        // Play always starts the track from the top at its original tempo (spec § Tempo: manual play).
+        self.liveRate = 1
         let mixerGain = VolumeModel.taper(self.volume)
         let balance = self.balance
         self.audioQueue.async { [weak self] in
-            guard let self else { return }
-
-            guard let player = self.playerNode,
+            guard let self,
+                  let player = self.playerNode,
                   let file = self.audioFile,
                   let engine = self.audioEngine
             else {
@@ -468,9 +512,11 @@ class AudioPlayer: NSObject, ObservableObject {
 
             // Stopping the node fires the completion of any segment still scheduled (e.g. by
             // a seek while stopped); the new generation makes that completion a no-op.
+            self.cancelTransitionOnQueue(notify: true)
             self.playbackGeneration += 1
             player.stop()
             player.reset()
+            self.audioGraph?.liveDeck?.reset()
 
             self.shouldAutoAdvance = true
             self.playbackSegmentStartTime = 0
@@ -511,6 +557,7 @@ class AudioPlayer: NSObject, ObservableObject {
             }
             guard self.isPlayingInternal else { return }
             self.playerNode?.pause()
+            self.pauseTransitionOnQueue()
             self.isPlayingInternal = false
             self.isPausedInternal = true
 
@@ -543,6 +590,9 @@ class AudioPlayer: NSObject, ObservableObject {
         // A seek while paused/stopped disarms auto-advance; playing again re-arms it.
         self.shouldAutoAdvance = true
         player.play()
+        if let transition = self.transition, transition.blending {
+            self.audioGraph?.idleDeck?.player.play()
+        }
         self.isPlayingInternal = true
         self.isPausedInternal = false
 
@@ -556,6 +606,7 @@ class AudioPlayer: NSObject, ObservableObject {
     func stop() {
         self.audioQueue.async { [weak self] in
             guard let self else { return }
+            self.cancelTransitionOnQueue(notify: true)
             self.shouldAutoAdvance = false
             self.playbackGeneration += 1
             self.playbackSegmentStartTime = 0
@@ -608,6 +659,8 @@ class AudioPlayer: NSObject, ObservableObject {
                   let file = self.audioFile,
                   let player = self.playerNode else { return }
 
+            // A seek aborts any transition and applies to the live deck.
+            self.cancelTransitionOnQueue(notify: true)
             let wasPlaying = self.isPlayingInternal
             self.shouldAutoAdvance = false
             self.playbackGeneration += 1
@@ -671,49 +724,51 @@ class AudioPlayer: NSObject, ObservableObject {
         self.applyPlayerVolume()
     }
 
-    /// Applies ReplayGain on the player node and the tapered fader on the main mixer
+    /// Applies each deck's ReplayGain on its own player node (two gain stages: the Automix
+    /// fade envelope lives on the deck's mixer) and the tapered fader on the main mixer,
     /// so the analysis tap (post-EQ) does not see the listening volume.
     private func applyPlayerVolume() {
-        let playerGain = VolumeModel.playerNormalizationGain(
-            normalizationEnabled: self.volumeNormalizationEnabled,
-            normalizationGain: self.normalizationLinearGain
-        )
+        let playerGains = self.deckReplayGains.indices.map { self.playerGain(deck: $0) }
         let mixerGain = VolumeModel.taper(self.volume)
         self.audioQueue.async { [weak self] in
             guard let self else { return }
-            self.playerNode?.volume = playerGain
+            for (deck, gain) in zip(self.audioGraph?.decks ?? [], playerGains) {
+                deck.player.volume = gain
+            }
             self.audioEngine?.mainMixerNode.outputVolume = mixerGain
         }
+    }
+
+    /// Linear normalization gain for a deck's player node (1.0 when normalization is off).
+    private func playerGain(deck: Int) -> Float {
+        VolumeModel.playerNormalizationGain(
+            normalizationEnabled: self.volumeNormalizationEnabled,
+            normalizationGain: self.deckReplayGains[deck].normalizationGain(preferAlbum: self.volumeNormalizationPreferAlbum)
+        )
     }
 
     func setBalance(_ newBalance: Float) {
         let clamped = max(-1, min(1, newBalance))
         self.balance = clamped
         self.audioQueue.async { [weak self] in
-            self?.playerNode?.pan = clamped
+            for deck in self?.audioGraph?.decks ?? [] {
+                deck.player.pan = clamped
+            }
         }
     }
 
     /// Enables/disables ReplayGain volume normalization. Off by default.
     func setVolumeNormalizationEnabled(_ enabled: Bool) {
         self.volumeNormalizationEnabled = enabled
-        self.recomputeNormalizationGain()
         self.applyPlayerVolume()
     }
 
     /// Chooses album vs. track ReplayGain when both are present.
     func setVolumeNormalizationPreferAlbum(_ preferAlbum: Bool) {
         self.volumeNormalizationPreferAlbum = preferAlbum
-        self.recomputeNormalizationGain()
         if self.volumeNormalizationEnabled {
             self.applyPlayerVolume()
         }
-    }
-
-    /// Recomputes the cached linear normalization gain from the current track's ReplayGain tags.
-    private func recomputeNormalizationGain() {
-        let gain = self.currentReplayGain.normalizationGain(preferAlbum: self.volumeNormalizationPreferAlbum)
-        self.normalizationLinearGain = gain
     }
 
     func setEQBand(_ band: Int, gain: Float) {
@@ -871,13 +926,16 @@ class AudioPlayer: NSObject, ObservableObject {
 
     private func startTimer() {
         self.timer?.invalidate()
-        self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             // A real `Task`, not `MainActor.assumeIsolated`: the timer fires with no Swift task and
             // on macOS 26 the executor check inside `assumeIsolated` crashes (see commit 5562af8).
             Task { @MainActor in
                 self?.tickPlaybackUI()
             }
         }
+        // `.common`, so `currentTime` keeps moving while a menu is open: Automix reads it to prepare and arm.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     private func stopTimer() {
@@ -937,6 +995,14 @@ class AudioPlayer: NSObject, ObservableObject {
             if let generation, generation != self.playbackGeneration {
                 return
             }
+            if let transition = self.transition {
+                // Automix owns the outgoing deck's end once B is scheduled; the Playlist advances
+                // at the switch instead. A transition only prepared is dropped: A ends as usual.
+                if transition.armed, !transition.switched {
+                    return
+                }
+                self.cancelTransitionOnQueue(notify: true)
+            }
             self.playerNode?.stop()
             self.playbackSegmentStartTime = 0
             self.spectrumAnalyzer?.resetMiniAnalysis()
@@ -960,6 +1026,390 @@ class AudioPlayer: NSObject, ObservableObject {
     }
 
     private(set) var testing_lastTransportAction: TestingTransportAction?
+}
+
+// MARK: - Automix transitions
+
+/// A transition the coordinator has planned: the incoming track, its mix plan, and both grids for per-bar rate
+/// updates (DJ mode spec Revision 2 § Audio graph, Drifting class).
+struct PreparedTransition: Sendable {
+    let token: UUID
+    let track: Track
+    let plan: MixPlan
+    let incomingGrid: MixGrid?
+    let outgoingGrid: MixGrid?
+}
+
+/// A transition on the audio queue: prepared (B loaded on the idle deck), armed (B scheduled), blending (A past its
+/// mix-out) and switched (B is live).
+struct ActiveTransition {
+    let prepared: PreparedTransition
+    let curve: BlendCurve
+    let outgoing: Int
+    let incoming: Int
+    let duration: Double
+    let sampleRate: Double
+    let channels: Int
+    let bitrate: Int
+    var armed = false
+    var blending = false
+    var switched = false
+    var lastBar: Int?
+}
+
+extension AudioPlayer {
+    /// Loads B onto the idle deck at fade 0 without scheduling it; `false` if the file does not open, and A plays on.
+    func prepareTransition(_ prepared: PreparedTransition, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
+        guard let url = prepared.track.url else {
+            completion(false)
+            return
+        }
+        let incoming = 1 - self.liveDeckIndex
+        self.deckTrackIDs[incoming] = prepared.track.id
+        self.deckPreparations[incoming] = prepared.token
+        self.deckReplayGains[incoming] = ReplayGain()
+        self.applyPlayerVolume()
+        self.audioQueue.async { [weak self] in
+            guard let self, let graph = self.audioGraph else { return }
+            self.cancelTransitionOnQueue(notify: false)
+            let outgoing = graph.liveDeckIndex
+            let incoming = 1 - outgoing
+            guard let file = try? AVAudioFile(forReading: url) else {
+                self.runOnMainActor { completion(false) }
+                return
+            }
+            let duration = Double(file.length) / file.fileFormat.sampleRate
+            let format = AudioFormatInfo.read(from: url, duration: duration)
+            let deck = graph.decks[incoming]
+            deck.player.stop()
+            deck.player.reset()
+            deck.reset()
+            deck.fade.outputVolume = 0
+            self.deckStates[incoming] = DeckPlayback(
+                file: file, trackID: prepared.track.id, preparation: prepared.token, segmentStart: prepared.plan.incomingStart
+            )
+            self.transition = ActiveTransition(
+                prepared: prepared,
+                curve: BlendCurve(plan: prepared.plan),
+                outgoing: outgoing,
+                incoming: incoming,
+                duration: duration,
+                sampleRate: format?.sampleRateHz ?? file.fileFormat.sampleRate,
+                channels: format?.channelCount ?? Int(file.fileFormat.channelCount),
+                bitrate: format?.bitrateKbps ?? 128
+            )
+            self.runOnMainActor { completion(true) }
+
+            let token = prepared.token
+            Task { [weak self] in
+                let replayGain = await ReplayGainReader.read(from: url)
+                await MainActor.run { [weak self] in
+                    guard let self, self.deckPreparations[incoming] == token else { return }
+                    self.deckReplayGains[incoming] = replayGain
+                    if incoming == self.liveDeckIndex {
+                        self.currentReplayGain = replayGain
+                    }
+                    self.applyPlayerVolume()
+                }
+            }
+        }
+    }
+
+    /// Schedules B from its mix-in point to start at the host time where A reaches its mix-out, and starts the
+    /// 10 ms blend ticker.
+    func armTransition(token: UUID) {
+        self.audioQueue.async { [weak self] in
+            guard let self, var transition = self.transition, transition.prepared.token == token, !transition.armed,
+                  let graph = self.audioGraph, let file = self.deckStates[transition.incoming].file
+            else { return }
+            let plan = transition.prepared.plan
+            let outgoing = graph.decks[transition.outgoing]
+            let incoming = graph.decks[transition.incoming]
+
+            if case let .beatmatched(rate, _) = plan.kind {
+                incoming.setRate(Float(rate))
+            }
+            incoming.fade.outputVolume = 0
+            incoming.setLowCut(transition.curve.lowCut(atOutgoingTime: plan.outgoingStart).incoming)
+
+            // When B starts, and from where: on time when A is still before its mix-out, else mid-blend.
+            let render = outgoing.player.lastRenderTime.flatMap { $0.isHostTimeValid ? $0 : nil }
+            let outgoingNow = render.flatMap { self.deckFileTime(transition.outgoing, at: $0) }
+            let start = DeckSync.start(
+                outgoingNow: outgoingNow ?? plan.outgoingStart,
+                outgoingTarget: plan.outgoingStart,
+                outgoingRate: Double(outgoing.timePitch.rate),
+                incomingRate: Double(incoming.timePitch.rate),
+                incomingStart: plan.incomingStart
+            )
+            self.deckStates[transition.incoming].segmentStart = start.incomingStart
+            let sampleRate = file.fileFormat.sampleRate
+            let startFrame = min(max(AVAudioFramePosition(start.incomingStart * sampleRate), 0), max(file.length - 1, 0))
+            incoming.player.scheduleSegment(
+                file,
+                startingFrame: startFrame,
+                frameCount: AVAudioFrameCount(file.length - startFrame),
+                at: nil,
+                completionCallbackType: .dataPlayedBack
+            ) { [weak self] _ in
+                self?.handleIncomingCompletion(token: token)
+            }
+            if let render, outgoingNow != nil {
+                let ticks = start.requestedDelay * Double(AVAudioTime.hostTime(forSeconds: 1))
+                incoming.player.play(at: AVAudioTime(hostTime: render.hostTime + UInt64(ticks.rounded())))
+            } else {
+                incoming.player.play()
+            }
+            transition.armed = true
+            self.transition = transition
+            if !self.testing_manualBlendTicks {
+                self.startBlendTimer()
+            }
+        }
+    }
+
+    /// Drops a prepared or armed transition; a running blend is cut and the live deck returns to full level.
+    func cancelTransition() {
+        self.audioQueue.async { [weak self] in
+            self?.cancelTransitionOnQueue(notify: false)
+        }
+    }
+
+    /// During a blend: B to full gain, A stopped, the transport switched if it had not yet. `false` outside a blend.
+    func completeTransitionNow() -> Bool {
+        guard self.isBlending else { return false }
+        self.isBlending = false
+        self.audioQueue.async { [weak self] in
+            self?.finishTransitionOnQueue()
+        }
+        return true
+    }
+
+    /// Sets the live deck's tempo rate (the glide back).
+    func setLiveRate(_ rate: Double) {
+        self.liveRate = rate
+        self.audioQueue.async { [weak self] in
+            self?.audioGraph?.liveDeck?.setRate(Float(rate))
+        }
+    }
+
+    /// The live track's position and rate, for the coordinator.
+    func liveEffectiveState() -> (fileTime: Double, rate: Double)? {
+        self.currentTrack == nil ? nil : (self.currentTime, self.liveRate)
+    }
+
+    // MARK: Audio queue
+
+    private nonisolated func startBlendTimer() {
+        self.blendTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: self.audioQueue)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(10))
+        timer.setEventHandler { [weak self] in
+            guard let self, let transition = self.transition,
+                  let time = self.deckFileTime(transition.outgoing) else { return }
+            self.blendTick(outgoingTime: time)
+        }
+        self.blendTimer = timer
+        timer.resume()
+    }
+
+    private nonisolated func stopBlendTimer() {
+        self.blendTimer?.cancel()
+        self.blendTimer = nil
+    }
+
+    /// A deck's file position from its own sample clock; nil while it is not rendering.
+    private nonisolated func deckFileTime(_ index: Int) -> Double? {
+        guard let render = self.audioGraph?.decks[index].player.lastRenderTime else { return nil }
+        return self.deckFileTime(index, at: render)
+    }
+
+    private nonisolated func deckFileTime(_ index: Int, at render: AVAudioTime) -> Double? {
+        guard let player = self.audioGraph?.decks[index].player,
+              let playerTime = player.playerTime(forNodeTime: render), playerTime.sampleRate > 0
+        else { return nil }
+        return self.deckStates[index].segmentStart + Double(playerTime.sampleTime) / playerTime.sampleRate
+    }
+
+    /// One step of the blend, from A's file time: envelopes, Bass Swap cut, per-bar rate, the switch and the end.
+    private nonisolated func blendTick(outgoingTime time: Double) {
+        guard var transition = self.transition, transition.armed, let graph = self.audioGraph else { return }
+        let plan = transition.prepared.plan
+        let curve = transition.curve
+        let outgoing = graph.decks[transition.outgoing]
+        let incoming = graph.decks[transition.incoming]
+
+        if time >= plan.outgoingStart, !transition.blending {
+            transition.blending = true
+            self.runOnMainActor(weak: self) { $0.isBlending = true }
+        }
+        let gains = curve.gains(at: curve.progress(atOutgoingTime: time))
+        outgoing.fade.outputVolume = gains.outgoing
+        incoming.fade.outputVolume = gains.incoming
+        let cut = curve.lowCut(atOutgoingTime: time)
+        outgoing.setLowCut(cut.outgoing)
+        incoming.setLowCut(cut.incoming)
+
+        if case .beatmatched = plan.kind, transition.blending,
+           let gridA = transition.prepared.outgoingGrid, let gridB = transition.prepared.incomingGrid
+        {
+            let bar = Int(floor(gridA.bar(at: time)))
+            if bar != transition.lastBar {
+                transition.lastBar = bar
+                let incomingTime = self.deckFileTime(transition.incoming) ?? plan.incomingStart
+                if let rate = TempoPlan.matchRate(
+                    outgoingEffectiveBPM: gridA.localBPM(at: time) * Double(outgoing.timePitch.rate),
+                    incomingLocalBPM: gridB.localBPM(at: incomingTime)
+                ) {
+                    incoming.setRate(Float(rate))
+                }
+            }
+        }
+        self.transition = transition
+
+        if !transition.switched, curve.isPastSwitch(atOutgoingTime: time) {
+            self.performSwitchOnQueue()
+        }
+        if curve.progress(atOutgoingTime: time) >= 1 {
+            self.finishTransitionOnQueue()
+        }
+    }
+
+    /// B becomes the live deck: transport, Now Playing and the Playlist follow it, once.
+    private nonisolated func performSwitchOnQueue() {
+        guard var transition = self.transition, !transition.switched, let graph = self.audioGraph else { return }
+        transition.switched = true
+        self.transition = transition
+        graph.setLiveDeck(transition.incoming)
+        // A's scheduled completion is now stale; B's completion acts as the live deck's.
+        self.playbackGeneration += 1
+        self.liveTransitionGeneration = self.playbackGeneration
+        self.liveTransitionToken = transition.prepared.token
+        self.shouldAutoAdvance = true
+        let incoming = transition.incoming
+        let track = transition.prepared.track
+        let rate = Double(graph.decks[incoming].timePitch.rate)
+        let time = self.playbackTimeSnapshot() ?? transition.prepared.plan.incomingStart
+        let format = (transition.duration, transition.sampleRate, transition.channels, transition.bitrate)
+        let token = transition.prepared.token
+        self.runOnMainActor(weak: self) { player in
+            guard player.deckPreparations[incoming] == token else {
+                // A load landed after this switch on the queue but before here: it owns the transport and plays on
+                // the deck that is live now, so only the deck mirror follows.
+                if player.liveDeckIndex != incoming {
+                    player.liveDeckIndex = incoming
+                    player.deckTrackIDs.swapAt(0, 1)
+                    player.deckPreparations.swapAt(0, 1)
+                    player.deckReplayGains.swapAt(0, 1)
+                    player.applyPlayerVolume()
+                }
+                return
+            }
+            player.liveDeckIndex = incoming
+            player.liveRate = rate
+            player.currentTrack = track
+            player.currentReplayGain = player.deckReplayGains[incoming]
+            player.duration = format.0
+            player.currentSampleRate = format.1
+            player.currentChannels = format.2
+            player.currentBitrate = format.3
+            player.currentTime = time
+            player.updateNowPlayingInfo()
+            player.onAutomixTrackChanged?(track)
+        }
+    }
+
+    /// Ends the blend: switches if needed, stops A, and leaves B alone at full level.
+    private nonisolated func finishTransitionOnQueue() {
+        guard let transition = self.transition, let graph = self.audioGraph else { return }
+        if !transition.switched {
+            self.performSwitchOnQueue()
+        }
+        let outgoing = graph.decks[transition.outgoing]
+        let finished = (self.deckStates[transition.outgoing].trackID, self.deckStates[transition.outgoing].preparation)
+        outgoing.player.stop()
+        outgoing.player.reset()
+        outgoing.reset()
+        self.deckStates[transition.outgoing] = DeckPlayback()
+        graph.decks[transition.incoming].fade.outputVolume = 1
+        graph.decks[transition.incoming].setLowCut(false)
+        self.stopBlendTimer()
+        self.transition = nil
+        let outgoingIndex = transition.outgoing
+        self.runOnMainActor(weak: self) { player in
+            player.isBlending = false
+            player.clearDeckSlot(outgoingIndex, ifOwnedBy: finished)
+        }
+    }
+
+    /// Empties the MainActor slot of a deck the queue just emptied, unless a newer load or prepare already owns it.
+    private func clearDeckSlot(_ index: Int, ifOwnedBy owner: (trackID: UUID?, preparation: UUID?)) {
+        guard self.deckTrackIDs[index] == owner.trackID, self.deckPreparations[index] == owner.preparation else { return }
+        self.deckTrackIDs[index] = nil
+        self.deckPreparations[index] = nil
+    }
+
+    /// Stops the idle deck and returns the live deck to full level with no cut.
+    private nonisolated func cancelTransitionOnQueue(notify: Bool) {
+        guard self.transition != nil, let graph = self.audioGraph, let live = graph.liveDeck, let idle = graph.idleDeck else { return }
+        self.stopBlendTimer()
+        self.transition = nil
+        let idleIndex = 1 - graph.liveDeckIndex
+        let cancelled = (self.deckStates[idleIndex].trackID, self.deckStates[idleIndex].preparation)
+        idle.player.stop()
+        idle.player.reset()
+        idle.reset()
+        self.deckStates[idleIndex] = DeckPlayback()
+        live.fade.outputVolume = 1
+        live.setLowCut(false)
+        self.runOnMainActor(weak: self) { player in
+            player.isBlending = false
+            // A prepare queued right after this cancel may already own the slot, even for the same track.
+            player.clearDeckSlot(idleIndex, ifOwnedBy: cancelled)
+            if notify {
+                player.onTransitionCancelled?()
+            }
+        }
+    }
+
+    /// Pause mid-blend freezes both decks; before the mix-out, an armed transition is dropped and re-planned.
+    private nonisolated func pauseTransitionOnQueue() {
+        guard let transition = self.transition, transition.armed else { return }
+        if transition.blending {
+            self.audioGraph?.idleDeck?.player.pause()
+        } else {
+            self.cancelTransitionOnQueue(notify: true)
+        }
+    }
+
+    private nonisolated func handleIncomingCompletion(token: UUID) {
+        self.audioQueue.async { [weak self] in
+            guard let self else { return }
+            if let transition = self.transition, transition.prepared.token == token, transition.armed,
+               !transition.switched
+            {
+                // B ran out before the switch (a clip shorter than the blend): end the blend now so the
+                // Playlist moves to B and on past it, instead of promoting a deck with nothing left to play.
+                self.finishTransitionOnQueue()
+            }
+            guard self.liveTransitionToken == token else { return }
+            self.handleTrackCompletion(generation: self.liveTransitionGeneration)
+        }
+    }
+
+    /// The incoming deck running out: stopping its player drops what is left and fires its real completion.
+    func testing_simulateIncomingCompletion() {
+        self.audioQueue.async { [weak self] in
+            guard let self, let transition = self.transition else { return }
+            self.audioGraph?.decks[transition.incoming].player.stop()
+        }
+    }
+
+    func testing_tick(outgoingFileTime time: Double) {
+        self.audioQueue.async { [weak self] in
+            self?.blendTick(outgoingTime: time)
+        }
+    }
 }
 
 // MARK: - Test hooks
@@ -1046,4 +1496,66 @@ extension AudioPlayer {
             completion(snapshot)
         }
     }
+
+    struct DeckSnapshot: Equatable, Sendable {
+        let rate: Float
+        let lowCut: Bool
+        let fade: Float
+        let playerVolume: Float
+        let pan: Float
+        let isPlaying: Bool
+        let isLive: Bool
+    }
+
+    func testing_deckSnapshot(completion: @escaping @Sendable ([DeckSnapshot]) -> Void) {
+        self.audioQueue.async { [weak self] in
+            guard let graph = self?.audioGraph else {
+                completion([])
+                return
+            }
+            completion(graph.decks.enumerated().map { index, deck in
+                DeckSnapshot(
+                    rate: deck.timePitch.rate,
+                    lowCut: !deck.lowCut.bypass,
+                    fade: deck.fade.outputVolume,
+                    playerVolume: deck.player.volume,
+                    pan: deck.player.pan,
+                    isPlaying: deck.player.isPlaying,
+                    isLive: index == graph.liveDeckIndex
+                )
+            })
+        }
+    }
+
+    func testing_configureDeck(_ index: Int, rate: Float, fade: Float, lowCut: Bool) {
+        self.audioQueue.async { [weak self] in
+            guard let deck = self?.audioGraph?.decks[index] else { return }
+            deck.setRate(rate)
+            deck.fade.outputVolume = fade
+            deck.setLowCut(lowCut)
+        }
+    }
+
+    func testing_deckTrackID(_ deck: Int) -> UUID? {
+        self.deckTrackIDs[deck]
+    }
+
+    func testing_setReplayGain(_ replayGain: ReplayGain, deck: Int) {
+        self.deckReplayGains[deck] = replayGain
+        if deck == self.liveDeckIndex {
+            self.currentReplayGain = replayGain
+        }
+        self.applyPlayerVolume()
+    }
+}
+
+/// One deck's playback state on the audio queue: the scheduled file and where its segment starts.
+struct DeckPlayback {
+    var file: AVAudioFile?
+    /// The playback occurrence (`Track.id`) loaded on the deck, matching the MainActor's `deckTrackIDs`.
+    var trackID: UUID?
+    /// The transition token that loaded the deck, matching the MainActor's `deckPreparations`.
+    var preparation: UUID?
+    /// Absolute file time at the start of the deck's scheduled segment.
+    var segmentStart: TimeInterval = 0
 }

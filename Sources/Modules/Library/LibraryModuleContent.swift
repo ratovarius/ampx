@@ -97,6 +97,20 @@ final class LibraryModuleContent: AmpXModuleContent {
     private var controllerObservation: AnyCancellable?
     private var modelObservations: Set<AnyCancellable> = []
     private var playerObservation: AnyCancellable?
+    private var automixObservation: AnyCancellable?
+
+    /// Automix's settings and live tempo, set by the host once Automix exists. Each filter change writes the
+    /// settings' pick filter (Current view); attaching does not, so the saved filter outlives the unfiltered window
+    /// that opens at launch. The PLAYING reference matches against the live tempo.
+    var automix: LibraryAutomixLink? {
+        didSet {
+            self.automixObservation = self.automix?.tempoChanges
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.updateSidebarReference() }
+            self.updateSidebarReference()
+        }
+    }
 
     var onResizeViewport: ((PlaylistResizeHandleView.Phase) -> Void)? {
         get { self.resizeHandle.onResize }
@@ -294,9 +308,12 @@ final class LibraryModuleContent: AmpXModuleContent {
                 self.libraryRows.first { $0.url == url } ?? self.table.rows.first { $0.url == url }
             }
         }
-        self.sidebar.updateReference(row)
+        // With Automix on, the playing track's live tempo can differ from its file BPM by up to 6%.
+        let liveTempo = self.sidebar.followsSelection || self.automix?.settings.settings.enabled != true
+            ? nil : self.automix?.effectiveTempo()
+        self.sidebar.updateReference(row, tempo: liveTempo)
         self.sidebar.updateMatches(row.flatMap { reference in
-            reference.bpm.map { MixesWell.matches(reference: reference, tempo: $0, rows: self.libraryRows) }
+            (liveTempo ?? reference.bpm).map { MixesWell.matches(reference: reference, tempo: $0, rows: self.libraryRows) }
         })
     }
 
@@ -466,6 +483,7 @@ final class LibraryModuleContent: AmpXModuleContent {
         let query = self.filter.query
         self.table.sort = (query.sort, query.ascending)
         self.model?.setQuery(query)
+        self.automix?.settings.pickFilter = query
         self.updateFooter()
     }
 
@@ -661,4 +679,11 @@ final class LibraryModuleContent: AmpXModuleContent {
             self.controllerStateChanged(self.controller?.state ?? .notConfigured)
         }
     }
+}
+
+/// What the Library window needs from Automix.
+struct LibraryAutomixLink {
+    let settings: AutomixSettingsStore
+    let effectiveTempo: @MainActor () -> Double?
+    let tempoChanges: AnyPublisher<Double?, Never>
 }

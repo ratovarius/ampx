@@ -57,6 +57,7 @@ final class PlaylistRowsView: AmpXControlView {
         var duration: String
         var isSelected: Bool
         var isCurrent: Bool
+        var isAuto = false
     }
 
     private func displayRows() -> [DisplayRow] {
@@ -77,7 +78,8 @@ final class PlaylistRowsView: AmpXControlView {
                 title: "\(track.artist) - \(track.title)",
                 duration: AmpXTimeFormatting.format(track.duration),
                 isSelected: selection.selectedIDs.contains(track.id),
-                isCurrent: index == manager.currentIndex
+                isCurrent: index == manager.currentIndex,
+                isAuto: manager.autoTrackIDs.contains(track.id)
             )
         }
     }
@@ -110,8 +112,15 @@ final class PlaylistRowsView: AmpXControlView {
             let size = AmpXMetrics.playlistRowFontSize
             AmpXLabel(text: "\(index + 1).", color: color, fontSize: size)
                 .draw(x: text.numberRect.minX, baseline: text.baseline, context: context, skin: skin)
+            var titleClip = text.titleRect
+            if item.isAuto {
+                let tag = PlaylistRowLayout.autoTagRect(in: row)
+                titleClip.size.width = max(0, min(titleClip.maxX, tag.minX - 4) - titleClip.minX)
+                AmpXLabel(text: PlaylistRowLayout.autoTag, color: skin.green, fontSize: size)
+                    .draw(x: tag.minX, baseline: text.baseline, context: context, skin: skin)
+            }
             context.saveGState()
-            context.clip(to: text.titleRect)
+            context.clip(to: titleClip)
             AmpXLabel(text: item.title, color: color, fontSize: size)
                 .draw(x: text.titleRect.minX, baseline: text.baseline, context: context, skin: skin)
             context.restoreGState()

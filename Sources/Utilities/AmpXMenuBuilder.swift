@@ -193,6 +193,45 @@ enum AmpXMenuBuilder {
             action: #selector(AmpXApplicationController.toggleRepeat(_:)),
             target: application
         )
+        menu.addItem(.separator())
+        menu.addItem(
+            toggle: AmpXMenuCatalog.PlaybackItem.automix.rawValue,
+            action: #selector(AmpXApplicationController.toggleAutomix(_:)),
+            target: application
+        )
+        menu.addItem(self.titled(AmpXMenuCatalog.PlaybackItem.automixOptions.rawValue, submenu: self.makeAutomixOptionsMenu(application: application)))
+    }
+
+    /// Radio groups under section headers, plus the two toggles (DJ mode spec Revision 2 § User-facing settings).
+    @MainActor
+    private static func makeAutomixOptionsMenu(application: AmpXApplicationController) -> NSMenu {
+        typealias Option = AmpXMenuCatalog.AutomixOption
+        typealias App = AmpXApplicationController
+        let menu = NSMenu(title: AmpXMenuCatalog.PlaybackItem.automixOptions.rawValue)
+        func group(_ group: Option.Group, _ choices: [(String, Any)], _ action: Selector) {
+            menu.addItem(.sectionHeader(title: group.rawValue))
+            for (title, value) in choices {
+                let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+                item.target = application
+                item.representedObject = value
+                menu.addItem(item)
+            }
+        }
+        group(.mixPoints, MixPointMethod.allCases.map { (Option.title($0), $0.rawValue) }, #selector(App.chooseAutomixMixPoints(_:)))
+        group(.transition, TransitionStyle.allCases.map { (Option.title($0), $0.rawValue) }, #selector(App.chooseAutomixTransition(_:)))
+        group(
+            .lastPhraseBlend,
+            AutomixSettings.lastPhraseBlendChoices.map { (Option.bars($0), $0) },
+            #selector(App.chooseAutomixLastPhraseBlend(_:))
+        )
+        group(.longestBlend, AutomixSettings.longestBlendChoices.map { (Option.bars($0), $0) }, #selector(App.chooseAutomixLongestBlend(_:)))
+        menu.addItem(.separator())
+        menu.addItem(toggle: Option.Toggle.glideBack.rawValue, action: #selector(App.toggleAutomixGlideBack(_:)), target: application)
+        group(.glideSpeed, AutomixSettings.glideSpeedChoices.map { (Option.glideSpeed($0), $0) }, #selector(App.chooseAutomixGlideSpeed(_:)))
+        menu.addItem(.separator())
+        menu.addItem(toggle: Option.Toggle.continuation.rawValue, action: #selector(App.toggleAutomixContinuation(_:)), target: application)
+        group(.pickFrom, PickPool.allCases.map { (Option.title($0), $0.rawValue) }, #selector(App.chooseAutomixPickFrom(_:)))
+        return menu
     }
 
     @MainActor
