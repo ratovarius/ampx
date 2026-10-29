@@ -51,8 +51,17 @@ final class RekordboxAnalysisAccess: @unchecked Sendable {
             accessLogger.info("The rekordbox analysis bookmark no longer resolves")
             return nil
         }
-        if resolved.isStale, let refreshed = self.bookmarks.refresh(resolved.url, resolved.usesSecurityScope) {
-            self.defaults.set(refreshed, forKey: Self.bookmarkKey)
+        if resolved.isStale {
+            // A security-scoped bookmark can only be recreated while its scope is open.
+            let scoped = resolved.usesSecurityScope && resolved.url.startAccessingSecurityScopedResource()
+            defer {
+                if scoped {
+                    resolved.url.stopAccessingSecurityScopedResource()
+                }
+            }
+            if let refreshed = self.bookmarks.refresh(resolved.url, resolved.usesSecurityScope) {
+                self.defaults.set(refreshed, forKey: Self.bookmarkKey)
+            }
         }
         return resolved.url
     }

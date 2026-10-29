@@ -83,9 +83,13 @@ final class RekordboxCollectionGateTests: XCTestCase {
     private final class BareDelegate: NSObject, XMLParserDelegate {
         var elements = 0
 
-        func parser(_: XMLParser, didStartElement _: String, namespaceURI _: String?, qualifiedName _: String?,
-                    attributes _: [String: String] = [:])
-        {
+        func parser(
+            _: XMLParser,
+            didStartElement _: String,
+            namespaceURI _: String?,
+            qualifiedName _: String?,
+            attributes _: [String: String] = [:]
+        ) {
             self.elements += 1
         }
     }
@@ -131,16 +135,17 @@ final class RekordboxCollectionGateTests: XCTestCase {
         var total = 0
         while Date() < deadline {
             await engine.waitUntilIdle()
-            let rows = try await engine.store.rekordboxSnapshot().rows.filter { $0.rootID == rootID }
-            let stamps = try await engine.store.phraseStamps()
-            total = rows.count
-            withPhrases = rows.count { stamps[$0.id] != nil }
+            let ids = try await Set(engine.store.rekordboxSnapshot().rows.filter { $0.rootID == rootID }.map(\.id))
+            total = ids.count
+            // A stamp is stored even when decoding fails, so count rows that actually carry phrases.
+            withPhrases = try await engine.index.rows(ids: ids).count(where: \.hasPhrases)
             if total > 0, withPhrases >= total * 95 / 100 {
                 break
             }
             try await Task.sleep(for: .milliseconds(200))
         }
-        print("LIBRARY-GATE-phrases: \(withPhrases) of \(total) rows matched to rekordbox analysis")
+        print("LIBRARY-GATE-phrases: \(withPhrases) of \(total) rows carry rekordbox phrases")
+        XCTAssertGreaterThan(total, 0)
         XCTAssertGreaterThanOrEqual(withPhrases, total * 95 / 100)
     }
 

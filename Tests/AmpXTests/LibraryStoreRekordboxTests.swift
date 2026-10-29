@@ -278,6 +278,9 @@ final class LibraryStoreRekordboxTests: XCTestCase {
     }
 
     func testApplyWithoutGridClearsTempoSpread() async throws {
+        let context = ModelContext(self.container)
+        try XCTUnwrap(context.fetch(FetchDescriptor<LibraryTrack>()).first { $0.id == self.a }).tempoSpread = 1.5
+        try context.save()
         let store = T.makeStore(self, container: self.container)
         let token = try await store.beginRekordboxSync(rootID: self.dj)
         var values = self.values()

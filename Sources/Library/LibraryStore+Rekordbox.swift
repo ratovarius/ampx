@@ -147,17 +147,23 @@ extension LibraryStore {
     }
 
     /// Rows with rekordbox values in available roots, not missing; limited to `rowIDs` when given (tag writing).
+    /// Label, remixer, composer and grouping only ever come from rekordbox; BPM and key only when `analysisSource`
+    /// says so, so a file's own BPM/key is never written back.
     func tagWriteRows(rowIDs: Set<UUID>?) throws -> [TagWriteRow] {
         let roots = try Dictionary(self.roots().filter(\.isAvailable).map { ($0.id, $0.url) }, uniquingKeysWith: { first, _ in first })
         return try self.modelContext.fetch(FetchDescriptor<LibraryTrack>())
             .filter { track in
-                track.analysisSource == .rekordbox && !track.isMissing && (rowIDs?.contains(track.id) ?? true)
+                let hasRekordboxText = [track.label, track.remixer, track.composer, track.grouping].contains { $0 != nil }
+                return (track.analysisSource == .rekordbox || hasRekordboxText) && !track.isMissing
+                    && (rowIDs?.contains(track.id) ?? true)
             }
             .compactMap { track in
-                roots[track.rootID].map { root in
+                let analysis = track.analysisSource == .rekordbox
+                return roots[track.rootID].map { root in
                     TagWriteRow(
                         rowID: track.id, rootID: track.rootID, url: root.appendingPathComponent(track.relativePath),
-                        bpm: track.bpm, musicalKey: track.musicalKey, label: track.label, remixer: track.remixer,
+                        bpm: analysis ? track.bpm : nil, musicalKey: analysis ? track.musicalKey : nil,
+                        label: track.label, remixer: track.remixer,
                         composer: track.composer, grouping: track.grouping, tagsWrittenHash: track.tagsWrittenHash
                     )
                 }

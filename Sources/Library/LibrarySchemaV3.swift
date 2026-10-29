@@ -154,6 +154,11 @@ enum LibrarySchemaV3: VersionedSchema {
                 track.schemaVersion = 3
                 track.tempoSpread = track.beatGrid.flatMap(RekordboxBeatGrid.unpack).flatMap(RekordboxBeatGrid.tempoSpread)
             }
+            // V3 imports cues, so an unchanged export must be read again rather than skipped by its stamp.
+            for source in try context.fetch(FetchDescriptor<RekordboxSource>()) {
+                source.stampSize = nil
+                source.stampModifiedAt = nil
+            }
             try context.save()
         }
     )

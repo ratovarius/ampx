@@ -1,8 +1,7 @@
 import Foundation
 
 /// Maps an absolute rekordbox path to a library row through its root plus `relativePath`, NFC-normalised and
-/// case-folded on case-insensitive volumes (rekordbox sync spec § Matching, pass 1). Shared by the XML import and
-/// the phrase import.
+/// case-folded on case-insensitive volumes (rekordbox sync spec § Matching, pass 1). Used by the XML import.
 struct RekordboxPathMatcher: Sendable {
     private let roots: [RekordboxRootPath]
     private let byPath: [UUID: [String: UUID]]

@@ -218,8 +218,12 @@ final class LibrarySchemaMigrationTests: XCTestCase {
                 id: UUID(), rootID: self.rootID, relativePath: "Techno/b.mp3", title: "B", artist: "Artist",
                 fileSize: 1, contentModifiedAt: Date(timeIntervalSince1970: 300), dateAdded: Date(timeIntervalSince1970: 400)
             )
+            let source = LibrarySchemaV2.RekordboxSource(rootID: self.rootID, fileName: "collection.xml")
+            source.stampSize = 42
+            source.stampModifiedAt = Date(timeIntervalSince1970: 500)
             context.insert(track)
             context.insert(gridless)
+            context.insert(source)
             try context.save()
         }
 
@@ -247,6 +251,11 @@ final class LibrarySchemaMigrationTests: XCTestCase {
         XCTAssertNil(gridless.tempoSpread)
         XCTAssertEqual(gridless.schemaVersion, 3)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<LibraryRoot>()), 1)
+        // V3 imports cues: an unchanged export must be read again to supply them.
+        let source = try XCTUnwrap(context.fetch(FetchDescriptor<RekordboxSource>()).first)
+        XCTAssertEqual(source.fileName, "collection.xml")
+        XCTAssertNil(source.stampSize)
+        XCTAssertNil(source.stampModifiedAt)
     }
 
     // MARK: - Helpers

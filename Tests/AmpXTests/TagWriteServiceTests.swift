@@ -56,7 +56,12 @@ final class TagWriteServiceTests: XCTestCase {
         self.h = try await ScanHarness.make(self)
         self.files = FakeFiles()
         self.defaults = T.isolatedDefaults(self)
-        self.service = TagWriteService(store: self.h.store, scanner: self.h.scanner, files: self.files.access, settings: TagWriteSettings(defaults: self.defaults))
+        self.service = TagWriteService(
+            store: self.h.store,
+            scanner: self.h.scanner,
+            files: self.files.access,
+            settings: TagWriteSettings(defaults: self.defaults)
+        )
     }
 
     override func tearDown() async throws {
@@ -75,6 +80,7 @@ final class TagWriteServiceTests: XCTestCase {
         bpm: Double = 128,
         key: String = "Am",
         label: String? = nil,
+        source: AnalysisSource = .rekordbox,
         fileTags: [TagField: String] = [:]
     ) throws -> (UUID, URL) {
         let id = UUID()
@@ -84,7 +90,7 @@ final class TagWriteServiceTests: XCTestCase {
         track.bpm = bpm
         track.musicalKey = key
         track.label = label
-        track.analysisSource = .rekordbox
+        track.analysisSource = source
         try context.save()
         let url = self.h.rootURL.appendingPathComponent(path)
         try FakeFiles.make(fileTags, at: url)
@@ -102,6 +108,15 @@ final class TagWriteServiceTests: XCTestCase {
         XCTAssertEqual(try FakeFiles.fields(at: url), [.bpm: "128", .key: "Am", .label: "Drumcode", .remixer: "Keep"])
         XCTAssertEqual(try self.hash(id), TagWritePlanner.hash([.bpm: "128", .key: "Am", .label: "Drumcode"]))
         XCTAssertEqual(self.service.lastReport(), report)
+    }
+
+    func testRowWithOnlyRekordboxTextWritesTextButNotFileTagBPMOrKey() async throws {
+        let (id, url) = try self.seed("a.mp3", bpm: 127.5, key: "Am", label: "Kompakt", source: .fileTag, fileTags: [.bpm: "127.5"])
+        try self.seed("untouched.mp3", source: .fileTag, fileTags: [.bpm: "127.5"])
+        let report = await self.service.write(rowIDs: nil, onlyDue: false)
+        XCTAssertEqual(report, TagWriteReport(written: 1))
+        XCTAssertEqual(try FakeFiles.fields(at: url), [.bpm: "127.5", .label: "Kompakt"])
+        XCTAssertEqual(try self.hash(id), TagWritePlanner.hash([.label: "Kompakt"]))
     }
 
     func testFailedReadBackLeavesOriginalByteIdentical() async throws {
@@ -183,7 +198,7 @@ final class TagWriteServiceTests: XCTestCase {
     func testHaltMidRunLeavesNoTempAndOriginalIntact() async throws {
         let (_, url) = try self.seed("a.mp3", fileTags: [.bpm: "120"])
         let before = try Data(contentsOf: url)
-        let service = self.service!
+        let service = try XCTUnwrap(self.service)
         self.files.afterWrite = { _ in service.halt() }
         let report = await service.write(rowIDs: nil, onlyDue: false)
         XCTAssertEqual(report.written, 0)
@@ -224,7 +239,12 @@ final class TagWriteServiceTests: XCTestCase {
         try FileManager.default.removeItem(at: url)
         try FileManager.default.copyItem(at: fixtures.appendingPathComponent("rvad-v23.mp3"), to: url)
         let before = try Data(contentsOf: url)
-        let live = TagWriteService(store: self.h.store, scanner: self.h.scanner, files: .live, settings: TagWriteSettings(defaults: self.defaults))
+        let live = TagWriteService(
+            store: self.h.store,
+            scanner: self.h.scanner,
+            files: .live,
+            settings: TagWriteSettings(defaults: self.defaults)
+        )
 
         let report = await live.write(rowIDs: [id], onlyDue: false)
 
@@ -255,7 +275,12 @@ final class TagWriteServiceTests: XCTestCase {
         let (id, url) = try self.seed("live.mp3", key: "F#m")
         try FileManager.default.removeItem(at: url)
         try FileManager.default.copyItem(at: fixtures.appendingPathComponent("tagged-v24.mp3"), to: url)
-        let live = TagWriteService(store: self.h.store, scanner: self.h.scanner, files: .live, settings: TagWriteSettings(defaults: self.defaults))
+        let live = TagWriteService(
+            store: self.h.store,
+            scanner: self.h.scanner,
+            files: .live,
+            settings: TagWriteSettings(defaults: self.defaults)
+        )
 
         let report = await live.write(rowIDs: [id], onlyDue: false)
 

@@ -64,7 +64,8 @@ lossless), *Needs replacing* (< 192 kbps), *Energy bands* (118–124 … 138+ BP
   whether they need a list in the Library window, their own window, or only a menu.
 - **Where they live in the UI:** the Library window has no pane for them (GENRE, ARTIST, table,
   MIXES WELL); placing one needs an AmpX UI spec amendment first.
-- **Persistence:** `SmartPlaylistRecord` needs `LibrarySchemaV3` (V2 is the rekordbox sync's).
+- **Persistence:** `SmartPlaylistRecord` needs a new schema stage, `LibrarySchemaV4` (V2 is the rekordbox
+  sync's, V3 DJ mode's library data).
 - **Lossless list:** include ALAC (`.m4a`) alongside FLAC, WAV and AIFF.
 - **Party queue** (DJ mode phase B) was meant to draw from a smart playlist; without them it needs
   another source, such as the current Playlist or a genre.
