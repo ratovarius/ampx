@@ -26,6 +26,8 @@ final class AmpXMenuCatalogTests: XCTestCase {
                 "Next Track",
                 "Shuffle",
                 "Repeat",
+                "Automix",
+                "Automix Options",
             ]
         )
     }
