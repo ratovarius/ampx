@@ -8,6 +8,8 @@ typedef NS_ERROR_ENUM(AmpXTagFileErrorDomain, AmpXTagFileError) {
     AmpXTagFileErrorUnsupported = 1,
     AmpXTagFileErrorUnreadable = 2,
     AmpXTagFileErrorSaveFailed = 3,
+    /// The ID3v2 tag uses a feature TagLib cannot rewrite without losing or corrupting other frames.
+    AmpXTagFileErrorUnsafeTag = 4,
 };
 
 /// DJ mode's standard tag fields through TagLib (DJ mode spec Revision 2 § Tag writing). Keys: bpm, key, label,

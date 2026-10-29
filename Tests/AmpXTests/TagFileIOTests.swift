@@ -92,6 +92,34 @@ final class TagFileIOTests: XCTestCase {
         XCTAssertFalse(try TagFileIO.otherKeys(url).contains("RVAD"))
     }
 
+    func testReadsAndKeepsCompressedFrames() throws {
+        // A zlib-less TagLib would miss this BPM and bypass the half/double guard.
+        let url = try self.id3v23(frames: self.frame("TBPM", text: "130", compressed: true))
+        XCTAssertEqual(try TagFileIO.read(url), [.bpm: "130"])
+        try TagFileIO.write([.key: "F#m"], to: url)
+        XCTAssertEqual(try TagFileIO.read(url), [.bpm: "130", .key: "F#m"])
+    }
+
+    func testRefusesV23ExtendedHeader() throws {
+        // TagLib reads the v2.3 size (6, excluding itself) as v2.4's and would skip, then drop, every frame.
+        let extendedHeader = Data([0, 0, 0, 6, 0, 0, 0, 0, 0, 0])
+        let url = try self.id3v23(flags: 0x40, frames: extendedHeader + self.frame("TBPM", text: "130"))
+        let before = try Data(contentsOf: url)
+        XCTAssertThrowsError(try TagFileIO.write(self.values, to: url)) {
+            XCTAssertEqual(($0 as NSError).code, AmpXTagFileError.unsafeTag.rawValue)
+        }
+        XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+
+    func testRefusesEncryptedFrames() throws {
+        // TagLib would save the encrypted bytes as a plain frame.
+        let encrypted = self.frame("TIT2", payload: Data([0x80, 0xDE, 0xAD, 0xBE, 0xEF]), flags: 0x40)
+        let url = try self.id3v23(frames: self.frame("TBPM", text: "130") + encrypted)
+        XCTAssertThrowsError(try TagFileIO.write(self.values, to: url)) {
+            XCTAssertEqual(($0 as NSError).code, AmpXTagFileError.unsafeTag.rawValue)
+        }
+    }
+
     func testUnsupportedExtensionThrows() throws {
         let url = try LibraryTestSupport.temporaryDirectory(self).appendingPathComponent("a.ogg")
         try Data([0, 1, 2]).write(to: url)
@@ -106,5 +134,44 @@ final class TagFileIOTests: XCTestCase {
             return nil
         }
         return try await item.load(.dataValue)
+    }
+
+    /// `tagged-v23.mp3`'s audio under a hand-built ID3v2.3 tag with header `flags` and `frames`.
+    private func id3v23(flags: UInt8 = 0, frames: Data) throws -> URL {
+        let url = try self.copy("tagged-v23.mp3")
+        let original = try Data(contentsOf: url)
+        let oldSize = original[6 ..< 10].reduce(0) { $0 << 7 | Int($1) }
+        let audio = original[(10 + oldSize)...]
+        let size = frames.count
+        let header = Data("ID3".utf8) + [3, 0, flags] + [3, 2, 1, 0].map { UInt8(size >> ($0 * 7) & 0x7F) }
+        try (header + frames + audio).write(to: url)
+        return url
+    }
+
+    /// A v2.3 text frame (Latin-1), zlib-compressed when asked.
+    private func frame(_ id: String, text: String, compressed: Bool = false) -> Data {
+        let payload = Data([0]) + Data(text.utf8)
+        guard compressed else { return self.frame(id, payload: payload, flags: 0) }
+        return self.frame(id, payload: Self.bigEndian(payload.count) + Self.zlibStored(payload), flags: 0x80)
+    }
+
+    private func frame(_ id: String, payload: Data, flags: UInt8) -> Data {
+        Data(id.utf8) + Self.bigEndian(payload.count) + [0, flags] + payload
+    }
+
+    private static func bigEndian(_ value: Int) -> Data {
+        Data([3, 2, 1, 0].map { UInt8(value >> ($0 * 8) & 0xFF) })
+    }
+
+    /// A zlib stream holding `data` in one stored (uncompressed) deflate block.
+    private static func zlibStored(_ data: Data) -> Data {
+        var a: UInt32 = 1, b: UInt32 = 0
+        for byte in data {
+            a = (a + UInt32(byte)) % 65521
+            b = (b + a) % 65521
+        }
+        let length = UInt16(data.count)
+        let lengths = [UInt8(length & 0xFF), UInt8(length >> 8), UInt8(~length & 0xFF), UInt8(~length >> 8)]
+        return Data([0x78, 0x01, 0x01] + lengths) + data + self.bigEndian(Int(b << 16 | a))
     }
 }

@@ -24,5 +24,7 @@ the SDK, linked with `-lz`).
 
 ## Build
 
-`Sources/` is a synchronized group, so the `.cpp` files compile into the app target. Header search paths and
-`TAGLIB_STATIC=1` are set on the app target; `COPYING.*` and this file are excluded from the target's membership.
+`Sources/` is a synchronized group, so the `.cpp` files compile into the app target. Header search paths,
+`TAGLIB_STATIC=1` and `HAVE_CONFIG_H=1` are set on the app target; `COPYING.*` and this file are excluded from the target's
+membership. Without `HAVE_CONFIG_H`, `config.h` is never included and zlib support compiles out silently, so compressed ID3
+frames would be kept as opaque frames.

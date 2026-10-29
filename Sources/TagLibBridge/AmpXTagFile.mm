@@ -11,6 +11,7 @@
 #include "mp4tag.h"
 #include "mpegfile.h"
 #include "textidentificationframe.h"
+#include "tzlib.h"
 #include "wavfile.h"
 #include "xiphcomment.h"
 
@@ -99,6 +100,18 @@ void writeID3(TagLib::ID3v2::Tag *tag, NSDictionary<NSString *, NSString *> *fie
         frame->setText(toTagString(fields[field]));
         tag->addFrame(frame);
     }
+}
+
+/// Tags TagLib cannot rewrite without loss: it reads an ID3v2.3 extended header's size as v2.4's (skipping every
+/// frame), and saves encrypted frames, or compressed ones when built without zlib, without their flags.
+bool unsafeID3(TagLib::ID3v2::Tag *tag) {
+    if (!tag) return false;
+    if (tag->header()->extendedHeader() && tag->header()->majorVersion() < 4) return true;
+    for (const auto *frame : tag->frameList()) {
+        if (frame->header()->encryption()) return true;
+        if (frame->header()->compression() && !TagLib::zlib::isAvailable()) return true;
+    }
+    return false;
 }
 
 /// The ID3v2 version a file already uses; a new tag is ID3v2.4. TagLib cannot write v2.2, so a v2.2 tag becomes
@@ -239,6 +252,7 @@ TagLib::ID3v2::Version versionOf(TagLib::ID3v2::Tag *tag, bool hadTag) {
         if (!mpeg.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path);
         bool hadTag = mpeg.hasID3v2Tag();
         auto *tag = mpeg.ID3v2Tag(true);
+        if (unsafeID3(tag)) return fail(error, AmpXTagFileErrorUnsafeTag, path);
         auto version = versionOf(tag, hadTag);
         writeID3(tag, fields);
         // Only the ID3v2 tag is rewritten; ID3v1 and APE tags stay as they are.
@@ -250,6 +264,7 @@ TagLib::ID3v2::Version versionOf(TagLib::ID3v2::Tag *tag, bool hadTag) {
         if (!wav.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path);
         bool hadTag = wav.hasID3v2Tag();
         auto *tag = wav.ID3v2Tag();
+        if (unsafeID3(tag)) return fail(error, AmpXTagFileErrorUnsafeTag, path);
         auto version = versionOf(tag, hadTag);
         writeID3(tag, fields);
         saved = wav.save(TagLib::RIFF::WAV::File::ID3v2, TagLib::File::StripNone, version);
@@ -260,6 +275,7 @@ TagLib::ID3v2::Version versionOf(TagLib::ID3v2::Tag *tag, bool hadTag) {
         if (!aiff.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path);
         bool hadTag = aiff.hasID3v2Tag();
         auto *tag = aiff.tag();
+        if (unsafeID3(tag)) return fail(error, AmpXTagFileErrorUnsafeTag, path);
         auto version = versionOf(tag, hadTag);
         writeID3(tag, fields);
         saved = aiff.save(version);
@@ -268,6 +284,7 @@ TagLib::ID3v2::Version versionOf(TagLib::ID3v2::Tag *tag, bool hadTag) {
     case Container::flac: {
         TagLib::FLAC::File flac(file, false);
         if (!flac.isValid()) return fail(error, AmpXTagFileErrorUnreadable, path);
+        if (flac.hasID3v2Tag() && unsafeID3(flac.ID3v2Tag(false))) return fail(error, AmpXTagFileErrorUnsafeTag, path);
         auto *comment = flac.xiphComment(true);
         for (NSString *field in fields) {
             auto names = fieldNames().find(field.UTF8String);
