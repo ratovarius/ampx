@@ -90,3 +90,35 @@ original sketch: spectral-flux onsets with autocorrelation for tempo, chroma aga
 profiles for key.
 
 Worth reviving only for libraries without a rekordbox export.
+
+---
+
+## Mix-point scan (DJ mode)
+
+**Status:** moved out of DJ mode on 2026-10-29 (it was Delivery 2 of Revision 2); designed, not built.  
+**Spec:** `docs/superpowers/specs/2026-09-11-dj-mode-design.md` (Revision 2, § Mix points).
+
+### What it is
+
+AmpX's own per-bar energy scan, giving Automix's Intro / Outro method intro and outro lengths for tracks
+that have a beatgrid but no rekordbox phrases. Today such tracks fall back to Last Phrase.
+
+- **Decode** with `AVAudioFile` through the root's security scope, mixed to mono, off the playback graph.
+- **Filter:** two cascaded high-pass at 300 Hz and a low-pass at 4 kHz (`vDSP` biquads), the melody-and-vocals
+  band. DJ intros and outros keep the drums and drop the melody, so the kick-and-bass band cannot find them.
+- **Measure:** RMS per bar from the grid's first downbeat, full range and filtered band, each normalised to its
+  95th percentile and stored as `UInt8` in `mixScan` (already in `LibrarySchemaV3`, always nil): version byte,
+  the `duration` and grid hash it was computed for, then two bytes per bar.
+- **Edges:** intro = bars before the first run of 4 bars at or above 0.6 in the filtered band; outro = bars
+  between the last such run and the last bar above the silence floor (0.08) in the full range, which is also
+  `A.end` when there are no phrases.
+- **Cache:** invalid only when `duration` changes by more than 10 ms or the grid hash changes. Not keyed by
+  `contentFingerprint`, which covers the ID3 tags, so a tag write would invalidate every scan.
+- **Run:** `.utility`, 4 tracks at a time, cancellable, after the scanner and sync jobs; the footer shows
+  `ANALYSING n/m`. Measured cost: ~0.66 s per track.
+
+### Why it was dropped
+
+On the real library (2,232 tracks) every track with a beatgrid has rekordbox phrases, and the grid comes from
+rekordbox too, so the scan would cover almost nothing. Worth building if rekordbox turns out to skip phrases for
+a noticeable share of tracks, or for libraries analysed without phrase analysis.

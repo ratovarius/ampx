@@ -1,7 +1,7 @@
 # DJ Mode (MIXES WELL, rekordbox Tags and Phrases, Automix)
 
-**Date:** 2026-09-11 · **Revised:** 2026-10-28 (Revision 2: smart playlists moved to future work; tag writing, cues, rekordbox phrases and Automix designed with the user)
-**Status:** Delivery 1 implemented on `feature/dj-mode-library-data`; deliveries 2 and 3 proposed
+**Date:** 2026-09-11 · **Revised:** 2026-10-28 (Revision 2: smart playlists moved to future work; tag writing, cues, rekordbox phrases and Automix designed with the user) · 2026-10-29: the mix-point scan (former Delivery 2) moved to future work
+**Status:** Delivery 1 implemented on `feature/dj-mode-library-data` (PR #16); Delivery 2 (Automix) proposed
 **Depends on:** [Music Library](./2026-09-11-music-library-design.md), [Library Module](./2026-09-27-library-module-design.md) and [rekordbox Collection Sync](./2026-09-28-rekordbox-sync-design.md), all merged to `develop` in PR #15 (`502b1aa`)
 **Related:** [2026-09-03-spectrum-signal-path-design.md](./2026-09-03-spectrum-signal-path-design.md) (tap point)
 
@@ -19,7 +19,7 @@ Make AmpX usable for **playing electronic music at home without the Pioneer cont
 | Native BPM/key analyser (phase B′) | Dropped from this revision: every DJ track has rekordbox BPM and key. Recorded in `docs/future-work.md` |
 | Tag write-back of computed BPM/key | Tag writing of **rekordbox** data, opt-in, standard fields only |
 | Cues listed as imported, never used | Stored now; no UI until the user sets cues by hand (future work) |
-| Auto-mix: crossfade aligned to the first beat | **Automix** with mix points from rekordbox phrases or AmpX's own scan, Crossfade or Bass Swap, tempo kept after the blend |
+| Auto-mix: crossfade aligned to the first beat | **Automix** with mix points from rekordbox phrases or the beatgrid, Crossfade or Bass Swap, tempo kept after the blend |
 
 ## Deliveries
 
@@ -28,8 +28,9 @@ Built and landed **in this order** (user's choice: data first, then playback). E
 | # | Delivery | Contents | Audio code |
 |---|---|---|---|
 | 1 | **Library data** | `LibrarySchemaV3`; MIXES WELL; set and variable-tempo classification; tag writing; cue import; rekordbox phrase import and the access grant | None |
-| 2 | **Mix-point scan** | AmpX's per-bar energy scan for tracks without rekordbox phrases, cached | Offline decode only |
-| 3 | **Automix** | Two-deck `AudioGraph`, `MixScheduler`, mix points, Crossfade / Bass Swap, tempo matching and glide, continue with MIXES WELL, plain crossfade | Yes |
+| 2 | **Automix** | Two-deck `AudioGraph`, `MixScheduler`, mix points, Crossfade / Bass Swap, tempo matching and glide, continue with MIXES WELL, plain crossfade | Yes |
+
+The **mix-point scan** (AmpX's own per-bar energy scan for tracks without rekordbox phrases, Delivery 2 in the first draft of this revision) moved to `docs/future-work.md` on 2026-10-29 (user). On the real library every track with a beatgrid has rekordbox phrases, and the grid also comes from rekordbox, so the scan would cover almost nothing: the 10 tracks the phrase import skips are five pairs of duplicate files, fixed by removing one copy of each. Without phrases, Intro / Outro falls back to Last Phrase.
 
 ## Approaches considered
 
@@ -60,9 +61,8 @@ Built and landed **in this order** (user's choice: data first, then playback). E
 | Tag conflicts | rekordbox overwrites a differing tag, **except** a BPM tag that is half or double rekordbox's: that is never written and is listed for the user to check in rekordbox |
 | Smart playlists | Out of this design |
 | Hot cues | Stored; no UI now. The user may set cues by hand later |
-| Mix points | Two methods, named **Last Phrase** (beatgrid only) and **Intro / Outro** (rekordbox phrases first, AmpX scan as fallback) |
+| Mix points | Two methods, named **Last Phrase** (beatgrid only) and **Intro / Outro** (rekordbox phrases; Last Phrase when a track has none). The AmpX scan fallback moved to future work (2026-10-29) |
 | Naming | Industry terms: **Automix**, mix points, **Crossfade** / **Bass Swap**, lengths in bars |
-| Scan | Scan once, cache, rescan only what changed |
 | Tempo after the blend | The incoming track **keeps the matched tempo** to its end. Optional, configurable **glide back** toward the track's original tempo when the next track's tempo lies that way |
 | What Automix plays | The Playlist, **in its order**. MIXES WELL is for building playlists and never overrides the Playlist |
 | Playlist runs out | MIXES WELL picks the next track |
@@ -70,7 +70,7 @@ Built and landed **in this order** (user's choice: data first, then playback). E
 | Half / double tempo | A match, but a **change of chapter**, not a normal next track |
 | Variable tempo | Handled by how much the tempo varies (see *Track classes*) |
 | DJ sets and mixes | Left out of Automix and MIXES WELL |
-| rekordbox analysis folder | One-time access grant through an open panel; without it, AmpX's own scan |
+| rekordbox analysis folder | One-time access grant through an open panel; without it, no phrases (Intro / Outro falls back to Last Phrase) |
 
 ## Measured collection (2026-10-28, rekordbox 7.2.19 export, `~/Music/DJ`, 2,232 tracks)
 
@@ -83,7 +83,7 @@ Built and landed **in this order** (user's choice: data first, then playback). E
 | Tracks with more than one `TEMPO` | 678: 518 vary ≤ 0.5%, 72 vary 0.5–8%, 88 vary > 8% (26 of those are recorded sets) |
 | Sets | 26 with genre `Sets & Mixes` (shortest 3¾ min) plus 10 untagged mixes of 45–120 min. Longest real track: 28½ min |
 | rekordbox analysis files | `~/Library/Pioneer/rekordbox/share/PIONEER/USBANLZ/*/*/ANLZ0000.DAT` / `.EXT`; 2,235 map to a path; 397 of a 400-file sample have phrase data |
-| AmpX scan cost | ~0.66 s per track (prototype with ffmpeg, including process start); ~5 min for the whole library with 4 workers; ~600 B per track cached |
+| AmpX scan cost (future work) | ~0.66 s per track (prototype with ffmpeg, including process start); ~5 min for the whole library with 4 workers; ~600 B per track cached |
 
 ## Data model: `LibrarySchemaV3`
 
@@ -97,12 +97,10 @@ A lightweight migration from `LibrarySchemaV2` under `LibraryMigrationPlan`. Eve
 | `tempoSpread: Double?` | derived from `beatGrid` | `(max − min) / median` of the grid's BPMs, in percent. Recomputed whenever `beatGrid` changes |
 | `phrases: Data?` | rekordbox `PSSI` | Packed: version, mood, end beat, then per phrase `(beat, kind)`. Kinds are normalised to `intro`, `outro`, `other` (see *rekordbox phrases*) |
 | `phrasesStamp: Data?` | — | `(size, modificationDate)` of the `.EXT` file the phrases came from |
-| `mixScan: Data?` | AmpX scan | Version byte, the `duration` and grid hash it was computed for, then two `UInt8` per bar: full-range and 300 Hz–4 kHz energy, each normalised to the track's 95th percentile |
+| `mixScan: Data?` | AmpX scan (future work) | Reserved, always nil: added in V3 so the scan needs no migration. Format in `docs/future-work.md` |
 | `tagsWrittenHash: Data?` | tag writer | Hash of the tag values last written or confirmed in the file. A row is due for writing when the hash of its current values differs |
 
 `LibraryRow` gains `tempoSpread`, `hasPhrases` and `isSet` (derived, below). The parser and planner gain `cues`; the sync writes them like the other imported fields.
-
-**Why not key the scan cache by `contentFingerprint`:** the fingerprint hashes the first 64 KB, where ID3 tags live, so writing tags would invalidate every cached scan. The scan is instead invalid only when `duration` changes by more than 10 ms or the grid hash changes.
 
 ## Track classes
 
@@ -176,7 +174,7 @@ The parser reads `POSITION_MARK` into `cues`. Nothing displays them. Automix lin
 
 ### rekordbox phrases
 
-**Access:** *Allow Access to rekordbox Analysis…* opens an `NSOpenPanel` pointed at `~/Library/Pioneer/rekordbox`, for folders only. The chosen folder is stored as an app-scope security-scoped bookmark in `UserDefaults`. Without it, phrases are simply not imported and the scan covers every track. A stale or failed bookmark is logged (category `RekordboxPhrases`) and treated as no access; nothing is shown in the UI, as with the sync.
+**Access:** *Allow Access to rekordbox Analysis…* opens an `NSOpenPanel` pointed at `~/Library/Pioneer/rekordbox`, for folders only. The chosen folder is stored as an app-scope security-scoped bookmark in `UserDefaults`. Without it, phrases are simply not imported and Intro / Outro falls back to Last Phrase. A stale or failed bookmark is logged (category `RekordboxPhrases`) and treated as no access; nothing is shown in the UI, as with the sync.
 
 **Reading** (format reverse-engineered by Deep Symmetry; not published by AlphaTheta):
 
@@ -192,17 +190,7 @@ The parser reads `POSITION_MARK` into `cues`. Nothing displays them. Automix lin
 
 **Licence:** the decoder is written from the published format description, not ported from any code. The terms of that description and rekordbox's own licence are checked before a release, as for the database-access future work.
 
-## Delivery 2: Mix-point scan
-
-For rows with a `beatGrid` and no `phrases`, and whose `mixScan` is missing or invalid.
-
-- **Decode** with `AVAudioFile` through the root's security scope, mixed to mono. Not through the playback graph.
-- **Filter:** two cascaded high-pass at 300 Hz and a low-pass at 4 kHz (`vDSP` biquads) for the melody-and-vocals band. DJ intros and outros keep the drums and drop the melody, so the kick-and-bass band cannot find them; the prototype confirmed this on the demo tracks.
-- **Measure:** RMS per bar, with bars from the beatgrid's first downbeat, for both the full range and the filtered band. Normalise each to its 95th percentile and store as `UInt8`.
-- **Run:** `.utility`, at most 4 concurrent tracks, cancellable, after the scanner and sync jobs. Progress uses the scanner's `AsyncStream` idiom. The footer shows `ANALYSING n/m` while it runs (my call, using the existing footer status slot).
-- **Re-runs:** only for rows that become due. A forced re-scan is not offered.
-
-## Delivery 3: Automix
+## Delivery 2: Automix
 
 ### User-facing settings
 
@@ -221,7 +209,7 @@ There is no Settings window, so these live in the menus (my call): **Playback �
 
 The tag and phrase-access items live in the Library window's ROOTS menu, in a **rekordbox** section, next to the existing rekordbox lines (my call; there is no settings window).
 
-Constants not exposed: the energy threshold (0.6), the 4-bar run, the silence floor (0.08), the phrase length (16 bars) and the 4-bar rounding. The explainer prototype showed these do not need user tuning.
+Constants not exposed: the phrase length (16 bars) and the 4-bar rounding. The explainer prototype showed these do not need user tuning.
 
 ### What plays next
 
@@ -234,18 +222,17 @@ Constants not exposed: the energy threshold (0.6), the 4-bar run, the silence fl
 
 Bars are counted from each track's first downbeat. A's content end, `A.end`, is, in order of preference (my call):
 
-1. the rekordbox phrase end beat, when A has phrases (it is rekordbox's own "end of music" mark, and it keeps the scan small);
-2. the last bar whose full-range energy is above the silence floor, when A has a scan;
-3. the last full bar of the grid.
+1. the rekordbox phrase end beat, when A has phrases (it is rekordbox's own "end of music" mark);
+2. the last full bar of the grid.
 
-Both mix-point methods use this `A.end`. The library gate reports how far the phrase end beat sits from the scan's silence end, so a bad first choice shows up before Automix ships.
+Both mix-point methods use this `A.end`. Whether the phrase end beat is a good mix-out anchor is checked by ear during Automix testing.
 
 - **Last Phrase:** A mixes out at the last 16-bar phrase boundary `b` such that `b + blend ≤ A.end`. B mixes in at its bar 1. Blend: the setting.
 - **Intro / Outro:**
-  - B's intro: bars before the end of its leading `intro` phrases (rekordbox), or, from the scan, the bars before the first run of 4 bars at or above the threshold in the filtered band.
-  - A's outro: from the start of its trailing `outro` phrases to the phrase end beat (rekordbox), or, from the scan, the bars between the last 4-bar run above the threshold and `A.end`.
+  - B's intro: bars before the end of its leading `intro` phrases.
+  - A's outro: from the start of its trailing `outro` phrases to the phrase end beat.
   - Blend = min(intro, outro, longest blend), rounded down to 4 bars. A mixes out at `A.end − blend`; B mixes in at `intro − blend`, so B's main part arrives as A's content ends.
-  - If the blend comes out below 4 bars, or neither phrases nor a scan exist for one of the tracks, Last Phrase is used for that transition.
+  - If the blend comes out below 4 bars, or one of the tracks has no phrases, Last Phrase is used for that transition.
 - **Plain crossfade** (Set, Changing or No-grid on either side, or tempos outside the clamp): 6 s, equal-power, starting 6 s before A's content end (or its end), with B from its start. No tempo change.
 
 ### Tempo
@@ -287,16 +274,16 @@ Revision 1's two-deck design stands: `deckSum` becomes the chain's single upstre
 | Tag write: temp copy fails its read-back check | Original untouched, temp removed, logged; row stays due |
 | Tag write: disk full / folder not writable | Same as above; listed in the report as skipped |
 | File BPM tag half or double rekordbox's | BPM not written; listed under *Tempo half or double* |
-| rekordbox access not granted / stale | Silent; the scan covers those tracks |
-| `PSSI` missing or unreadable for a track | No phrases; the scan covers it |
-| rekordbox changes the ANLZ format | Decoder rejects unknown values; every track falls back to the scan; logged once |
+| rekordbox access not granted / stale | Silent; Intro / Outro uses Last Phrase for every track |
+| `PSSI` missing or unreadable for a track | No phrases; Intro / Outro uses Last Phrase for its transitions |
+| rekordbox changes the ANLZ format | Decoder rejects unknown values; every track falls back to Last Phrase; logged once |
 | Next track is a Set / Changing / No grid | Plain crossfade |
 | Next track shorter than the blend | Blend shortened to a third of B's duration, rounded down to 4 bars; plain crossfade if under 4 bars |
 | Next track removed from the Playlist after B is scheduled but before the mix-out | B is unscheduled; the next track is re-read |
 | Continuation pool empty | Automix stops after the current track |
 | ReplayGain read lands mid-blend | Written to that deck's player; envelope unaffected (Revision 1) |
 | Library window closed during continuation | Last persisted filter used |
-| Schema V2 store | Migrates to V3 on open; new fields nil; the sync and the scan fill them |
+| Schema V2 store | Migrates to V3 on open; new fields nil; the sync and the phrase import fill them |
 
 ## Testing
 
@@ -309,13 +296,12 @@ Revision 1's two-deck design stands: `deckSum` becomes the chain's single upstre
 | Continuation | Current view vs. whole library; no chapter changes; no repeats; closest-BPM fallback; empty pool |
 | Tag writer | Per format (mp3 ID3v2.3 and 2.4, wav, aiff, flac, m4a fixtures): only changed fields written, other tags and artwork preserved, empty value never clears, half/double guard, read-only skip, failed read-back leaves the original byte-identical |
 | `PSSI` decoder | Masked and unmasked fixtures (trimmed from real files), all three moods, a corrupt section rejected, `PPTH` path mapping with NFD names |
-| Mix-point scan | Synthetic track (drums-only intro and outro, melody body) finds both edges; cache invalidated by duration and grid changes, **not** by a tag write |
 | Mix points | Last Phrase and Intro / Outro on fixture grids and phrases, including the 14-bar intro, the fallback to Last Phrase, and the 4-bar rounding |
 | Tempo | ±6% clamp; octave normalisation; glide direction, speed, stop at the original, recompute on next-track change |
 | `MixScheduler` | Equal-power sum; Bass Swap switch on one bar; ramps freeze with the sample clock; Next/Previous/seek mid-blend; outgoing completion never advances the Playlist; transport switches once |
 | `AudioGraph` | `tapPoint` unchanged with `deckSum`; `AudioGraphTests` pass unmodified |
 | Regression | `AudioPlayerTests`, `PlaybackIntegrationTests` green with Automix off |
-| Gate (opt-in, `TEST_RUNNER_AMPX_LIBRARY_GATE=1`) | On `~/Music/DJ`: tracks with phrases; scan time for the rest; **agreement between rekordbox intro/outro and the scan**, and between the phrase end beat and the scan's silence end, across the library, reported, not asserted |
+| Gate (opt-in, `TEST_RUNNER_AMPX_LIBRARY_GATE=1`) | On `~/Music/DJ`: the share of tracks with phrases (≥ 95%) |
 
 ## Success criteria
 
@@ -328,29 +314,25 @@ Revision 1's two-deck design stands: `deckSum` becomes the chain's single upstre
 
 **Delivery 2**
 
-5. The tracks without phrases are scanned in the background in a few minutes at most, and nothing is rescanned after tag writing.
-
-**Delivery 3**
-
-6. A Playlist of steady 4/4 tracks within ±6% plays as a continuous set: beats stay aligned through every blend, B's main part arrives as A's content ends, and no level jump is heard.
-7. After a blend, the track stays at the matched tempo; with glide on, it drifts back without an audible step.
-8. When the Playlist ends, the continuation keeps the set going from the current view, without repeats, until the pool runs out.
-9. The spectrum display, seek bar and Now Playing behave correctly through blends; `AudioGraphTests` pass unmodified.
+5. A Playlist of steady 4/4 tracks within ±6% plays as a continuous set: beats stay aligned through every blend, B's main part arrives as A's content ends, and no level jump is heard.
+6. After a blend, the track stays at the matched tempo; with glide on, it drifts back without an audible step.
+7. When the Playlist ends, the continuation keeps the set going from the current view, without repeats, until the pool runs out.
+8. The spectrum display, seek bar and Now Playing behave correctly through blends; `AudioGraphTests` pass unmodified.
 
 **All:** `./scripts/run-tests.sh` green.
 
 ## Files expected to change
 
-- **New:** `Sources/Library/LibrarySchemaV3.swift`; `Sources/Library/Rekordbox/RekordboxPhrases.swift` (ANLZ reader), `RekordboxPhraseSync.swift`; `Sources/DJ/MixesWell.swift` (matching, ranking, continuation), `TrackClass.swift`, `TagWriter.swift` (TagLib bridge), `MixPointScanner.swift`, `MixPoints.swift`, `MixScheduler.swift`, `TempoPlan.swift`; vendored TagLib under `Vendor/taglib/`.
-- **Changed:** `RekordboxCollectionParser.swift`, `RekordboxImportPlanner.swift` (cues); `LibraryScanner+Scheduling.swift` (phrase, tag-write and scan job kinds); `LibraryIndex.swift`, `LibraryValues.swift` (new row fields, classes); the Library module's MIXES WELL pane, ROOTS menu, footer and report overlay; `Sources/Audio/AudioGraph.swift`, `Sources/AudioPlayer.swift` (decks); `PlaylistManager.swift` (next-track query, `AUTO` mark); `AmpXMenuCatalog.swift` and the menu wiring (Automix items).
-- **Docs:** the rekordbox sync spec's cue count and non-goals point here; `docs/future-work.md` gains smart playlists, cue UI and native BPM/key detection.
+- **New:** `Sources/Library/LibrarySchemaV3.swift`; `Sources/Library/Rekordbox/RekordboxPhrases.swift` (ANLZ reader), `RekordboxPhraseSync.swift`; `Sources/DJ/MixesWell.swift` (matching, ranking, continuation), `TrackClass.swift`, `TagWriter.swift` (TagLib bridge), `MixPoints.swift`, `MixScheduler.swift`, `TempoPlan.swift`; vendored TagLib under `Vendor/taglib/`.
+- **Changed:** `RekordboxCollectionParser.swift`, `RekordboxImportPlanner.swift` (cues); `LibraryScanner+Scheduling.swift` (phrase and tag-write job kinds); `LibraryIndex.swift`, `LibraryValues.swift` (new row fields, classes); the Library module's MIXES WELL pane, ROOTS menu and report overlay; `Sources/Audio/AudioGraph.swift`, `Sources/AudioPlayer.swift` (decks); `PlaylistManager.swift` (next-track query, `AUTO` mark); `AmpXMenuCatalog.swift` and the menu wiring (Automix items).
+- **Docs:** the rekordbox sync spec's cue count and non-goals point here; `docs/future-work.md` gains smart playlists, cue UI, native BPM/key detection and the mix-point scan.
 
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
 | Tag writing corrupts a file | TagLib; temp copy, read-back check, atomic replace; opt-in; per-format tests |
-| rekordbox's ANLZ format changes | Strict decoder; fallback to the scan; logged |
+| rekordbox's ANLZ format changes | Strict decoder; fallback to Last Phrase; logged |
 | Phrase decoder licence or rekordbox terms | Checked before a release; written from the format description, not ported code |
 | Time-stretch artefacts | ±6% clamp; the matched tempo usually sits within 2–3% |
 | Beat drift over a long blend | Sample-accurate scheduling; per-bar rate updates for Drifting tracks |
