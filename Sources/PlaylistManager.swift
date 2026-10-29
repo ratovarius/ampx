@@ -37,6 +37,24 @@ class PlaylistManager: ObservableObject {
 
     @Published private(set) var lastSaveErrorMessage: String?
 
+    /// Tracks the Automix continuation appended, marked `AUTO` in their rows. Not persisted.
+    @Published private(set) var autoTrackIDs: Set<UUID> = []
+    /// Files of `AUTO` picks the user removed: the continuation never picks them again this session.
+    private(set) var removedAutoURLs: Set<URL> = []
+    /// Asked first by `next()`; returns true when it handled Next (Automix completing a blend).
+    var nextInterceptor: (@MainActor () -> Bool)?
+
+    /// Emits on any change to what plays next: the tracks, the current track, Shuffle or Repeat.
+    var playlistChanged: AnyPublisher<Void, Never> {
+        Publishers.Merge4(
+            self.$tracks.map { _ in () },
+            self.$currentIndex.map { _ in () },
+            self.$shuffleEnabled.map { _ in () },
+            self.$repeatEnabled.map { _ in () }
+        )
+        .eraseToAnyPublisher()
+    }
+
     private var playRequestGeneration = 0
     private var isRestoringState = false
 
@@ -102,6 +120,7 @@ class PlaylistManager: ObservableObject {
 
     func removeTrack(at index: Int) {
         guard index >= 0, index < self.tracks.count else { return }
+        self.recordRemovedAuto([self.tracks[index]])
         self.tracks.remove(at: index)
 
         // Regenerate shuffle order if shuffle is enabled
@@ -184,6 +203,7 @@ class PlaylistManager: ObservableObject {
 
     /// Empties the list but, like Winamp, lets the current track keep playing to its end.
     func clearPlaylist() {
+        self.recordRemovedAuto(self.tracks)
         self.tracks.removeAll()
         self.currentIndex = -1
         self.shuffledIndices.removeAll()
@@ -252,6 +272,7 @@ class PlaylistManager: ObservableObject {
         let currentID = self.currentTrack?.id
         let removingCurrent = self.currentIndex >= 0 && indices.contains(self.currentIndex)
         let fallbackIndex = indices.min() ?? 0
+        self.recordRemovedAuto(indices.filter { $0 < self.tracks.count }.map { self.tracks[$0] })
 
         self.tracks = self.tracks.enumerated().compactMap { indices.contains($0.offset) ? nil : $0.element }
 
@@ -359,6 +380,9 @@ class PlaylistManager: ObservableObject {
     /// User-requested next track. Like Winamp, a manual skip past the end wraps to the
     /// start (or a fresh shuffle order) instead of stopping; only auto-advance honors repeat.
     func next() {
+        if self.nextInterceptor?() == true {
+            return
+        }
         self.advance(forward: true, wrap: true)
     }
 
@@ -423,20 +447,58 @@ class PlaylistManager: ObservableObject {
 
     private func advanceSequential(forward: Bool, wrap: Bool) {
         if forward {
-            let nextIndex = self.currentIndex + 1
-
-            if nextIndex >= self.tracks.count {
-                if wrap {
-                    self.playTrack(at: 0)
-                } else {
-                    self.audioPlayer.stop()
-                }
-            } else {
+            if let nextIndex = self.sequentialNextIndex(wrap: wrap) {
                 self.playTrack(at: nextIndex)
+            } else {
+                self.audioPlayer.stop()
             }
         } else {
             let prevIndex = self.currentIndex > 0 ? self.currentIndex - 1 : (wrap ? self.tracks.count - 1 : 0)
             self.playTrack(at: prevIndex)
+        }
+    }
+
+    private func sequentialNextIndex(wrap: Bool) -> Int? {
+        let nextIndex = self.currentIndex + 1
+        if nextIndex < self.tracks.count {
+            return nextIndex
+        }
+        return wrap && !self.tracks.isEmpty ? 0 : nil
+    }
+
+    // MARK: - Automix
+
+    /// The index `advanceAfterTrackFinished` would play, without changing anything. Nil after the last track with
+    /// Repeat off, and at the end of a shuffle order (Repeat then reshuffles at random).
+    func nextTrackIndex() -> Int? {
+        guard !self.tracks.isEmpty else { return nil }
+        guard self.shuffleEnabled else { return self.sequentialNextIndex(wrap: self.repeatEnabled) }
+        let position = self.shuffleCurrentIndex + 1
+        return position < self.shuffledIndices.count ? self.shuffledIndices[position] : nil
+    }
+
+    /// Appends the continuation's pick, marked `AUTO`.
+    func appendAutoTrack(_ track: Track) {
+        self.addTracks([track])
+        self.autoTrackIDs.insert(track.id)
+    }
+
+    /// The Automix transport switch: `index` is now playing, already loaded on the incoming deck.
+    func advanceToIncoming(index: Int) {
+        guard index >= 0, index < self.tracks.count else { return }
+        self.playRequestGeneration += 1
+        self.currentIndex = index
+        if self.shuffleEnabled, let position = self.shuffledIndices.firstIndex(of: index) {
+            self.shuffleCurrentIndex = position
+        }
+        self.persistState()
+    }
+
+    private func recordRemovedAuto(_ removed: [Track]) {
+        for track in removed where self.autoTrackIDs.remove(track.id) != nil {
+            if let url = track.url {
+                self.removedAutoURLs.insert(url)
+            }
         }
     }
 

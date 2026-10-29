@@ -68,6 +68,14 @@ enum PlaylistRowLayout {
         )
     }
 
+    static let autoTag = "AUTO"
+    static let autoTagWidth: CGFloat = 26
+
+    /// Automix's `AUTO` mark, just left of the duration; the title is clipped before it.
+    static func autoTagRect(in row: CGRect) -> CGRect {
+        CGRect(x: self.durationRect(in: row).minX - 4 - self.autoTagWidth, y: row.minY, width: self.autoTagWidth, height: row.height)
+    }
+
     static func font(skin: any AmpXSkin) -> NSFont {
         skin.font(size: AmpXMetrics.playlistRowFontSize, weight: .regular)
     }
