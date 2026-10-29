@@ -61,6 +61,21 @@ actor LibraryIndex {
         return request.evaluate(sortedRows: sorted, snapshotVersion: self.version, generation: generation)
     }
 
+    /// The row for a file, matched on its standardized URL.
+    func row(url: URL) throws -> LibraryRow? {
+        let wanted = url.standardizedFileURL
+        return try self.snapshot().first { $0.url.standardizedFileURL == wanted }
+    }
+
+    /// Every row the query matches, in its order (Automix's Current view pool).
+    func rows(matching query: LibraryQuery) throws -> [LibraryRow] {
+        try query.evaluate(rows: self.snapshot(), snapshotVersion: self.version, generation: 0).rows
+    }
+
+    func everyRow() throws -> [LibraryRow] {
+        try self.snapshot()
+    }
+
     /// Latest rows for `ids`, in snapshot order; ids no longer present are dropped.
     func rows(ids: Set<UUID>) throws -> [LibraryRow] {
         try self.snapshot().filter { ids.contains($0.id) }

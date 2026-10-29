@@ -116,6 +116,14 @@ extension LibraryStore {
     }
 
     /// Each row's stored phrase stamp (JSON `RekordboxFileStamp` of its `.EXT`), for rows that have one.
+    /// A row's packed beatgrid and phrases, for Automix's mix points.
+    func mixData(rowID: UUID) throws -> (beatGrid: Data?, phrases: Data?) {
+        var descriptor = FetchDescriptor<LibraryTrack>(predicate: #Predicate { $0.id == rowID })
+        descriptor.fetchLimit = 1
+        let track = try self.modelContext.fetch(descriptor).first
+        return (track?.beatGrid, track?.phrases)
+    }
+
     func phraseStamps() throws -> [UUID: Data] {
         var stamps: [UUID: Data] = [:]
         for track in try self.modelContext.fetch(FetchDescriptor<LibraryTrack>()) {
