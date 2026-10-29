@@ -107,7 +107,8 @@ final class LibraryMixesSidebarView: AmpXDrawingView {
         self.onModeChange?(followsSelection)
     }
 
-    func updateReference(_ row: LibraryRow?) {
+    /// `tempo`: the tempo the matches use when it is not the file's (Automix's live tempo), shown as `@ 126.4 BPM`.
+    func updateReference(_ row: LibraryRow?, tempo: Double? = nil) {
         self.reference = row
         guard let row else {
             self.referenceText = "No track"
@@ -115,7 +116,9 @@ final class LibraryMixesSidebarView: AmpXDrawingView {
             return
         }
         var parts = [Self.title(row)]
-        if let bpm = row.bpm {
+        if let tempo {
+            parts.append(String(format: "@ %.1f BPM", tempo))
+        } else if let bpm = row.bpm {
             parts.append("\(Int(bpm.rounded())) BPM")
         }
         if let key = row.musicalKey {

@@ -1,5 +1,6 @@
 @testable import AmpX
 import SwiftData
+import Combine
 import XCTest
 
 /// The composed Library window body (Library Module spec § Layout, Behaviour).
@@ -326,6 +327,70 @@ final class LibraryModuleContentTests: XCTestCase {
         content.sidebar.selectedMatchID = candidate.id
         content.sidebar.queueButton.action?()
         await self.eventually { self.playlist.tracks.map(\.title) == ["candidate"] }
+    }
+
+    // MARK: - Automix (DJ mode spec Revision 2 § Continue with MIXES WELL)
+
+    private func automixLink(enabled: Bool = true, tempo: Double? = nil) -> (LibraryAutomixLink, AutomixSettingsStore) {
+        let store = AutomixSettingsStore(defaults: self.defaults)
+        store.settings.enabled = enabled
+        return (LibraryAutomixLink(settings: store, effectiveTempo: { tempo }, tempoChanges: Just(tempo).eraseToAnyPublisher()), store)
+    }
+
+    func testFilterChangeWritesPickFilter() {
+        let content = self.makeContent(controller: nil)
+        let (link, store) = self.automixLink()
+        content.automix = link
+        content.toolbar.onSearch?("drumcode")
+        XCTAssertEqual(store.pickFilter?.search, "drumcode")
+    }
+
+    func testPlayingReferenceUsesEffectiveTempoWhenAutomixOn() async throws {
+        func row(_ title: String, bpm: Double) -> LibraryRow {
+            LibraryRow(
+                id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/Music/\(title).mp3"),
+                title: title, artist: "Artist", album: "", albumArtist: "", genre: "Techno", trackNumber: nil,
+                duration: 300, fileSize: 1, bpm: bpm, musicalKey: "Am", camelotKey: "8A",
+                bitrate: 0, bitrateIsDerived: false, codec: "mp3", isAvailable: true,
+                searchKey: title, tempoSpread: 0
+            )
+        }
+        let playing = row("playing", bpm: 128)
+        let fast = row("fast", bpm: 139)
+        let rows = [playing, fast]
+        let services = LibraryBrowserServices(
+            query: { query, generation in query.evaluate(rows: rows, snapshotVersion: 0, generation: generation) },
+            rows: { ids in rows.filter { ids.contains($0.id) } },
+            versions: { AsyncStream { _ in } },
+            progress: { AsyncStream { _ in } },
+            roots: { [] }
+        )
+        let player = AudioPlayer(installRemoteCommands: false)
+        let content = LibraryModuleContent(
+            skin: ClassicModernSkin(), controller: nil, playlist: self.playlist, audioPlayer: player,
+            panels: self.panels, defaults: self.defaults
+        )
+        content.frame = CGRect(origin: .zero, size: CGSize(width: 1000, height: 470))
+        self.contents.append(content)
+        content.automix = self.automixLink(tempo: 133.26).0
+        content.attach(model: LibraryBrowserModel(services: services, playlist: self.playlist, bookmarkStore: .shared, beep: {}))
+        player.currentTrack = Track(title: "playing", artist: "Artist", url: playing.url)
+
+        await self.eventually { content.sidebar.lines.first == "Artist – fast" }
+        XCTAssertEqual(content.sidebar.referenceText, "Artist – playing · @ 133.3 BPM · Am")
+    }
+
+    func testReferenceCardShowsTempo() {
+        let sidebar = LibraryMixesSidebarView(skin: ClassicModernSkin())
+        let row = LibraryRow(
+            id: UUID(), rootID: UUID(), url: URL(fileURLWithPath: "/Music/x.mp3"), title: "x", artist: "A", album: "",
+            albumArtist: "", genre: nil, trackNumber: nil, duration: 300, fileSize: 1, bpm: 124, musicalKey: "Fm",
+            camelotKey: "4A", bitrate: 0, bitrateIsDerived: false, codec: "mp3", isAvailable: true, searchKey: "x"
+        )
+        sidebar.updateReference(row, tempo: 126.4)
+        XCTAssertEqual(sidebar.referenceText, "A – x · @ 126.4 BPM · Fm")
+        sidebar.updateReference(row, tempo: nil)
+        XCTAssertEqual(sidebar.referenceText, "A – x · 124 BPM · Fm")
     }
 
     // MARK: - States and roots

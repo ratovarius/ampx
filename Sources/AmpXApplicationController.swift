@@ -81,6 +81,12 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         case #selector(self.toggleRepeat(_:)):
             menuItem.state = self.playlistManager.repeatEnabled ? .on : .off
             return true
+        case #selector(self.toggleAutomix(_:)), #selector(self.chooseAutomixMixPoints(_:)), #selector(self.chooseAutomixTransition(_:)),
+             #selector(self.chooseAutomixLastPhraseBlend(_:)), #selector(self.chooseAutomixLongestBlend(_:)),
+             #selector(self.toggleAutomixGlideBack(_:)), #selector(self.chooseAutomixGlideSpeed(_:)),
+             #selector(self.toggleAutomixContinuation(_:)), #selector(self.chooseAutomixPickFrom(_:)):
+            menuItem.state = self.automixMenuState(menuItem) ? .on : .off
+            return true
         case #selector(self.toggleEqualizer(_:)):
             menuItem.state = self.hosts.state.closed.contains(.equalizer) ? .off : .on
             return true
@@ -161,6 +167,72 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
         self.playlistManager.repeatEnabled.toggle()
     }
 
+    // MARK: - Automix (Playback ▸ Automix, Automix Options)
+
+    @objc func toggleAutomix(_: Any?) {
+        self.automixSettings.settings.enabled.toggle()
+    }
+
+    @objc func chooseAutomixMixPoints(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: String.self).flatMap(MixPointMethod.init(rawValue:)) else { return }
+        self.automixSettings.settings.mixPoints = value
+    }
+
+    @objc func chooseAutomixTransition(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: String.self).flatMap(TransitionStyle.init(rawValue:)) else { return }
+        self.automixSettings.settings.transition = value
+    }
+
+    @objc func chooseAutomixLastPhraseBlend(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: Int.self) else { return }
+        self.automixSettings.settings.lastPhraseBlendBars = value
+    }
+
+    @objc func chooseAutomixLongestBlend(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: Int.self) else { return }
+        self.automixSettings.settings.longestBlendBars = value
+    }
+
+    @objc func toggleAutomixGlideBack(_: Any?) {
+        self.automixSettings.settings.glideBack.toggle()
+    }
+
+    @objc func chooseAutomixGlideSpeed(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: Double.self) else { return }
+        self.automixSettings.settings.glideSpeed = value
+    }
+
+    @objc func toggleAutomixContinuation(_: Any?) {
+        self.automixSettings.settings.continueWithMixesWell.toggle()
+    }
+
+    @objc func chooseAutomixPickFrom(_ sender: Any?) {
+        guard let value = Self.chosen(sender, as: String.self).flatMap(PickPool.init(rawValue:)) else { return }
+        self.automixSettings.settings.pickFrom = value
+    }
+
+    private static func chosen<T>(_ sender: Any?, as _: T.Type) -> T? {
+        (sender as? NSMenuItem)?.representedObject as? T
+    }
+
+    /// Whether an Automix menu item is checked for the current settings.
+    private func automixMenuState(_ item: NSMenuItem) -> Bool {
+        let settings = self.automixSettings.settings
+        let value = item.representedObject
+        switch item.action {
+        case #selector(self.toggleAutomix(_:)): return settings.enabled
+        case #selector(self.chooseAutomixMixPoints(_:)): return value as? String == settings.mixPoints.rawValue
+        case #selector(self.chooseAutomixTransition(_:)): return value as? String == settings.transition.rawValue
+        case #selector(self.chooseAutomixLastPhraseBlend(_:)): return value as? Int == settings.lastPhraseBlendBars
+        case #selector(self.chooseAutomixLongestBlend(_:)): return value as? Int == settings.longestBlendBars
+        case #selector(self.toggleAutomixGlideBack(_:)): return settings.glideBack
+        case #selector(self.chooseAutomixGlideSpeed(_:)): return value as? Double == settings.glideSpeed
+        case #selector(self.toggleAutomixContinuation(_:)): return settings.continueWithMixesWell
+        case #selector(self.chooseAutomixPickFrom(_:)): return value as? String == settings.pickFrom.rawValue
+        default: return false
+        }
+    }
+
     // MARK: - View
 
     @objc func toggleEqualizer(_: Any?) {
@@ -222,6 +294,13 @@ final class AmpXApplicationController: NSObject, NSMenuItemValidation {
             library: { libraryController?.engine.map { LibraryEngineAutomixLibrary(engine: $0) } },
             clock: Self.isRunningUnderTest ? .manual : .live
         )
+        if let automix = self.automix {
+            self.hosts.automixLink = LibraryAutomixLink(
+                settings: self.automixSettings,
+                effectiveTempo: { [weak automix] in automix?.effectiveTempo },
+                tempoChanges: automix.$effectiveTempo.eraseToAnyPublisher()
+            )
+        }
     }
 
     private func loadStartupSoundIfNeeded() {

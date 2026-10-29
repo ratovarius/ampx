@@ -18,6 +18,14 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
     /// The app's library engine owner; nil (tests, pre-launch) shows the Library's empty state.
     let libraryController: LibraryController?
     private let libraryPanels: LibraryPanelPresenting
+    /// Automix's settings and live tempo for the Library window; set by the application once Automix exists.
+    var automixLink: LibraryAutomixLink? {
+        didSet {
+            for view in self.moduleViews.values {
+                (view.content as? LibraryModuleContent)?.automix = self.automixLink
+            }
+        }
+    }
     private var libraryResizeStart: CGSize?
     private let playerPresentationState = AmpXPlayerPresentationState()
     /// Closing the Player quits AmpX, as in Winamp. Injectable so tests can observe it.
@@ -575,6 +583,7 @@ final class AmpXHostCoordinator: AmpXEntheaTheaterHandling {
             audioPlayer: self.audioPlayer,
             panels: self.libraryPanels
         )
+        content.automix = self.automixLink
         content.onResizeViewport = { [weak self] phase in
             self?.handleLibraryResize(phase)
         }
