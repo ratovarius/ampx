@@ -14,6 +14,8 @@ IMPORTANT: before you plan, build or change anything in the product, or answer q
 
 1. `docs/CODE_STANDARDS.md`: how to write the code
 2. `docs/PROCESS.md`: how to plan, build and check the work
+3. `docs/BRAND.md`: the look
+4. `docs/TECH_STACK.md`: the tech choices. This file should be updated each time we choose some technology in the project
 
 Branch flow: `feature/*` → `develop` → `main`.
 
